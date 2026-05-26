@@ -7,7 +7,7 @@ name = "ventpy"
 version = "0.1.0"
 description = "High-performance mine ventilation calculation library (DS 024-2016-EM, Peru)"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.9"
 authors = [
@@ -21,7 +21,6 @@ classifiers = [
     "Programming Language :: C++",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "License :: OSI Approved :: MIT License",
 ]
 
 [project.optional-dependencies]

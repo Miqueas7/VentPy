@@ -158,17 +158,35 @@ public:
         const BlastingParams& params,
         const RegulatoryConfig& config
     ) {
-        AtmosphericParams atm;
-        atm.altitude_masl = 0.0;
+        validation::require_positive(params.explosive_kg,
+            "explosive_kg [kg] - Cantidad de explosivo por disparo");
+        validation::require_positive(params.dilution_time_min,
+            "dilution_time_min [min] - Tiempo de dilucion");
 
-        // Si no se especificó gas_volume_per_kg, usar valores por tipo
-        BlastingParams params_copy = params;
-        if (params_copy.gas_volume_per_kg <= 0) {
+        BlastingFlowResult result;
+        result.explosive_type = params.explosive_type;
+        result.explosive_kg = params.explosive_kg;
+        result.dilution_time_min = params.dilution_time_min;
+
+        double gas_volume_per_kg = params.gas_volume_per_kg;
+        if (gas_volume_per_kg <= 0.0) {
             auto [co, nox] = get_gas_factors(params);
-            params_copy.gas_volume_per_kg = (co + nox) / 1000.0;  // Aproximación
+            gas_volume_per_kg = (co + nox) / 1000.0;
         }
 
-        return calculate_full(params_copy, atm, config);
+        result.co_generated_liters = 0.0;
+        result.nox_generated_liters = 0.0;
+        result.total_gas_volume_m3 = params.explosive_kg * gas_volume_per_kg;
+        result.face_volume_m3 = params.face_area_m2 * params.face_length_m;
+        result.q_for_co_dilution = 0.0;
+        result.q_for_nox_dilution = 0.0;
+        result.q_for_volume_exchange =
+            result.total_gas_volume_m3 / params.dilution_time_min;
+        result.q_for_min_velocity = 0.0;
+        result.q_blasting = safety_ceil(result.q_for_volume_exchange);
+        result.governing_criterion = "total gas volume";
+        result.regulation_ref = "DS 024-2016-EM, Art. 243-244 [Gobernante: volumen total]";
+        return result;
     }
 
 private:

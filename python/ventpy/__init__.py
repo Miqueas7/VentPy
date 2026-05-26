@@ -107,8 +107,8 @@ from ventpy._ventpy_core import (
 # Visualization module (lazy import to avoid matplotlib dependency issues)
 def __getattr__(name):
     if name == "visualization":
-        from ventpy import visualization
-        return visualization
+        import importlib
+        return importlib.import_module(".visualization", __name__)
     raise AttributeError(f"module 'ventpy' has no attribute '{name}'")
 
 

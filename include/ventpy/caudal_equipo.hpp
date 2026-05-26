@@ -242,14 +242,31 @@ public:
         const DieselFleet& fleet,
         const RegulatoryConfig& config
     ) {
-        AtmosphericParams atm;
-        atm.altitude_masl = 0.0;  // Sin corrección de altitud
-
-        auto result = calculate_full(fleet, atm, 1.0, config);
-
-        // Para compatibilidad, usar el campo hp_factor simple
+        DieselFlowResult result;
         result.hp_factor_base = config.diesel_hp_factor();
+        result.hp_factor_corrected = result.hp_factor_base;
+        result.altitude_derate_factor = 1.0;
+        result.total_rated_hp = 0.0;
+        result.total_effective_hp = 0.0;
+        result.total_derated_hp = 0.0;
+        result.q_for_co_dilution = 0.0;
+        result.q_for_nox_dilution = 0.0;
+        result.q_for_pm_dilution = 0.0;
+        result.co_emission_total_g_min = 0.0;
+        result.nox_emission_total_g_min = 0.0;
 
+        for (const auto& eq_ptr : fleet.equipment()) {
+            const auto& eq = *eq_ptr;
+            result.equipment_names.push_back(eq.name);
+            result.total_rated_hp += eq.horsepower;
+
+            double hp_eff = eq.horsepower * eq.availability * eq.utilization;
+            result.total_effective_hp += hp_eff;
+        }
+
+        result.total_derated_hp = result.total_effective_hp;
+        result.q_diesel = safety_ceil(result.total_effective_hp * result.hp_factor_base);
+        result.regulation_ref = "DS 024-2016-EM, Art. 246 [Gobernante: factor HP]";
         return result;
     }
 

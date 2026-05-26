@@ -157,21 +157,19 @@ public:
         validation::require_positive_int(num_workers, "num_workers");
         validation::require_non_negative(altitude_masl, "altitude_masl [msnm]");
 
-        PersonnelParams personnel;
-        personnel.num_workers = num_workers;
-        personnel.activity = ActivityLevel::Moderate;
-
-        AtmosphericParams atm;
-        atm.altitude_masl = altitude_masl;
-
-        // Usar cálculo completo con área por defecto
-        double default_face_area = 12.0;  // m² típico galería 4x3m
-        auto full_result = calculate_full(personnel, atm, ZoneType::DevelopmentFace,
-                                          default_face_area, config);
-
-        // Mapear a la estructura simplificada para compatibilidad
-        // La estructura PersonnelFlowResult ya se llena correctamente
-        return full_result;
+        PersonnelFlowResult result;
+        result.num_workers = num_workers;
+        result.activity_level = ActivityLevel::Moderate;
+        result.altitude_masl = altitude_masl;
+        result.o2_consumption_lpm = get_o2_consumption(ActivityLevel::Moderate);
+        result.density_correction = AtmosphereCalculator::get_personnel_altitude_factor(
+            altitude_masl);
+        result.flow_per_person_base = get_base_flow_per_person(altitude_masl, config);
+        result.flow_per_person_corrected = result.flow_per_person_base;
+        result.q_personnel = safety_ceil(num_workers * result.flow_per_person_base);
+        result.min_velocity_check_mps = 0.0;
+        result.regulation_ref = "DS 024-2016-EM, Art. 236 [Gobernante: normativo]";
+        return result;
     }
 
 private:
