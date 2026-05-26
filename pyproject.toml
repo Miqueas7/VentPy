@@ -1,0 +1,37 @@
+[build-system]
+requires = ["scikit-build-core>=0.8", "nanobind>=2.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "ventpy"
+version = "0.1.0"
+description = "High-performance mine ventilation calculation library (DS 024-2016-EM, Peru)"
+readme = "README.md"
+license = {text = "MIT"}
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+authors = [
+    {name = "VentPy Project"},
+]
+keywords = ["mining", "ventilation", "safety", "DS024", "engineering"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+viz = ["matplotlib>=3.7", "numpy>=1.24"]
+
+[tool.scikit-build]
+cmake.build-type = "Release"
+cmake.args = ["-DVENTPY_BUILD_PYTHON=ON", "-DVENTPY_BUILD_TESTS=OFF"]
+wheel.packages = ["python/ventpy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]

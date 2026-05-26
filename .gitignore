@@ -1,0 +1,42 @@
+# Build artifacts
+build/
+_build/
+dist/
+wheelhouse/
+*.egg-info/
+*.so
+*.pyd
+*.dll
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Python caches and virtual environments
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# IDE and editor state
+.vs/
+.vscode/
+.idea/
+*.sln
+*.vcxproj*
+
+# Internal agent and working documentation
+CLAUDE/
+CLAUDE.md
+docs/
+AGENT_NOTES.md
+
+# OS files
+.DS_Store
+Thumbs.db
