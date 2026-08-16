@@ -12,6 +12,10 @@ import pytest
 
 import ventpy
 
+import importlib.util
+
+HAS_MATPLOTLIB = importlib.util.find_spec("matplotlib") is not None
+
 
 # ============================================================================
 # Fixtures
@@ -518,10 +522,7 @@ class TestVisualization:
         custom_style.title_fontsize = 16
         assert custom_style.title_fontsize == 16
 
-    @pytest.mark.skipif(
-        not pytest.importorskip("matplotlib", reason="matplotlib not installed"),
-        reason="matplotlib not installed"
-    )
+    @pytest.mark.skipif(not HAS_MATPLOTLIB, reason="matplotlib not installed")
     def test_plot_flow_comparison(self):
         """Test bar chart generation."""
         from ventpy import visualization as viz
@@ -546,10 +547,7 @@ class TestVisualization:
         import matplotlib.pyplot as plt
         plt.close(fig)
 
-    @pytest.mark.skipif(
-        not pytest.importorskip("matplotlib", reason="matplotlib not installed"),
-        reason="matplotlib not installed"
-    )
+    @pytest.mark.skipif(not HAS_MATPLOTLIB, reason="matplotlib not installed")
     def test_plot_flow_breakdown(self):
         """Test pie chart generation."""
         from ventpy import visualization as viz
