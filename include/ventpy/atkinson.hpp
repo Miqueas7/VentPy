@@ -113,4 +113,80 @@ inline double resolve_shock_factor(const AirwaySingularity& s) {
     throw std::invalid_argument("[VentPy] resolve_shock_factor: tipo desconocido");
 }
 
+/**
+ * @brief Calculador de resistencia de ramal (Atkinson + choque).
+ *
+ * Unidades: API de caudal en m³/min (consistencia VentPy); internamente la
+ * ley cuadrática usa Q en m³/s (ΔP = R·(Q/60)²). R en Ns²/m⁸; ΔP en Pa y
+ * mm H₂O (1 mm H₂O = 9.80665 Pa). SIN safety_ceil: R y ΔP crudos (spec).
+ */
+class AtkinsonCalculator {
+public:
+    [[nodiscard]] static AirwayResistanceResult calculate_resistance(
+        const AirwayParams& p, const AtmosphericParams& atm
+    ) {
+        validation::require_positive(p.length_m,    "length_m [m] - Longitud del ramal");
+        validation::require_positive(p.perimeter_m, "perimeter_m [m] - Perimetro del ramal");
+        validation::require_positive(p.area_m2,     "area_m2 [m2] - Seccion del ramal");
+
+        AirwayResistanceResult r;
+        r.airway_id = p.airway_id;
+
+        if (p.lining == AirwayLining::Manual) {
+            validation::require_positive(p.atkinson_k,
+                "atkinson_k [kg/m3] - Factor k manual (AirwayLining::Manual)");
+            r.k_used = p.atkinson_k;
+            r.biblio_ref = "k manual del usuario (referido a rho = 1.2 kg/m3)";
+        } else {
+            r.k_used = friction_factor_for(p.lining);
+            for (const auto& e : atkinson_friction_factors())
+                if (e.lining == p.lining) { r.biblio_ref = e.biblio_ref; break; }
+        }
+
+        const double pressure_kpa = atm.barometric_pressure_kpa > 0.0
+            ? atm.barometric_pressure_kpa
+            : AtmosphereCalculator::calculate_pressure_kpa(atm.altitude_masl);
+        r.air_density_kg_m3 = AtmosphereCalculator::calculate_density_from_pressure_kpa(
+            pressure_kpa, atm.dry_bulb_temp_c);
+
+        // McPherson ec. 5.9: R = (k_1.2 · L · per / A³) · ρ/1.2
+        r.k_corrected = r.k_used * r.air_density_kg_m3 / 1.2;
+        r.r_friction = r.k_corrected * p.length_m * p.perimeter_m /
+                       (p.area_m2 * p.area_m2 * p.area_m2);
+
+        // Choque: R_x = X·ρ/(2A²) (McPherson ec. 5.18)
+        for (const AirwaySingularity& s : p.singularities) {
+            const double x = resolve_shock_factor(s);
+            r.r_shock += x * r.air_density_kg_m3 /
+                         (2.0 * p.area_m2 * p.area_m2);
+        }
+        r.r_total = r.r_friction + r.r_shock;
+        return r;
+    }
+
+    [[nodiscard]] static AirwayResistanceResult calculate(
+        const AirwayParams& p, const AtmosphericParams& atm, double q_m3min
+    ) {
+        validation::require_non_negative(q_m3min,
+            "q_m3min [m3/min] - Caudal del ramal");
+        AirwayResistanceResult r = calculate_resistance(p, atm);
+        r.q_m3min = q_m3min;
+        const double q_m3s = q_m3min / 60.0;
+        r.velocity_mps = q_m3s / p.area_m2;
+        r.pressure_drop_pa = r.r_total * q_m3s * q_m3s;
+        r.pressure_drop_mmh2o = r.pressure_drop_pa / 9.80665;
+
+        // DS 024-2016-EM, Art. 248 (misma cita usada en cobertura.hpp):
+        // velocidad en labores 20-250 m/min.
+        const double v_mpm = r.velocity_mps * 60.0;
+        if (q_m3min > 0.0 && (v_mpm < 20.0 || v_mpm > 250.0)) {
+            std::ostringstream oss;
+            oss << "Velocidad " << v_mpm << " m/min fuera del rango [20, 250] "
+                << "(DS 024-2016-EM, Art. 248)";
+            r.warnings.push_back(oss.str());
+        }
+        return r;
+    }
+};
+
 } // namespace ventpy
