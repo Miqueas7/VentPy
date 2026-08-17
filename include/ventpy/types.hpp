@@ -305,6 +305,52 @@ struct CoverageParams {
     bool anfo_or_blasting_agents = false; ///< Art. 248: con ANFO el mínimo es 25 m/min
 };
 
+/// Tipo de labor/revestimiento — mapeo 1:1 a McPherson (2009) Tabla 5.1 (gate 2026-08-17).
+enum class AirwayLining {
+    SmoothLined, Shotcrete, UnlinedMinorIrreg, UnlinedTypical, UnlinedRough,
+    ArchedDriftBolted, ArchedRampBolted, TimberedCribbed,
+    DuctFabricCollapsible, DuctFlexibleSpiral, DuctFiberglass, DuctSteelSpiral,
+    Manual,   ///< k provisto por el usuario
+};
+
+/// Singularidad de choque. Bend90/Bend45/Junction son Manual-only en v1
+/// (McPherson solo publica gráficos/fórmulas de red — ver atkinson.hpp).
+enum class SingularityType {
+    Bend90, Bend45, Entrance, Exit, Expansion, Contraction, Junction, Manual,
+};
+
+struct AirwaySingularity {
+    SingularityType type = SingularityType::Manual;
+    double shock_factor_x = 0.0;  ///< X manual (> 0 para Manual/Bend*/Junction)
+    double area_ratio = 0.0;      ///< Expansion: A1/A2; Contraction: A2/A1 (0<r<1)
+    std::string description;
+};
+
+struct AirwayParams {
+    std::string airway_id;
+    double length_m = 0.0;
+    double perimeter_m = 0.0;
+    double area_m2 = 0.0;
+    AirwayLining lining = AirwayLining::Manual;
+    double atkinson_k = 0.0;      ///< [kg/m³ a ρ=1.2]; > 0 obligatorio si Manual
+    std::vector<AirwaySingularity> singularities;
+};
+
+/// Entrada de la tabla de fricción (auditable, con cita bibliográfica).
+struct FrictionFactorEntry {
+    AirwayLining lining;
+    double k;                     ///< [kg/m³] a ρ = 1.2
+    std::string biblio_ref;
+};
+
+/// Entrada informativa de la tabla de choque.
+struct ShockFactorEntry {
+    SingularityType type;
+    double x;                     ///< 0 si es fórmula/manual
+    std::string biblio_ref;
+    std::string note;
+};
+
 // ============================================================================
 // Structs de resultado (para auditoría)
 // ============================================================================
@@ -526,6 +572,24 @@ struct MineCoverageResult {
     bool   compliant = false;             ///< ambos (criterio estricto)
     std::vector<std::string> warnings;
     std::string regulation_ref;
+};
+
+/// Resultado auditable de resistencia de ramal (SIN safety_ceil: R y ΔP crudos —
+/// redondearlos falsearía el balance de red; ver spec SP-3a).
+struct AirwayResistanceResult {
+    std::string airway_id;
+    double k_used = 0.0;              ///< k a ρ estándar 1.2
+    double k_corrected = 0.0;         ///< k × ρ/1.2
+    double air_density_kg_m3 = 0.0;
+    double r_friction = 0.0;          ///< [Ns²/m⁸]
+    double r_shock = 0.0;
+    double r_total = 0.0;
+    double q_m3min = 0.0;
+    double velocity_mps = 0.0;
+    double pressure_drop_pa = 0.0;
+    double pressure_drop_mmh2o = 0.0;
+    std::string biblio_ref;
+    std::vector<std::string> warnings;
 };
 
 // ============================================================================
