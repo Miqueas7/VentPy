@@ -58,6 +58,48 @@ inline const std::vector<GasLimit>& gas_limits_peru() {
 }
 
 /**
+ * @brief Tabla LMP de Chile — DS 594 Art. 66 (vía remisión del DS 132
+ *        Arts. 135/144) y DS 132 directos.
+ *
+ * Los límites en ppm NO se corrigen por altitud: el factor Fa = P/760 del
+ * DS 594 Art. 63 (> 1.000 msnm) aplica SOLO a límites expresados en mg/m³;
+ * la unidad canónica de esta tabla es ppm / % vol (decisión 2026-08-17).
+ * Jornadas > 8 h requieren además el factor Fj (DS 594, Art. 62) — fuera del
+ * alcance de esta tabla.
+ */
+inline const std::vector<GasLimit>& gas_limits_chile() {
+    static const std::vector<GasLimit> table = {
+        {.gas = GasType::CO,  .unit = ConcentrationUnit::PPM,
+         .twa_8h = 44.0,
+         .regulation_ref = "DS 594, Art. 66 (LPP 44 ppm / 48 mg/m3). Umbral operacional "
+                           "diesel: DS 132, Art. 135 detiene equipos a 40 ppm"},
+        {.gas = GasType::CO2, .unit = ConcentrationUnit::PPM,
+         .twa_8h = 4375.0, .stel = 30000.0,
+         .regulation_ref = "DS 594, Art. 66 'Anhidrido Carbonico' (LPP/LPT)"},
+        {.gas = GasType::NO2, .unit = ConcentrationUnit::PPM,
+         .twa_8h = 2.6, .stel = 5.0,
+         .regulation_ref = "DS 594, Art. 66 (LPP/LPT). Umbral operacional diesel: "
+                           "DS 132, Art. 135 detiene equipos a NOx 20 ppm"},
+        {.gas = GasType::SO2, .unit = ConcentrationUnit::PPM,
+         .twa_8h = 1.7, .stel = 5.0,
+         .regulation_ref = "DS 594, Art. 66 'Anhidrido Sulfuroso' (LPP/LPT)"},
+        {.gas = GasType::H2S, .unit = ConcentrationUnit::PPM,
+         .twa_8h = 8.8, .stel = 15.0,
+         .regulation_ref = "DS 594, Art. 66 'Hidrogeno Sulfurado' (LPP/LPT)"},
+        {.gas = GasType::CH4, .unit = ConcentrationUnit::PercentVolume,
+         .ceiling = 0.75,
+         .regulation_ref = "DS 132, Art. 274: 0.75% en galerias de retorno general "
+                           "(valor conservador adoptado); 2% en frentes de arranque"},
+        {.gas = GasType::O2,  .unit = ConcentrationUnit::PercentVolume,
+         .floor_min = 19.5,
+         .regulation_ref = "DS 132, Art. 144 (19.5%, redaccion 'en cuanto a peso' "
+                           "documentada como ambigua; interpretacion conservadora). "
+                           "DS 594, Art. 58: prohibido < 18% sin EPP"},
+    };
+    return table;
+}
+
+/**
  * @brief Tabla LMP completa de la norma indicada.
  * @throws std::invalid_argument si la norma no tiene tabla implementada.
  */
@@ -65,10 +107,11 @@ inline const std::vector<GasLimit>& gas_limits(RegulatoryStandard standard) {
     switch (standard) {
         case RegulatoryStandard::DS024_Peru:
             return gas_limits_peru();
-        default:
-            throw std::invalid_argument(
-                "[VentPy] gas_limits: no LMP table implemented for this standard");
+        case RegulatoryStandard::DS132_Chile:
+            return gas_limits_chile();
     }
+    throw std::invalid_argument(
+        "[VentPy] gas_limits: no LMP table implemented for this standard");
 }
 
 /**
