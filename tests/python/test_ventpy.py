@@ -71,15 +71,17 @@ class TestRegulatoryConfig:
 
 class TestPersonnelFlow:
     def test_basic_calculation(self, default_config):
+        # Art. 247: 2,500 msnm cae en la banda 1,500-3,000 -> 4 m3/min
         result = ventpy.calculate_personnel_flow(10, 2500.0, default_config)
         assert result.num_workers == 10
-        assert result.flow_per_person_base == 3.0
-        assert result.q_personnel == 30.0
+        assert result.flow_per_person_base == 4.0
+        assert result.q_personnel == 40.0
 
     def test_altitude_scaling(self, default_config):
+        # Art. 247: sobre 4,000 msnm -> 6 m3/min (+100%)
         result = ventpy.calculate_personnel_flow(10, 4500.0, default_config)
-        assert result.flow_per_person_base == 5.0
-        assert result.q_personnel == 50.0
+        assert result.flow_per_person_base == 6.0
+        assert result.q_personnel == 60.0
 
     def test_zero_workers_raises(self, default_config):
         with pytest.raises(ValueError):

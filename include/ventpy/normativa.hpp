@@ -36,14 +36,25 @@ public:
      * Todos los valores por defecto corresponden al mínimo normativo peruano.
      * El ingeniero puede sobreescribirlos con estándares corporativos
      * más exigentes al momento de la construcción.
+     *
+     * Escala de caudal por persona — DS 024-2016-EM, Art. 247 (texto original,
+     * no modificado por el DS 023-2017-EM):
+     * "hasta 1,500 msnm: 3 m³/min; de 1,500 a 3,000: 4 (+40%);
+     *  de 3,000 a 4,000: 5 (+70%); sobre los 4,000: 6 (+100%)".
+     * Semántica de borde: '>' estricto — en el umbral exacto rige la banda
+     * inferior (lectura "hasta X" inclusiva del texto normativo).
+     * (Corrección normativa 2026-08-17: versiones previas usaban 3/4/5 con
+     * umbrales 3000/4000, una banda corrida respecto del Art. 247.)
      */
     explicit RegulatoryConfig(
         RegulatoryStandard standard           = RegulatoryStandard::DS024_Peru,
-        double min_flow_per_person_m3min      = 3.0,
-        double altitude_threshold_1_masl      = 3000.0,
-        double flow_per_person_above_t1       = 4.0,
-        double altitude_threshold_2_masl      = 4000.0,
-        double flow_per_person_above_t2       = 5.0,
+        double min_flow_per_person_m3min      = 3.0,     // Art. 247: hasta 1,500 msnm
+        double altitude_threshold_1_masl      = 1500.0,
+        double flow_per_person_above_t1       = 4.0,     // Art. 247: 1,500–3,000
+        double altitude_threshold_2_masl      = 3000.0,
+        double flow_per_person_above_t2       = 5.0,     // Art. 247: 3,000–4,000
+        double altitude_threshold_3_masl      = 4000.0,
+        double flow_per_person_above_t3       = 6.0,     // Art. 247: sobre 4,000
         double diesel_hp_factor_m3min         = 3.0,
         double max_dilution_time_min          = 30.0,
         double default_gas_volume_per_kg_m3   = 0.04,
@@ -55,6 +66,8 @@ public:
         , flow_above_t1_(flow_per_person_above_t1)
         , altitude_threshold_2_(altitude_threshold_2_masl)
         , flow_above_t2_(flow_per_person_above_t2)
+        , altitude_threshold_3_(altitude_threshold_3_masl)
+        , flow_above_t3_(flow_per_person_above_t3)
         , diesel_hp_factor_(diesel_hp_factor_m3min)
         , max_dilution_time_(max_dilution_time_min)
         , default_gas_volume_(default_gas_volume_per_kg_m3)
@@ -95,10 +108,12 @@ public:
         return RegulatoryConfig{
             RegulatoryStandard::DS132_Chile,
             /* min_flow_per_person_m3min */    3.0,    // Art. 138
-            /* altitude_threshold_1_masl */    3000.0, // sin efecto (ver Doxygen)
+            /* altitude_threshold_1_masl */    1500.0, // sin efecto (ver Doxygen)
             /* flow_per_person_above_t1 */     3.0,    // Art. 138 (sin escalón)
-            /* altitude_threshold_2_masl */    4000.0, // sin efecto
+            /* altitude_threshold_2_masl */    3000.0, // sin efecto
             /* flow_per_person_above_t2 */     3.0,    // Art. 138 (sin escalón)
+            /* altitude_threshold_3_masl */    4000.0, // sin efecto
+            /* flow_per_person_above_t3 */     3.0,    // Art. 138 (sin escalón)
             /* diesel_hp_factor_m3min */       2.83,   // Art. 132
             /* max_dilution_time_min */        30.0,   // no regulado por DS 132
             /* default_gas_volume_per_kg_m3 */ 0.04,   // no regulado por DS 132
@@ -136,6 +151,12 @@ public:
     /// Caudal por persona cuando altitud > umbral 2 [m³/min]
     [[nodiscard]] double flow_above_threshold_2() const noexcept { return flow_above_t2_; }
 
+    /// Umbral altitud nivel 3 [msnm]
+    [[nodiscard]] double altitude_threshold_3() const noexcept { return altitude_threshold_3_; }
+
+    /// Caudal por persona cuando altitud > umbral 3 [m³/min] (Art. 247: 6)
+    [[nodiscard]] double flow_above_threshold_3() const noexcept { return flow_above_t3_; }
+
     /// DS 024-2016-EM, Art. 246: Factor HP × m³/min para equipos diésel.
     [[nodiscard]] double diesel_hp_factor() const noexcept { return diesel_hp_factor_; }
 
@@ -167,6 +188,8 @@ private:
     double flow_above_t1_;
     double altitude_threshold_2_;
     double flow_above_t2_;
+    double altitude_threshold_3_;
+    double flow_above_t3_;
     double diesel_hp_factor_;
     double max_dilution_time_;
     double default_gas_volume_;
@@ -181,8 +204,16 @@ private:
         v::require_positive(min_flow_per_person_,   "min_flow_per_person [m3/min]");
         v::require_non_negative(altitude_threshold_1_, "altitude_threshold_1 [msnm]");
         v::require_non_negative(altitude_threshold_2_, "altitude_threshold_2 [msnm]");
+        v::require_non_negative(altitude_threshold_3_, "altitude_threshold_3 [msnm]");
         v::require_positive(flow_above_t1_,         "flow_above_threshold_1 [m3/min]");
         v::require_positive(flow_above_t2_,         "flow_above_threshold_2 [m3/min]");
+        v::require_positive(flow_above_t3_,         "flow_above_threshold_3 [m3/min]");
+        if (!(altitude_threshold_1_ < altitude_threshold_2_ &&
+              altitude_threshold_2_ < altitude_threshold_3_)) {
+            throw std::invalid_argument(
+                "Error de dominio [VentPy]: los umbrales de altitud deben ser "
+                "estrictamente crecientes (altitude_threshold_1 < 2 < 3).");
+        }
         v::require_positive(diesel_hp_factor_,      "diesel_hp_factor [m3/min/HP]");
         v::require_positive(max_dilution_time_,     "max_dilution_time [min]");
         v::require_positive(default_gas_volume_,    "default_gas_volume_per_kg [m3/kg]");
