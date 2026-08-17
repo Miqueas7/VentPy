@@ -40,10 +40,7 @@ enum class ZoneType {
  */
 enum class RegulatoryStandard {
     DS024_Peru,     ///< DS 024-2016-EM + DS 023-2017-EM (Perú)
-    // Reservados para futura expansión:
-    // DS132_Chile,
-    // CAN_OHS,
-    // AS1715_Australia
+    DS132_Chile,    ///< DS 132 Reglamento de Seguridad Minera (Chile)
 };
 
 /**
