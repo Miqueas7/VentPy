@@ -57,6 +57,19 @@ TEST(CoverageZone, CoberturaJustaGeneraAdvertenciaDeMargen) {
     EXPECT_DOUBLE_EQ(r.deficit_m3min, 0.0);
 }
 
+TEST(CoverageZone, MedidoCeroDirectoEsValido) {
+    // Medición directa Q=0 (labor sin ventilar): dato real, no debe lanzar.
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.q_measured_m3min = 0.0;
+
+    auto r = CoverageCalculator::compare_zone(100.0, m);
+
+    EXPECT_FALSE(r.compliant);
+    EXPECT_DOUBLE_EQ(r.coverage_ratio, 0.0);
+    EXPECT_DOUBLE_EQ(r.deficit_m3min, 100.0);
+}
+
 TEST(CoverageZone, SobreVentilacionAdvierte) {
     ZoneMeasurement m;
     m.zone_name = "Bypass 12";
@@ -143,6 +156,17 @@ TEST(CoverageZone, ParamsInvalidosLanzan) {
                  std::invalid_argument);
 }
 
+TEST(CoverageZone, MinVelocityNoPositivaLanza) {
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.q_measured_m3min = 100.0;
+
+    CoverageParams p;
+    p.min_velocity_mpm = 0.0;
+    EXPECT_THROW(CoverageCalculator::compare_zone(100.0, m, p),
+                 std::invalid_argument);
+}
+
 // ============================================================================
 // compare_zone — estaciones de aforo + velocidad Art. 248
 // ============================================================================
@@ -203,6 +227,54 @@ TEST(CoverageStations, AnfoElevaMinimoA25) {
     auto con_anfo = CoverageCalculator::compare_zone(100.0, m, p);
     EXPECT_FALSE(con_anfo.stations[0].velocity_ok);
     EXPECT_NE(con_anfo.stations[0].warning.find("ANFO"), std::string::npos);
+}
+
+TEST(CoverageStations, AnfoConFalloPorMaximoNoMencionaAnfo) {
+    // El sufijo de ANFO solo aplica cuando el fallo es por el MÍNIMO
+    // (Art. 248: con ANFO el mínimo sube a 25 m/min). Si el fallo es por
+    // exceder el máximo, mencionar ANFO es engañoso.
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.stations.push_back({"E-1", 4.0, 4.5});    // 270 m/min > 250
+
+    CoverageParams p;
+    p.anfo_or_blasting_agents = true;
+
+    auto r = CoverageCalculator::compare_zone(100.0, m, p);
+    EXPECT_FALSE(r.stations[0].velocity_ok);
+    EXPECT_NE(r.stations[0].warning.find("248"), std::string::npos);
+    EXPECT_EQ(r.stations[0].warning.find("ANFO"), std::string::npos);
+}
+
+TEST(CoverageStations, FronteraExacta20y250EsValida) {
+    // Semántica inclusiva: 20 y 250 m/min son válidos (limites del Art. 248).
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.stations.push_back({"E-20", 6.0, 20.0 / 60.0});   // exactamente 20 m/min
+    m.stations.push_back({"E-250", 1.0, 250.0 / 60.0}); // exactamente 250 m/min
+
+    auto r = CoverageCalculator::compare_zone(100.0, m);
+
+    ASSERT_EQ(r.stations.size(), 2u);
+    EXPECT_TRUE(r.stations[0].velocity_ok);
+    EXPECT_TRUE(r.stations[1].velocity_ok);
+}
+
+TEST(CoverageStations, AnfoConMinimoCustomMayorUsaElMayor) {
+    // Mínimo efectivo = max(min_velocity_mpm, 25). Si el custom ya es mayor
+    // que 25, debe prevalecer el custom.
+    CoverageParams p;
+    p.anfo_or_blasting_agents = true;
+    p.min_velocity_mpm = 30.0;
+
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.stations.push_back({"E-1", 10.0, 28.0 / 60.0});   // 28 m/min
+
+    auto r = CoverageCalculator::compare_zone(100.0, m, p);
+
+    ASSERT_EQ(r.stations.size(), 1u);
+    EXPECT_FALSE(r.stations[0].velocity_ok);   // 28 < max(30, 25) = 30
 }
 
 TEST(CoverageStations, VelocidadCeroEsMedicionValida) {
@@ -323,6 +395,53 @@ TEST(CoverageSurvey, ZonaConEstacionesPropagaAdvertencias) {
         if (w.find("248") != std::string::npos) velocity_warned = true;
     }
     EXPECT_TRUE(velocity_warned);
+}
+
+TEST(CoverageSurvey, ZonaSinDemandaLanzaConMensajeDeZona) {
+    // Zona sin trabajadores, flota ni voladura -> q_total = 0. No tiene
+    // sentido comparar cobertura contra una demanda nula: debe lanzar con
+    // el nombre de la zona en el mensaje para facilitar el diagnóstico.
+    ZoneSurvey z;
+    z.zone_name = "Zona muerta";
+    z.input.zone_type = ZoneType::DevelopmentFace;
+    z.input.num_workers = 0;
+    z.measurement.zone_name = "Zona muerta";
+    z.measurement.q_measured_m3min = 100.0;
+
+    std::vector<ZoneSurvey> zones{z};
+
+    bool threw = false;
+    try {
+        CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru());
+    } catch (const std::invalid_argument& e) {
+        threw = true;
+        EXPECT_NE(std::string(e.what()).find("Zona muerta"), std::string::npos);
+    }
+    EXPECT_TRUE(threw);
+}
+
+TEST(CoverageSurvey, AdvertenciasDeMargenYSobreVentilacionAgregadas) {
+    std::vector<ZoneSurvey> zones;
+    zones.push_back(make_zone("Justa", 1400.0, 210.0));    // req 207; 210/207=1.0145 (<1.10)
+    zones.push_back(make_zone("Sobrada", 1400.0, 400.0));  // req 207; 400/207=1.932 (>1.5)
+
+    auto r = CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru());
+
+    bool justa_warned = false;
+    bool sobrada_warned = false;
+    for (const auto& w : r.warnings) {
+        if (w.find("Justa") != std::string::npos &&
+            w.find("cobertura justa") != std::string::npos) {
+            justa_warned = true;
+        }
+        if (w.find("Sobrada") != std::string::npos &&
+            w.find("sobre-ventilada") != std::string::npos) {
+            sobrada_warned = true;
+        }
+    }
+    EXPECT_TRUE(justa_warned);
+    EXPECT_TRUE(sobrada_warned);
+    EXPECT_TRUE(r.compliant);
 }
 
 TEST(CoverageSurvey, LevantamientoVacioLanza) {
