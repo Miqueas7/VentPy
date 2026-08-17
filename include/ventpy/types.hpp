@@ -44,6 +44,46 @@ enum class RegulatoryStandard {
 };
 
 /**
+ * @brief Gases regulados en interior mina.
+ */
+enum class GasType {
+    CO,    ///< Monóxido de carbono
+    CO2,   ///< Dióxido de carbono
+    NO2,   ///< Dióxido de nitrógeno
+    SO2,   ///< Dióxido de azufre
+    H2S,   ///< Ácido sulfhídrico
+    CH4,   ///< Metano
+    NO,    ///< Monóxido de nitrógeno
+    O2,    ///< Oxígeno (límites mínimo/máximo)
+};
+
+/// Unidad en que la norma expresa un límite de concentración.
+enum class ConcentrationUnit {
+    PPM,            ///< Partes por millón (volumen)
+    PercentVolume,  ///< Porcentaje en volumen (O2, CH4)
+};
+
+/**
+ * @brief Límite de exposición ocupacional de un gas bajo una norma.
+ *
+ * Estructura auditable: cada entrada cita su fuente normativa exacta en
+ * `regulation_ref`. Los campos de valor son opcionales porque cada norma
+ * define combinaciones distintas (TWA+STEL, solo techo, mínimo para O2);
+ * toda entrada publicada garantiza al menos un valor presente.
+ * Unidad canónica: ppm / % vol (decisión de diseño 2026-08-17 — comparar en
+ * la unidad en que se mide; los pares en mg/m³ quedan en la cita).
+ */
+struct GasLimit {
+    GasType gas;
+    ConcentrationUnit unit;
+    std::optional<double> twa_8h;    ///< Promedio ponderado 8 h (TWA / LPP)
+    std::optional<double> stel;      ///< Corta duración (STEL / LPT)
+    std::optional<double> ceiling;   ///< Techo absoluto (C) — o máximo para O2
+    std::optional<double> floor_min; ///< Mínimo permitido (solo O2)
+    std::string regulation_ref;      ///< Cita normativa exacta
+};
+
+/**
  * @brief Nivel de actividad física del personal.
  *
  * Afecta el consumo de oxígeno y la tasa metabólica.
