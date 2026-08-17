@@ -266,6 +266,45 @@ struct ThermalParams {
     double face_area_m2 = 0.0;              ///< Sección de la labor [m²]
 };
 
+/**
+ * @brief Estación de aforo de un levantamiento de ventilación.
+ *
+ * El caudal de la estación se calcula como Q = area × velocidad × 60.
+ */
+struct AirflowStation {
+    std::string station_id;
+    double area_m2 = 0.0;       ///< Sección de la labor en la estación [m²] (> 0)
+    double velocity_mps = 0.0;  ///< Velocidad promedio medida [m/s] (≥ 0; 0 = sin flujo)
+};
+
+/**
+ * @brief Medición de caudal de una zona: exactamente UNA fuente.
+ *
+ * O bien el caudal ya aforado (`q_measured_m3min`), o bien la lista de
+ * estaciones (entradas PARALELAS de la zona: sus caudales se suman; si se
+ * aforó la misma labor varias veces, promediar antes de ingresar).
+ */
+struct ZoneMeasurement {
+    std::string zone_name;
+    std::optional<double> q_measured_m3min;   ///< Caudal ya aforado [m³/min]
+    std::vector<AirflowStation> stations;     ///< O estaciones de aforo
+};
+
+/**
+ * @brief Umbrales del análisis de cobertura.
+ *
+ * `warning_margin` y `overventilation_factor` son criterios INGENIERILES
+ * (no normados — verificación negativa del gate 2026-08-17). Los límites de
+ * velocidad provienen del DS 024-2016-EM, Art. 248 (texto original vigente).
+ */
+struct CoverageParams {
+    double warning_margin = 0.10;         ///< Advertir si cobertura < 1+margen (ingenieril)
+    double overventilation_factor = 1.5;  ///< Advertir si cobertura > factor (ingenieril)
+    double min_velocity_mpm = 20.0;       ///< DS 024, Art. 248: mínimo 20 m/min
+    double max_velocity_mpm = 250.0;      ///< DS 024, Art. 248: máximo 250 m/min
+    bool anfo_or_blasting_agents = false; ///< Art. 248: con ANFO el mínimo es 25 m/min
+};
+
 // ============================================================================
 // Structs de resultado (para auditoría)
 // ============================================================================
@@ -441,6 +480,52 @@ struct VentilationDemandResult {
     std::string governing_factor;       ///< Qué factor gobierna
     std::string notes;                  ///< Notas adicionales
     std::vector<std::string> warnings;  ///< Advertencias generadas
+};
+
+/**
+ * @brief Resultado de una estación de aforo (auditable).
+ */
+struct StationResult {
+    std::string station_id;
+    double area_m2 = 0.0;
+    double velocity_mps = 0.0;
+    double velocity_mpm = 0.0;      ///< = velocity_mps × 60 (unidad del Art. 248)
+    double q_station_m3min = 0.0;   ///< = area × velocity_mps × 60 (crudo)
+    bool   velocity_ok = true;      ///< dentro de [mín efectivo, máx] del Art. 248
+    std::string warning;            ///< vacío si velocity_ok
+};
+
+/**
+ * @brief Cobertura de una zona: requerido vs medido (auditable).
+ */
+struct ZoneCoverageResult {
+    std::string zone_name;
+    double q_required_m3min = 0.0;  ///< Requerido (del Governor: ya con fugas + FS)
+    double q_measured_m3min = 0.0;  ///< Medido (directo o Σ estaciones, crudo)
+    double coverage_ratio = 0.0;    ///< medido/requerido, crudo (diagnóstico)
+    double deficit_m3min = 0.0;     ///< safety_ceil(req − med) si hay déficit; 0 si no
+    bool   compliant = false;             ///< medido ≥ requerido
+    bool   near_deficit_warning = false;  ///< cumple pero cobertura < 1+margen
+    bool   overventilated = false;        ///< cobertura > factor
+    std::vector<StationResult> stations;  ///< desglose (vacío si medición directa)
+    std::optional<VentilationDemandResult> demand;  ///< solo vía analyze_survey
+    std::string regulation_ref;
+};
+
+/**
+ * @brief Balance de cobertura de la mina completa (auditable).
+ */
+struct MineCoverageResult {
+    std::vector<ZoneCoverageResult> zones;
+    double q_required_total_m3min = 0.0;
+    double q_measured_total_m3min = 0.0;
+    double coverage_ratio = 0.0;          ///< global, crudo
+    double deficit_total_m3min = 0.0;     ///< safety_ceil(Σreq − Σmed) si positivo
+    bool   global_compliant = false;      ///< Σ medido ≥ Σ requerido (Art. 252.f)
+    bool   all_zones_compliant = false;   ///< ninguna zona en déficit (Art. 252.g)
+    bool   compliant = false;             ///< ambos (criterio estricto)
+    std::vector<std::string> warnings;
+    std::string regulation_ref;
 };
 
 // ============================================================================
