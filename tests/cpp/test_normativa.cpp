@@ -4,8 +4,10 @@
  */
 
 #include <gtest/gtest.h>
+#include <cmath>
 #include <stdexcept>
 
+#include "ventpy/governor.hpp"
 #include "ventpy/normativa.hpp"
 
 using namespace ventpy;
@@ -80,4 +82,50 @@ TEST(RegulatoryPresets, StandardName_Chile) {
 TEST(RegulatoryPresets, StandardName_PeruUnchanged) {
     EXPECT_EQ(RegulatoryConfig::peru().standard_name(),
               "DS 024-2016-EM / DS 023-2017-EM (Peru)");
+}
+
+// ============================================================================
+// End-to-end: preset chileno a través del Governor (calculate_full)
+// Derivación (governor-investigation.md, 2026-08-17):
+//   Desglose normativo chileno:
+//     flow_per_person_base = 3,0 (Art. 138 — SIN escalón a 4.200 msnm)
+//     hp_factor_base = 2,83 (Art. 132)
+//     método HP: 150 × 0,85 × 0,70 × 2,83 = 252,5775 m³/min
+//   Criterios robustos de calculate_full():
+//     Q_Per = max(personal corregido, piso velocidad 12 m² × 0,25 m/s × 60) = 180
+//     Q_Eq  = máx(método HP, dilución NOx Tier3) ≈ 853  → gobierna diésel
+//   Total = safety_ceil(q_gobernante × 1,15) ≈ 981 m³/min
+// ============================================================================
+
+TEST(RegulatoryPresets, Chile_EndToEnd_Governor) {
+    VentilationGovernor governor{RegulatoryConfig::chile()};
+
+    VentilationInput input;
+    input.zone_type = ZoneType::DevelopmentFace;
+    input.num_workers = 10;
+    input.altitude_masl = 4200.0;  // en Chile la altitud NO cambia el caudal/persona
+
+    DieselFleet fleet;
+    fleet.add_equipment("Scoop ST7", 150.0, 0.85, 0.70);
+    input.diesel_fleet = fleet;
+
+    auto result = governor.calculateTotalDemand(input);
+
+    ASSERT_TRUE(result.personnel.has_value());
+    ASSERT_TRUE(result.diesel.has_value());
+
+    // El preset chileno es visible en el desglose auditable:
+    EXPECT_DOUBLE_EQ(result.personnel->flow_per_person_base, 3.0);  // sin escalón
+    EXPECT_DOUBLE_EQ(result.diesel->hp_factor_base, 2.83);          // Art. 132
+
+    // Criterios robustos de calculate_full() (no normativos chilenos):
+    EXPECT_NEAR(result.q_personnel_m3min, 180.0, 0.01);   // piso de velocidad
+    EXPECT_NEAR(result.diesel->q_for_nox_dilution, 853.0, 2.0);
+    EXPECT_EQ(result.governing_factor, "diesel (Q_Eq)");
+
+    // Cadena de fugas + redondeo de seguridad exacta:
+    EXPECT_DOUBLE_EQ(result.q_total_m3min,
+                     std::ceil(result.q_governing_m3min * 1.15));
+    EXPECT_NEAR(result.q_total_m3min, 981.0, 3.0);
+    EXPECT_EQ(result.standard, RegulatoryStandard::DS132_Chile);
 }
