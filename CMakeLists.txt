@@ -99,6 +99,7 @@ if(VENTPY_BUILD_TESTS)
         tests/cpp/test_limites_gases.cpp
         tests/cpp/test_cobertura.cpp
         tests/cpp/test_atkinson.cpp
+        tests/cpp/test_ducto.cpp
     )
     target_link_libraries(ventpy_tests PRIVATE
         ventpy_core

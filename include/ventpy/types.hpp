@@ -593,6 +593,63 @@ struct AirwayResistanceResult {
 };
 
 // ============================================================================
+// Structs para dimensionamiento de ducto (Task 3, SP-3a)
+// ============================================================================
+
+/**
+ * @brief Parámetros para dimensionamiento técnico/económico de ducto.
+ */
+struct DuctSizingParams {
+    double q_m3min = 0.0;                           ///< Caudal requerido [m³/min]
+    double length_m = 0.0;                          ///< Longitud del ducto [m]
+    AirwayLining duct_lining = AirwayLining::DuctFlexibleSpiral;  ///< Tipo de ducto
+    double atkinson_k = 0.0;                        ///< k manual [kg/m³], > 0 si lining=Manual
+    std::vector<AirwaySingularity> singularities;   ///< Singularidades de choque
+    double max_velocity_mps = 0.0;                  ///< Velocidad máxima [m/s]; 0 ⇒ default 20
+    double available_pressure_pa = 0.0;             ///< Presión disponible [Pa]; 0 ⇒ sin restricción
+    std::vector<double> diameters_m;                ///< Diámetros a evaluar [m]; vacío ⇒ default comercial
+};
+
+/**
+ * @brief Parámetros económicos para optimización de ducto (Task 4).
+ */
+struct EconomicParams {
+    double energy_cost_per_kwh = 0.0;                               ///< Costo energía [USD/kWh]
+    double duct_cost_per_m_per_m_diam = 0.0;                       ///< Costo lineal [USD/(m·m_diam)]
+    double operating_hours = 0.0;                                   ///< Horas operación anuales [h/año]
+    double fan_efficiency = 0.65;                                   ///< Eficiencia ventilador (0, 1]
+};
+
+/**
+ * @brief Resultado de una opción de diámetro comercial.
+ */
+struct DuctOptionResult {
+    double diameter_m = 0.0;            ///< Diámetro evaluado [m]
+    double area_m2 = 0.0;               ///< Área de sección [m²]
+    double velocity_mps = 0.0;          ///< Velocidad de aire [m/s]
+    double r_total = 0.0;               ///< Resistencia total [Ns²/m⁸]
+    double pressure_drop_pa = 0.0;      ///< Caída de presión [Pa]
+    bool velocity_ok = false;           ///< Cumple v ≤ vmax
+    bool pressure_ok = false;           ///< Cumple ΔP ≤ disponible (si aplica)
+    double energy_cost = 0.0;           ///< Costo energético anual [USD] (Task 4)
+    double capital_cost = 0.0;          ///< Costo capital [USD] (Task 4)
+    double total_cost = 0.0;            ///< Costo total [USD] (Task 4)
+    std::string rejection_reason;       ///< Razón de rechazo; vacío si viable
+};
+
+/**
+ * @brief Resultado consolidado del dimensionamiento de ducto.
+ */
+struct DuctSizingResult {
+    double selected_diameter_m = 0.0;       ///< Diámetro elegido [m]
+    std::vector<DuctOptionResult> options;  ///< Todas las opciones evaluadas
+    bool feasible = false;                  ///< ¿Existe opción viable?
+    std::string selection_criterion;        ///< Criterio de selección aplicado
+    std::string biblio_ref;                 ///< Referencia bibliográfica
+    std::vector<std::string> warnings;      ///< Advertencias (ej: ninguna opción viable)
+};
+
+// ============================================================================
 // Constantes de conversión y físicas
 // ============================================================================
 
