@@ -180,7 +180,11 @@ private:
         double altitude_masl,
         const RegulatoryConfig& config
     ) {
-        if (altitude_masl > config.altitude_threshold_2()) {
+        // Escala DS 024-2016-EM, Art. 247 (borde: '>' estricto — en el umbral
+        // exacto rige la banda inferior; ver Doxygen de RegulatoryConfig).
+        if (altitude_masl > config.altitude_threshold_3()) {
+            return config.flow_above_threshold_3();
+        } else if (altitude_masl > config.altitude_threshold_2()) {
             return config.flow_above_threshold_2();
         } else if (altitude_masl > config.altitude_threshold_1()) {
             return config.flow_above_threshold_1();
@@ -260,12 +264,16 @@ private:
         std::ostringstream oss;
         oss << "DS 024-2016-EM, Art. 236";
 
-        if (altitude > config.altitude_threshold_2()) {
-            oss << " + Estandar corporativo (>" 
-                << static_cast<int>(config.altitude_threshold_2()) 
+        if (altitude > config.altitude_threshold_3()) {
+            oss << " + Art. 247 escala altitud (>"
+                << static_cast<int>(config.altitude_threshold_3())
+                << " msnm)";
+        } else if (altitude > config.altitude_threshold_2()) {
+            oss << " + Art. 247 escala altitud (>"
+                << static_cast<int>(config.altitude_threshold_2())
                 << " msnm)";
         } else if (altitude > config.altitude_threshold_1()) {
-            oss << " + Estandar corporativo (>"
+            oss << " + Art. 247 escala altitud (>"
                 << static_cast<int>(config.altitude_threshold_1())
                 << " msnm)";
         }

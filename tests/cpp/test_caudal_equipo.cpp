@@ -51,7 +51,7 @@ TEST_F(DieselFlowTest, EmptyFleet_ReturnsZero) {
 TEST_F(DieselFlowTest, CustomHPFactor) {
     RegulatoryConfig custom(
         RegulatoryStandard::DS024_Peru,
-        3.0, 3000.0, 4.0, 4000.0, 5.0,
+        3.0, 1500.0, 4.0, 3000.0, 5.0, 4000.0, 6.0,
         5.0,    // diesel_hp_factor = 5.0 (estándar corporativo)
         30.0, 0.04, 0.15
     );

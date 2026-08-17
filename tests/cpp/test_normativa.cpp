@@ -26,10 +26,39 @@ TEST(RegulatoryPresets, Peru_MatchesConstructorDefaults) {
     EXPECT_DOUBLE_EQ(peru.flow_above_threshold_1(),   def.flow_above_threshold_1());
     EXPECT_DOUBLE_EQ(peru.altitude_threshold_2(),     def.altitude_threshold_2());
     EXPECT_DOUBLE_EQ(peru.flow_above_threshold_2(),   def.flow_above_threshold_2());
+    EXPECT_DOUBLE_EQ(peru.altitude_threshold_3(),     def.altitude_threshold_3());
+    EXPECT_DOUBLE_EQ(peru.flow_above_threshold_3(),   def.flow_above_threshold_3());
     EXPECT_DOUBLE_EQ(peru.diesel_hp_factor(),         def.diesel_hp_factor());
     EXPECT_DOUBLE_EQ(peru.max_dilution_time(),        def.max_dilution_time());
     EXPECT_DOUBLE_EQ(peru.default_gas_volume_per_kg(),def.default_gas_volume_per_kg());
     EXPECT_DOUBLE_EQ(peru.default_leakage_factor(),   def.default_leakage_factor());
+}
+
+// ============================================================================
+// peru(): escala del Art. 247 (texto original, no modificado por DS 023-2017)
+// "hasta 1,500 msnm: 3 m³/min; de 1,500 a 3,000: 4; de 3,000 a 4,000: 5;
+//  sobre los 4,000: 6" — corrección normativa 2026-08-17 (gate G6)
+// ============================================================================
+
+TEST(RegulatoryPresets, Peru_EscalaPorPersonaArt247) {
+    const RegulatoryConfig peru = RegulatoryConfig::peru();
+
+    EXPECT_DOUBLE_EQ(peru.min_flow_per_person(),    3.0);   // hasta 1,500 msnm
+    EXPECT_DOUBLE_EQ(peru.altitude_threshold_1(),   1500.0);
+    EXPECT_DOUBLE_EQ(peru.flow_above_threshold_1(), 4.0);   // 1,500–3,000 (+40%)
+    EXPECT_DOUBLE_EQ(peru.altitude_threshold_2(),   3000.0);
+    EXPECT_DOUBLE_EQ(peru.flow_above_threshold_2(), 5.0);   // 3,000–4,000 (+70%)
+    EXPECT_DOUBLE_EQ(peru.altitude_threshold_3(),   4000.0);
+    EXPECT_DOUBLE_EQ(peru.flow_above_threshold_3(), 6.0);   // sobre 4,000 (+100%)
+}
+
+TEST(RegulatoryPresets, ThresholdsNoCrecientes_Lanza) {
+    // Umbrales deben ser estrictamente crecientes (t1 < t2 < t3)
+    EXPECT_THROW(
+        RegulatoryConfig(RegulatoryStandard::DS024_Peru,
+                         3.0, 3000.0, 4.0, 3000.0, 5.0, 4000.0, 6.0,
+                         3.0, 30.0, 0.04, 0.15),
+        std::invalid_argument);
 }
 
 // ============================================================================
@@ -42,9 +71,10 @@ TEST(RegulatoryPresets, Chile_ValuesFromDS132) {
     EXPECT_EQ(chile.standard(), RegulatoryStandard::DS132_Chile);
     // DS 132, Art. 138: 3 m³/min por persona en cualquier sitio del interior mina
     EXPECT_DOUBLE_EQ(chile.min_flow_per_person(), 3.0);
-    // DS 132 NO escala por altitud: escalones neutralizados
+    // DS 132 NO escala por altitud: escalones neutralizados (los tres)
     EXPECT_DOUBLE_EQ(chile.flow_above_threshold_1(), 3.0);
     EXPECT_DOUBLE_EQ(chile.flow_above_threshold_2(), 3.0);
+    EXPECT_DOUBLE_EQ(chile.flow_above_threshold_3(), 3.0);
     // DS 132, Art. 132: 2,83 m³/min por HP efectivo al freno
     EXPECT_DOUBLE_EQ(chile.diesel_hp_factor(), 2.83);
     // No regulados por DS 132 — defaults ingenieriles conservados (gate 2026-08-17)
