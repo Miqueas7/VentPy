@@ -22,7 +22,7 @@ TEST_F(PersonnelFlowTest, BasicCalculation_LowAltitude) {
 
     EXPECT_EQ(result.num_workers, 10);
     EXPECT_DOUBLE_EQ(result.altitude_masl, 2500.0);
-    EXPECT_DOUBLE_EQ(result.flow_per_person, 3.0);  // Mínimo DS 024
+    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 3.0);  // Mínimo DS 024
     EXPECT_DOUBLE_EQ(result.q_personnel, 30.0);     // 10 × 3
 }
 
@@ -30,7 +30,7 @@ TEST_F(PersonnelFlowTest, BasicCalculation_LowAltitude) {
 TEST_F(PersonnelFlowTest, AltitudeAbove3000_UsesThreshold1) {
     auto result = PersonnelFlowCalculator::calculate(10, 3500.0, default_config);
 
-    EXPECT_DOUBLE_EQ(result.flow_per_person, 4.0);  // Estándar corporativo
+    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 4.0);  // Estándar corporativo
     EXPECT_DOUBLE_EQ(result.q_personnel, 40.0);     // 10 × 4
 }
 
@@ -38,7 +38,7 @@ TEST_F(PersonnelFlowTest, AltitudeAbove3000_UsesThreshold1) {
 TEST_F(PersonnelFlowTest, AltitudeAbove4000_UsesThreshold2) {
     auto result = PersonnelFlowCalculator::calculate(10, 4500.0, default_config);
 
-    EXPECT_DOUBLE_EQ(result.flow_per_person, 5.0);  // Estándar corporativo alto
+    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 5.0);  // Estándar corporativo alto
     EXPECT_DOUBLE_EQ(result.q_personnel, 50.0);     // 10 × 5
 }
 
@@ -46,7 +46,7 @@ TEST_F(PersonnelFlowTest, AltitudeAbove4000_UsesThreshold2) {
 TEST_F(PersonnelFlowTest, ExactlyAtThreshold1_UsesMinimum) {
     auto result = PersonnelFlowCalculator::calculate(5, 3000.0, default_config);
 
-    EXPECT_DOUBLE_EQ(result.flow_per_person, 3.0);
+    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 3.0);
     EXPECT_DOUBLE_EQ(result.q_personnel, 15.0);
 }
 
@@ -70,7 +70,7 @@ TEST_F(PersonnelFlowTest, CustomConfig_HigherStandard) {
     );
 
     auto result = PersonnelFlowCalculator::calculate(20, 4200.0, custom);
-    EXPECT_DOUBLE_EQ(result.flow_per_person, 6.0);
+    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 6.0);
     EXPECT_DOUBLE_EQ(result.q_personnel, 120.0);  // 20 × 6
 }
 
