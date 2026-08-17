@@ -142,3 +142,94 @@ TEST(CoverageZone, ParamsInvalidosLanzan) {
     EXPECT_THROW(CoverageCalculator::compare_zone(100.0, m, velocidades_invertidas),
                  std::invalid_argument);
 }
+
+// ============================================================================
+// compare_zone — estaciones de aforo + velocidad Art. 248
+// ============================================================================
+
+TEST(CoverageStations, SumaEstacionesParalelas) {
+    ZoneMeasurement m;
+    m.zone_name = "Nivel 380";
+    m.stations.push_back({"E-1", 10.0, 1.0});   // Q = 10 × 1.0 × 60 = 600
+    m.stations.push_back({"E-2", 5.0, 0.5});    // Q = 5 × 0.5 × 60 = 150
+
+    auto r = CoverageCalculator::compare_zone(700.0, m);
+
+    ASSERT_EQ(r.stations.size(), 2u);
+    EXPECT_DOUBLE_EQ(r.stations[0].q_station_m3min, 600.0);
+    EXPECT_DOUBLE_EQ(r.stations[0].velocity_mpm, 60.0);
+    EXPECT_TRUE(r.stations[0].velocity_ok);       // 20 <= 60 <= 250
+    EXPECT_DOUBLE_EQ(r.stations[1].q_station_m3min, 150.0);
+    EXPECT_DOUBLE_EQ(r.q_measured_m3min, 750.0);  // suma paralela
+    EXPECT_TRUE(r.compliant);                     // 750 >= 700
+}
+
+TEST(CoverageStations, VelocidadBajoMinimoAdvierte) {
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.stations.push_back({"E-1", 12.0, 0.30});  // 18 m/min < 20 (Art. 248)
+
+    auto r = CoverageCalculator::compare_zone(100.0, m);
+
+    ASSERT_EQ(r.stations.size(), 1u);
+    EXPECT_FALSE(r.stations[0].velocity_ok);
+    EXPECT_NE(r.stations[0].warning.find("248"), std::string::npos);
+    // El caudal SÍ se contabiliza aunque la velocidad esté fuera de rango
+    EXPECT_DOUBLE_EQ(r.q_measured_m3min, 216.0);
+}
+
+TEST(CoverageStations, VelocidadSobreMaximoAdvierte) {
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.stations.push_back({"E-1", 4.0, 4.5});    // 270 m/min > 250
+
+    auto r = CoverageCalculator::compare_zone(100.0, m);
+    EXPECT_FALSE(r.stations[0].velocity_ok);
+    EXPECT_NE(r.stations[0].warning.find("248"), std::string::npos);
+}
+
+TEST(CoverageStations, AnfoElevaMinimoA25) {
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.stations.push_back({"E-1", 10.0, 0.35});  // 21 m/min
+
+    // Sin ANFO: 21 >= 20 → ok
+    auto sin_anfo = CoverageCalculator::compare_zone(100.0, m);
+    EXPECT_TRUE(sin_anfo.stations[0].velocity_ok);
+
+    // Con ANFO: mínimo efectivo 25 (Art. 248) → 21 < 25 advierte
+    CoverageParams p;
+    p.anfo_or_blasting_agents = true;
+    auto con_anfo = CoverageCalculator::compare_zone(100.0, m, p);
+    EXPECT_FALSE(con_anfo.stations[0].velocity_ok);
+    EXPECT_NE(con_anfo.stations[0].warning.find("ANFO"), std::string::npos);
+}
+
+TEST(CoverageStations, VelocidadCeroEsMedicionValida) {
+    // Labor sin flujo: dato real de levantamiento — Q = 0, advertencia por
+    // velocidad, sin excepción.
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.stations.push_back({"E-1", 8.0, 0.0});
+
+    auto r = CoverageCalculator::compare_zone(100.0, m);
+    EXPECT_DOUBLE_EQ(r.q_measured_m3min, 0.0);
+    EXPECT_FALSE(r.compliant);
+    EXPECT_FALSE(r.stations[0].velocity_ok);
+}
+
+TEST(CoverageStations, AreaNoPositivaLanza) {
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.stations.push_back({"E-1", 0.0, 1.0});
+    EXPECT_THROW(CoverageCalculator::compare_zone(100.0, m),
+                 std::invalid_argument);
+}
+
+TEST(CoverageStations, VelocidadNegativaLanza) {
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.stations.push_back({"E-1", 10.0, -0.5});
+    EXPECT_THROW(CoverageCalculator::compare_zone(100.0, m),
+                 std::invalid_argument);
+}
