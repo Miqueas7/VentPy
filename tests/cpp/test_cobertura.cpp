@@ -233,3 +233,118 @@ TEST(CoverageStations, VelocidadNegativaLanza) {
     EXPECT_THROW(CoverageCalculator::compare_zone(100.0, m),
                  std::invalid_argument);
 }
+
+// ============================================================================
+// analyze_survey — balance de mina vía Governor (E2E)
+// Números derivados a mano (ver plan SP-2): zona tipo = 10 trabajadores,
+// DevelopmentFace, sin flota → Q_Per = 180 (piso de velocidad) → req = 207.
+// ============================================================================
+
+namespace {
+ZoneSurvey make_zone(const std::string& name, double altitude,
+                     double measured_direct) {
+    ZoneSurvey z;
+    z.zone_name = name;
+    z.input.zone_type = ZoneType::DevelopmentFace;
+    z.input.num_workers = 10;
+    z.input.altitude_masl = altitude;
+    z.measurement.zone_name = name;
+    z.measurement.q_measured_m3min = measured_direct;
+    return z;
+}
+} // namespace
+
+TEST(CoverageSurvey, GlobalCubreConZonaEnDeficit) {
+    std::vector<ZoneSurvey> zones;
+    zones.push_back(make_zone("Rampa 4200", 4200.0, 270.0));
+    zones.push_back(make_zone("Frente N-02", 2500.0, 150.0));
+
+    auto r = CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru());
+
+    ASSERT_EQ(r.zones.size(), 2u);
+    EXPECT_DOUBLE_EQ(r.zones[0].q_required_m3min, 207.0);
+    EXPECT_DOUBLE_EQ(r.zones[1].q_required_m3min, 207.0);
+    EXPECT_TRUE(r.zones[0].compliant);              // 270 >= 207
+    EXPECT_FALSE(r.zones[1].compliant);             // 150 < 207
+    EXPECT_DOUBLE_EQ(r.zones[1].deficit_m3min, 57.0);
+
+    EXPECT_DOUBLE_EQ(r.q_required_total_m3min, 414.0);
+    EXPECT_DOUBLE_EQ(r.q_measured_total_m3min, 420.0);
+    EXPECT_NEAR(r.coverage_ratio, 420.0 / 414.0, 1e-9);
+    EXPECT_TRUE(r.global_compliant);        // Art. 252.f: Σmed >= Σreq
+    EXPECT_FALSE(r.all_zones_compliant);    // Art. 252.g: B en déficit
+    EXPECT_FALSE(r.compliant);              // criterio estricto: ambos
+    EXPECT_DOUBLE_EQ(r.deficit_total_m3min, 0.0);
+
+    // La zona en déficit aparece en las advertencias agregadas
+    bool deficit_warned = false;
+    for (const auto& w : r.warnings) {
+        if (w.find("Frente N-02") != std::string::npos) deficit_warned = true;
+    }
+    EXPECT_TRUE(deficit_warned);
+    EXPECT_NE(r.regulation_ref.find("252"), std::string::npos);
+    // Cada zona lleva su desglose completo del Governor
+    ASSERT_TRUE(r.zones[0].demand.has_value());
+    EXPECT_EQ(r.zones[0].demand->standard, RegulatoryStandard::DS024_Peru);
+}
+
+TEST(CoverageSurvey, DeficitGlobal) {
+    std::vector<ZoneSurvey> zones;
+    zones.push_back(make_zone("A", 2500.0, 100.0));   // req 207
+    zones.push_back(make_zone("B", 2500.0, 100.0));   // req 207
+
+    auto r = CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru());
+
+    EXPECT_FALSE(r.global_compliant);       // 200 < 414
+    // deficit_total = ceil(414 - 200) = 214
+    EXPECT_DOUBLE_EQ(r.deficit_total_m3min, 214.0);
+    EXPECT_FALSE(r.compliant);
+}
+
+TEST(CoverageSurvey, ZonaConEstacionesPropagaAdvertencias) {
+    ZoneSurvey z;
+    z.zone_name = "Galeria 100";
+    z.input.zone_type = ZoneType::DevelopmentFace;
+    z.input.num_workers = 10;
+    z.input.altitude_masl = 1400.0;         // req = 207 (piso de velocidad)
+    z.measurement.zone_name = "Galeria 100";
+    z.measurement.stations.push_back({"E-1", 12.0, 0.30});  // 216 m³/min; 18 m/min < 20
+
+    std::vector<ZoneSurvey> zones{z};
+    auto r = CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru());
+
+    EXPECT_TRUE(r.zones[0].compliant);              // 216 >= 207
+    EXPECT_TRUE(r.zones[0].near_deficit_warning);   // 216/207 = 1.043 < 1.10
+    ASSERT_EQ(r.zones[0].stations.size(), 1u);
+    EXPECT_FALSE(r.zones[0].stations[0].velocity_ok);
+    // La advertencia de velocidad de la estación sube al informe de mina
+    bool velocity_warned = false;
+    for (const auto& w : r.warnings) {
+        if (w.find("248") != std::string::npos) velocity_warned = true;
+    }
+    EXPECT_TRUE(velocity_warned);
+}
+
+TEST(CoverageSurvey, LevantamientoVacioLanza) {
+    EXPECT_THROW(
+        CoverageCalculator::analyze_survey({}, RegulatoryConfig::peru()),
+        std::invalid_argument);
+}
+
+TEST(CoverageSurvey, ZonaGeneralMineLanza) {
+    ZoneSurvey z = make_zone("Mina total", 2500.0, 1000.0);
+    z.input.zone_type = ZoneType::GeneralMine;   // doble conteo → prohibido
+    std::vector<ZoneSurvey> zones{z};
+    EXPECT_THROW(
+        CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru()),
+        std::invalid_argument);
+}
+
+TEST(CoverageSurvey, NombreDuplicadoLanza) {
+    std::vector<ZoneSurvey> zones;
+    zones.push_back(make_zone("Rampa", 2500.0, 250.0));
+    zones.push_back(make_zone("Rampa", 4200.0, 250.0));
+    EXPECT_THROW(
+        CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru()),
+        std::invalid_argument);
+}
