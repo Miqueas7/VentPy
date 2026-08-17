@@ -26,7 +26,8 @@ TEST_F(GovernorTest, DevelopmentFace_FullCalculation) {
     VentilationInput input;
     input.zone_type = ZoneType::DevelopmentFace;
 
-    // Personal: 15 trabajadores a 4200 msnm → 15 × 5 = 75 m³/min
+    // Personal: 15 trabajadores a 4200 msnm (Art. 247: base 6 m³/min;
+    // normativo 15 × 6 × 1.772 = 159.5 < piso de velocidad 180 → Q_Per = 180)
     input.num_workers = 15;
     input.altitude_masl = 4200.0;
 
@@ -84,9 +85,9 @@ TEST_F(GovernorTest, PersonnelOnly) {
 
     auto result = governor.calculateTotalDemand(input);
 
-    // calculate_full: el criterio normativo (10 × 3 × 1.3569 = 40.71) queda por
-    // debajo del piso de velocidad mínima de galería (face_area default 12 m²
-    // × 0.25 m/s × 60 = 180), que gobierna dentro de Q_Per.
+    // calculate_full: el criterio normativo (10 × 4 (Art. 247) × 1.3569 = 54.27)
+    // queda por debajo del piso de velocidad mínima de galería (face_area default
+    // 12 m² × 0.25 m/s × 60 = 180), que gobierna dentro de Q_Per.
     EXPECT_DOUBLE_EQ(result.q_personnel_m3min, 180.0);
     EXPECT_DOUBLE_EQ(result.q_diesel_m3min, 0.0);
     EXPECT_DOUBLE_EQ(result.q_blasting_m3min, 0.0);
@@ -114,14 +115,14 @@ TEST_F(GovernorTest, GeneralMine_Summation) {
     auto result = governor.calculateTotalDemand(input);
 
     // calculate_full:
-    // Q_Per: 100 × 5 × corr(4500 = 1.7555 × 1.05) = 921.64 → ceil = 922
+    // Q_Per: 100 × 6 (Art. 247, >4000) × corr(4500 = 1.7555 × 1.05) = 1105.97 → ceil = 1106
     //        (aquí SÍ gobierna el criterio normativo; el piso de velocidad es 180)
     // Q_Eq:  dilución NOx Tier3 → 1404.94 → ceil = 1405
     //        (método HP: 144 × 3 × 1.7555 × 0.85 = 644.62 — NO gobierna)
     // Q_Exp = 0 (sin explosivos)
-    // GeneralMine: Q = 922 + 1405 + 0 = 2327
+    // GeneralMine: Q = 1106 + 1405 + 0 = 2511
     EXPECT_EQ(result.governing_factor, "summation (mine total)");
-    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 2327.0);
+    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 2511.0);
 }
 
 // ============================================================================
@@ -160,9 +161,9 @@ TEST_F(GovernorTest, CustomLeakageFactor) {
 
     auto result = governor.calculateTotalDemand(input);
 
-    // Q_Per = ceil(10 × 3 × 1.3569 = 40.71) = 41
-    // Fugas 25%: 41 × 1.25 = 51.25 → ceil = 52
-    EXPECT_DOUBLE_EQ(result.q_total_m3min, 52.0);
+    // Q_Per = ceil(10 × 4 (Art. 247, >1500) × 1.3569 = 54.27) = 55
+    // Fugas 25%: 55 × 1.25 = 68.75 → ceil = 69
+    EXPECT_DOUBLE_EQ(result.q_total_m3min, 69.0);
 }
 
 // ============================================================================

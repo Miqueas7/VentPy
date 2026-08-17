@@ -16,38 +16,50 @@ protected:
     RegulatoryConfig default_config;  // Valores DS 024 por defecto
 };
 
-// --- Caso base: altitud baja, mínimo normativo ---
-TEST_F(PersonnelFlowTest, BasicCalculation_LowAltitude) {
+// Escala del Art. 247 DS 024-2016-EM (texto original, vigente):
+//   hasta 1,500 msnm: 3 m³/min · >1,500: 4 · >3,000: 5 · >4,000: 6
+// Semántica de borde: '>' estricto — en el umbral exacto rige la banda inferior.
+
+// --- Hasta 1500 msnm: mínimo normativo ---
+TEST_F(PersonnelFlowTest, AtOrBelow1500_UsesMinimum) {
+    auto result = PersonnelFlowCalculator::calculate(10, 1500.0, default_config);
+
+    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 3.0);  // Art. 247: hasta 1,500
+    EXPECT_DOUBLE_EQ(result.q_personnel, 30.0);     // 10 × 3
+}
+
+// --- Banda 1500–3000 msnm ---
+TEST_F(PersonnelFlowTest, Between1500And3000_Uses4) {
     auto result = PersonnelFlowCalculator::calculate(10, 2500.0, default_config);
 
     EXPECT_EQ(result.num_workers, 10);
     EXPECT_DOUBLE_EQ(result.altitude_masl, 2500.0);
-    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 3.0);  // Mínimo DS 024
-    EXPECT_DOUBLE_EQ(result.q_personnel, 30.0);     // 10 × 3
-}
-
-// --- Altitud sobre 3000 msnm: escalado ---
-TEST_F(PersonnelFlowTest, AltitudeAbove3000_UsesThreshold1) {
-    auto result = PersonnelFlowCalculator::calculate(10, 3500.0, default_config);
-
-    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 4.0);  // Estándar corporativo
+    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 4.0);  // Art. 247: +40%
     EXPECT_DOUBLE_EQ(result.q_personnel, 40.0);     // 10 × 4
 }
 
-// --- Altitud sobre 4000 msnm: escalado máximo ---
-TEST_F(PersonnelFlowTest, AltitudeAbove4000_UsesThreshold2) {
-    auto result = PersonnelFlowCalculator::calculate(10, 4500.0, default_config);
+// --- Banda 3000–4000 msnm ---
+TEST_F(PersonnelFlowTest, Between3000And4000_Uses5) {
+    auto result = PersonnelFlowCalculator::calculate(10, 3500.0, default_config);
 
-    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 5.0);  // Estándar corporativo alto
+    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 5.0);  // Art. 247: +70%
     EXPECT_DOUBLE_EQ(result.q_personnel, 50.0);     // 10 × 5
 }
 
-// --- Exactamente en el umbral (3000): usa el mínimo, no escala ---
-TEST_F(PersonnelFlowTest, ExactlyAtThreshold1_UsesMinimum) {
+// --- Sobre 4000 msnm: máximo de la escala ---
+TEST_F(PersonnelFlowTest, Above4000_Uses6) {
+    auto result = PersonnelFlowCalculator::calculate(10, 4500.0, default_config);
+
+    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 6.0);  // Art. 247: +100%
+    EXPECT_DOUBLE_EQ(result.q_personnel, 60.0);     // 10 × 6
+}
+
+// --- Exactamente en un umbral (3000): rige la banda inferior ---
+TEST_F(PersonnelFlowTest, ExactlyAt3000_UsesLowerBand) {
     auto result = PersonnelFlowCalculator::calculate(5, 3000.0, default_config);
 
-    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 3.0);
-    EXPECT_DOUBLE_EQ(result.q_personnel, 15.0);
+    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 4.0);
+    EXPECT_DOUBLE_EQ(result.q_personnel, 20.0);
 }
 
 // --- Un solo trabajador ---
@@ -57,21 +69,23 @@ TEST_F(PersonnelFlowTest, SingleWorker) {
     EXPECT_DOUBLE_EQ(result.q_personnel, 3.0);
 }
 
-// --- Config personalizada: empresa usa 6 m³/min sobre 4000 ---
+// --- Config personalizada: empresa usa 7 m³/min sobre 4000 ---
 TEST_F(PersonnelFlowTest, CustomConfig_HigherStandard) {
     RegulatoryConfig custom(
         RegulatoryStandard::DS024_Peru,
         3.0,     // min_flow_per_person
-        3000.0,  // threshold 1
-        4.5,     // flow above t1
-        4000.0,  // threshold 2
-        6.0,     // flow above t2 (estándar corporativo agresivo)
+        1500.0,  // threshold 1
+        4.5,     // flow above t1 (estándar corporativo)
+        3000.0,  // threshold 2
+        5.5,     // flow above t2
+        4000.0,  // threshold 3
+        7.0,     // flow above t3 (estándar corporativo agresivo)
         3.0, 30.0, 0.04, 0.15
     );
 
     auto result = PersonnelFlowCalculator::calculate(20, 4200.0, custom);
-    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 6.0);
-    EXPECT_DOUBLE_EQ(result.q_personnel, 120.0);  // 20 × 6
+    EXPECT_DOUBLE_EQ(result.flow_per_person_base, 7.0);
+    EXPECT_DOUBLE_EQ(result.q_personnel, 140.0);  // 20 × 7
 }
 
 // --- Validación: 0 trabajadores debe lanzar excepción ---

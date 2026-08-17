@@ -429,13 +429,16 @@ NB_MODULE(_ventpy_core, m) {
         "DS 024-2016-EM / DS 023-2017-EM (Peru).")
         .def(nb::init<
                 RegulatoryStandard, double, double, double,
-                double, double, double, double, double, double>(),
+                double, double, double, double, double, double,
+                double, double>(),
              nb::arg("standard") = RegulatoryStandard::DS024_Peru,
              nb::arg("min_flow_per_person_m3min") = 3.0,
-             nb::arg("altitude_threshold_1_masl") = 3000.0,
+             nb::arg("altitude_threshold_1_masl") = 1500.0,
              nb::arg("flow_per_person_above_t1") = 4.0,
-             nb::arg("altitude_threshold_2_masl") = 4000.0,
+             nb::arg("altitude_threshold_2_masl") = 3000.0,
              nb::arg("flow_per_person_above_t2") = 5.0,
+             nb::arg("altitude_threshold_3_masl") = 4000.0,
+             nb::arg("flow_per_person_above_t3") = 6.0,
              nb::arg("diesel_hp_factor_m3min") = 3.0,
              nb::arg("max_dilution_time_min") = 30.0,
              nb::arg("default_gas_volume_per_kg_m3") = 0.04,
@@ -446,6 +449,8 @@ NB_MODULE(_ventpy_core, m) {
         .def_prop_ro("flow_above_threshold_1", &RegulatoryConfig::flow_above_threshold_1)
         .def_prop_ro("altitude_threshold_2", &RegulatoryConfig::altitude_threshold_2)
         .def_prop_ro("flow_above_threshold_2", &RegulatoryConfig::flow_above_threshold_2)
+        .def_prop_ro("altitude_threshold_3", &RegulatoryConfig::altitude_threshold_3)
+        .def_prop_ro("flow_above_threshold_3", &RegulatoryConfig::flow_above_threshold_3)
         .def_prop_ro("diesel_hp_factor", &RegulatoryConfig::diesel_hp_factor)
         .def_prop_ro("max_dilution_time", &RegulatoryConfig::max_dilution_time)
         .def_prop_ro("default_gas_volume_per_kg", &RegulatoryConfig::default_gas_volume_per_kg)
