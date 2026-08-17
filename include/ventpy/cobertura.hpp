@@ -38,6 +38,9 @@ namespace ventpy {
  *
  * `input.zone_type` NO puede ser GeneralMine: el total de mina lo calcula
  * el propio análisis (evita doble conteo).
+ *
+ * El zone_name del ZoneSurvey es el que manda en el informe; el de
+ * measurement.zone_name se ignora en la ruta analyze_survey.
  */
 struct ZoneSurvey {
     std::string zone_name;
@@ -142,6 +145,12 @@ public:
 
         for (const ZoneSurvey& z : zones) {
             VentilationDemandResult demand = governor.calculateTotalDemand(z.input);
+            if (demand.q_total_m3min <= 0.0) {
+                throw std::invalid_argument(
+                    "Error de dominio [VentPy]: la zona '" + z.zone_name +
+                    "' no genera requerimiento de ventilacion (q_total = 0) - revisar "
+                    "su VentilationInput (trabajadores/flota/voladura).");
+            }
             ZoneCoverageResult zr =
                 compare_zone(demand.q_total_m3min, z.measurement, params);
             zr.zone_name = z.zone_name;
@@ -244,7 +253,7 @@ private:
                 << r.velocity_mpm << " m/min fuera de rango ["
                 << min_effective << ", " << params.max_velocity_mpm
                 << "] (DS 024-2016-EM, Art. 248";
-            if (params.anfo_or_blasting_agents) {
+            if (params.anfo_or_blasting_agents && r.velocity_mpm < min_effective) {
                 oss << "; minimo 25 m/min con ANFO u otros agentes de voladura";
             }
             oss << ")";
