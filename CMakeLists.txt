@@ -95,6 +95,7 @@ if(VENTPY_BUILD_TESTS)
         tests/cpp/test_caudal_explosivos.cpp
         tests/cpp/test_caudal_fugas.cpp
         tests/cpp/test_governor.cpp
+        tests/cpp/test_normativa.cpp
     )
     target_link_libraries(ventpy_tests PRIVATE
         ventpy_core

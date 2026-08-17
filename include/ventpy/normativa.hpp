@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <stdexcept>
+
 #include "ventpy/types.hpp"
 #include "ventpy/validation.hpp"
 
@@ -61,6 +63,60 @@ public:
         validate();
     }
 
+    // ---- Presets normativos (factory) ----
+
+    /// Preset oficial peruano — DS 024-2016-EM / DS 023-2017-EM.
+    /// Equivale exactamente a los defaults del constructor.
+    [[nodiscard]] static RegulatoryConfig peru() {
+        return RegulatoryConfig{};
+    }
+
+    /**
+     * @brief Preset oficial chileno — DS 132, Reglamento de Seguridad Minera.
+     *
+     * Valores validados contra el texto vigente (LeyChile idNorma=221064,
+     * versión 09-abr-2024) el 2026-08-17:
+     * - 3,0 m³/min por persona: Art. 138. El DS 132 NO escala este caudal por
+     *   altitud (a diferencia del DS 024 peruano), por lo que los escalones se
+     *   neutralizan (mismo caudal en todos los tramos).
+     * - 2,83 m³/min por HP efectivo al freno: Art. 132 (mínimo cuando el
+     *   fabricante no especifica caudal; el caudal por personas siempre se suma).
+     * - Tiempo de dilución 30 min: NO regulado por DS 132 (el reingreso
+     *   post-tronadura lo gobiernan Arts. 156, 571 y 585) — default ingenieril.
+     * - Volumen de gases 0,04 m³/kg: NO regulado por DS 132 — default ingenieril.
+     * - Factor de fugas 0,15: NO regulado por DS 132 como factor de ducto (el
+     *   15% del Art. 139 es tolerancia del balance general de mina) — default
+     *   ingenieril, coincidente en número con dicha tolerancia.
+     *
+     * Umbrales operacionales diésel del Art. 135 (paralización de equipos):
+     * CO 40 ppm, NOx 20 ppm, aldehído fórmico 1,6 ppm — ver limites_gases.hpp.
+     */
+    [[nodiscard]] static RegulatoryConfig chile() {
+        return RegulatoryConfig{
+            RegulatoryStandard::DS132_Chile,
+            /* min_flow_per_person_m3min */    3.0,    // Art. 138
+            /* altitude_threshold_1_masl */    3000.0, // sin efecto (ver Doxygen)
+            /* flow_per_person_above_t1 */     3.0,    // Art. 138 (sin escalón)
+            /* altitude_threshold_2_masl */    4000.0, // sin efecto
+            /* flow_per_person_above_t2 */     3.0,    // Art. 138 (sin escalón)
+            /* diesel_hp_factor_m3min */       2.83,   // Art. 132
+            /* max_dilution_time_min */        30.0,   // no regulado por DS 132
+            /* default_gas_volume_per_kg_m3 */ 0.04,   // no regulado por DS 132
+            /* default_leakage_factor */       0.15    // no regulado por DS 132
+        };
+    }
+
+    /// Construye el preset oficial de la norma indicada.
+    /// @throws std::invalid_argument si la norma no tiene preset implementado.
+    [[nodiscard]] static RegulatoryConfig for_standard(RegulatoryStandard standard) {
+        switch (standard) {
+            case RegulatoryStandard::DS024_Peru:  return peru();
+            case RegulatoryStandard::DS132_Chile: return chile();
+        }
+        throw std::invalid_argument(
+            "[VentPy] for_standard: unsupported regulatory standard");
+    }
+
     // ---- Getters (const, inmutables) ----
 
     [[nodiscard]] RegulatoryStandard standard() const noexcept { return standard_; }
@@ -97,6 +153,8 @@ public:
         switch (standard_) {
             case RegulatoryStandard::DS024_Peru:
                 return "DS 024-2016-EM / DS 023-2017-EM (Peru)";
+            case RegulatoryStandard::DS132_Chile:
+                return "DS 132 Reglamento de Seguridad Minera (Chile)";
             default:
                 return "Unknown Standard";
         }
