@@ -245,8 +245,13 @@ private:
             ? std::max(params.min_velocity_mpm, 25.0)
             : params.min_velocity_mpm;
 
-        r.velocity_ok = (r.velocity_mpm >= min_effective) &&
-                        (r.velocity_mpm <= params.max_velocity_mpm);
+        // Tolerancia absoluta para el artefacto de punto flotante del
+        // roundtrip m/s ↔ m/min (p.ej. 250.0/60.0*60.0 = 250.000000000003).
+        // 1e-6 m/min es despreciable frente a la precision de un anemometro
+        // (~0.6 m/min); NO relaja el limite del Art. 248.
+        constexpr double VEL_TOL_MPM = 1e-6;
+        r.velocity_ok = (r.velocity_mpm >= min_effective - VEL_TOL_MPM) &&
+                        (r.velocity_mpm <= params.max_velocity_mpm + VEL_TOL_MPM);
         if (!r.velocity_ok) {
             std::ostringstream oss;
             oss << "Estacion '" << s.station_id << "': velocidad "
