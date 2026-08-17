@@ -28,10 +28,12 @@ TEST_F(BlastingFlowTest, TypicalBlasting) {
 
     auto result = BlastingFlowCalculator::calculate(params, default_config);
 
-    // Q_Exp = (50 × 0.04) / 30 = 2.0 / 30 = 0.0667 m³/min
-    EXPECT_NEAR(result.q_blasting, 50.0 * 0.04 / 30.0, 0.0001);
+    // Q_Exp crudo = (50 × 0.04) / 30 = 2.0 / 30 = 0.0667 m³/min
+    EXPECT_NEAR(result.q_for_volume_exchange, 50.0 * 0.04 / 30.0, 0.0001);
+    // Salida final con redondeo de seguridad: ceil(0.0667) = 1
+    EXPECT_DOUBLE_EQ(result.q_blasting, 1.0);
     EXPECT_DOUBLE_EQ(result.explosive_kg, 50.0);
-    EXPECT_DOUBLE_EQ(result.total_gas_volume, 2.0);
+    EXPECT_DOUBLE_EQ(result.total_gas_volume_m3, 2.0);
 }
 
 // --- Voladura grande: 200 kg ---
@@ -46,8 +48,9 @@ TEST_F(BlastingFlowTest, LargeBlasting) {
 
     auto result = BlastingFlowCalculator::calculate(params, default_config);
 
-    // Q_Exp = (200 × 0.04) / 20 = 8.0 / 20 = 0.4 m³/min
-    EXPECT_NEAR(result.q_blasting, 0.4, 0.0001);
+    // Q_Exp crudo = (200 × 0.04) / 20 = 8.0 / 20 = 0.4 → safety_ceil = 1
+    EXPECT_NEAR(result.q_for_volume_exchange, 0.4, 0.0001);
+    EXPECT_DOUBLE_EQ(result.q_blasting, 1.0);
 }
 
 // --- Tiempo de dilución excede el máximo normativo: advertencia ---
@@ -67,7 +70,9 @@ TEST_F(BlastingFlowTest, DilutionTimeExceedsMax_ContainsWarning) {
 
 // --- Validación: explosivo = 0 kg ---
 TEST_F(BlastingFlowTest, ZeroExplosive_ThrowsException) {
-    BlastingParams params{0.0, 0.04, 30.0, 12.0, 200.0};
+    BlastingParams params{.explosive_kg = 0.0, .gas_volume_per_kg = 0.04,
+                          .dilution_time_min = 30.0, .face_area_m2 = 12.0,
+                          .face_length_m = 200.0};
     EXPECT_THROW(
         BlastingFlowCalculator::calculate(params, default_config),
         std::invalid_argument
@@ -76,7 +81,9 @@ TEST_F(BlastingFlowTest, ZeroExplosive_ThrowsException) {
 
 // --- CRITICO: tiempo de dilución = 0 (división por cero) ---
 TEST_F(BlastingFlowTest, ZeroDilutionTime_ThrowsException) {
-    BlastingParams params{50.0, 0.04, 0.0, 12.0, 200.0};
+    BlastingParams params{.explosive_kg = 50.0, .gas_volume_per_kg = 0.04,
+                          .dilution_time_min = 0.0, .face_area_m2 = 12.0,
+                          .face_length_m = 200.0};
     EXPECT_THROW(
         BlastingFlowCalculator::calculate(params, default_config),
         std::invalid_argument
@@ -85,25 +92,32 @@ TEST_F(BlastingFlowTest, ZeroDilutionTime_ThrowsException) {
 
 // --- Validación: gas_volume negativo ---
 TEST_F(BlastingFlowTest, NegativeGasVolume_ThrowsException) {
-    BlastingParams params{50.0, -0.04, 30.0, 12.0, 200.0};
+    BlastingParams params{.explosive_kg = 50.0, .gas_volume_per_kg = -0.04,
+                          .dilution_time_min = 30.0, .face_area_m2 = 12.0,
+                          .face_length_m = 200.0};
     EXPECT_THROW(
         BlastingFlowCalculator::calculate(params, default_config),
         std::invalid_argument
     );
 }
 
-// --- Validación: área de frente = 0 ---
-TEST_F(BlastingFlowTest, ZeroFaceArea_ThrowsException) {
-    BlastingParams params{50.0, 0.04, 30.0, 0.0, 200.0};
-    EXPECT_THROW(
-        BlastingFlowCalculator::calculate(params, default_config),
-        std::invalid_argument
-    );
+// --- Área de frente = 0: válido en la API simplificada ---
+// (0 = "completar después": el Governor la rellena con input.face_area_m2;
+// la fórmula legacy no depende de la sección. calculate_full sí la exige > 0.)
+TEST_F(BlastingFlowTest, ZeroFaceArea_AllowedInSimplifiedApi) {
+    BlastingParams params{.explosive_kg = 50.0, .gas_volume_per_kg = 0.04,
+                          .dilution_time_min = 30.0, .face_area_m2 = 0.0,
+                          .face_length_m = 200.0};
+    auto result = BlastingFlowCalculator::calculate(params, default_config);
+    EXPECT_DOUBLE_EQ(result.q_blasting, 1.0);   // ceil(2.0 / 30)
+    EXPECT_DOUBLE_EQ(result.face_volume_m3, 0.0);
 }
 
 // --- Referencia normativa Art. 243 ---
 TEST_F(BlastingFlowTest, ResultContainsArticle243) {
-    BlastingParams params{50.0, 0.04, 30.0, 12.0, 200.0};
+    BlastingParams params{.explosive_kg = 50.0, .gas_volume_per_kg = 0.04,
+                          .dilution_time_min = 30.0, .face_area_m2 = 12.0,
+                          .face_length_m = 200.0};
     auto result = BlastingFlowCalculator::calculate(params, default_config);
     EXPECT_NE(result.regulation_ref.find("Art. 243"), std::string::npos);
 }

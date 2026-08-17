@@ -21,9 +21,9 @@ TEST_F(LeakageFlowTest, DefaultLeakageFactor) {
     auto result = LeakageFlowCalculator::calculate(100.0, default_config);
 
     EXPECT_DOUBLE_EQ(result.base_flow, 100.0);
-    EXPECT_DOUBLE_EQ(result.leakage_factor, 0.15);
+    EXPECT_DOUBLE_EQ(result.base_leakage_factor, 0.15);
     EXPECT_DOUBLE_EQ(result.q_leakage, 15.0);
-    EXPECT_DOUBLE_EQ(result.q_with_leakage, 115.0);
+    EXPECT_DOUBLE_EQ(result.q_at_fan, 115.0);
 }
 
 // --- Factor personalizado ---
@@ -31,9 +31,9 @@ TEST_F(LeakageFlowTest, CustomLeakageFactor) {
     auto result = LeakageFlowCalculator::calculate(
         200.0, 0.25, default_config);
 
-    EXPECT_DOUBLE_EQ(result.leakage_factor, 0.25);
+    EXPECT_DOUBLE_EQ(result.base_leakage_factor, 0.25);
     EXPECT_DOUBLE_EQ(result.q_leakage, 50.0);
-    EXPECT_DOUBLE_EQ(result.q_with_leakage, 250.0);
+    EXPECT_DOUBLE_EQ(result.q_at_fan, 250.0);
 }
 
 // --- Fugas cero (ducto perfecto teórico) ---
@@ -42,13 +42,13 @@ TEST_F(LeakageFlowTest, ZeroLeakage) {
         100.0, 0.0, default_config);
 
     EXPECT_DOUBLE_EQ(result.q_leakage, 0.0);
-    EXPECT_DOUBLE_EQ(result.q_with_leakage, 100.0);
+    EXPECT_DOUBLE_EQ(result.q_at_fan, 100.0);
 }
 
 // --- Caudal base cero ---
 TEST_F(LeakageFlowTest, ZeroBaseFlow) {
     auto result = LeakageFlowCalculator::calculate(0.0, default_config);
-    EXPECT_DOUBLE_EQ(result.q_with_leakage, 0.0);
+    EXPECT_DOUBLE_EQ(result.q_at_fan, 0.0);
 }
 
 // --- Validación: factor > 1 ---

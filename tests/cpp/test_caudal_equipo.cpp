@@ -30,11 +30,11 @@ TEST_F(DieselFlowTest, BasicFleetCalculation) {
     // Scoop: 150 × 0.85 × 0.70 = 89.25 HP_eff
     // Dumper: 300 × 0.90 × 0.60 = 162.0  HP_eff
     // Total HP_eff = 251.25
-    // Q_Eq = 251.25 × 3.0 = 753.75 m³/min
+    // Q_Eq = 251.25 × 3.0 = 753.75 → safety_ceil = 754 m³/min
 
-    EXPECT_DOUBLE_EQ(result.hp_factor, 3.0);
+    EXPECT_DOUBLE_EQ(result.hp_factor_base, 3.0);
     EXPECT_NEAR(result.total_effective_hp, 251.25, 0.01);
-    EXPECT_NEAR(result.q_diesel, 753.75, 0.01);
+    EXPECT_DOUBLE_EQ(result.q_diesel, 754.0);
     EXPECT_EQ(result.equipment_names.size(), 2u);
 }
 
@@ -57,8 +57,9 @@ TEST_F(DieselFlowTest, CustomHPFactor) {
     );
 
     auto result = DieselFlowCalculator::calculate(fleet, custom);
-    EXPECT_DOUBLE_EQ(result.hp_factor, 5.0);
-    EXPECT_NEAR(result.q_diesel, 251.25 * 5.0, 0.01);
+    EXPECT_DOUBLE_EQ(result.hp_factor_base, 5.0);
+    // 251.25 × 5.0 = 1256.25 → safety_ceil = 1257
+    EXPECT_DOUBLE_EQ(result.q_diesel, 1257.0);
 }
 
 // --- Equipo con 100% disponibilidad y utilización ---
