@@ -102,6 +102,100 @@ public:
         return r;
     }
 
+    /**
+     * @brief Orquestador: corre el Governor por zona y agrega el balance.
+     *
+     * Cumplimiento estricto (safety-first): `compliant` exige cobertura
+     * global (Art. 252.f) Y todas las zonas cubiertas (Art. 252.g).
+     *
+     * @throws std::invalid_argument si el levantamiento está vacío, hay
+     *         nombres de zona duplicados o alguna zona es GeneralMine.
+     */
+    [[nodiscard]] static MineCoverageResult analyze_survey(
+        const std::vector<ZoneSurvey>& zones,
+        const RegulatoryConfig& config,
+        const CoverageParams& params = {}
+    ) {
+        validate_params(params);
+        if (zones.empty()) {
+            throw std::invalid_argument(
+                "Error de dominio [VentPy]: analyze_survey requiere al menos "
+                "una zona (levantamiento vacio).");
+        }
+        std::set<std::string> names;
+        for (const ZoneSurvey& z : zones) {
+            if (z.input.zone_type == ZoneType::GeneralMine) {
+                throw std::invalid_argument(
+                    "Error de dominio [VentPy]: ZoneType::GeneralMine no es "
+                    "valido dentro del levantamiento (el total de mina lo "
+                    "calcula el analisis; evita doble conteo).");
+            }
+            if (!names.insert(z.zone_name).second) {
+                throw std::invalid_argument(
+                    "Error de dominio [VentPy]: nombre de zona duplicado en "
+                    "el levantamiento: '" + z.zone_name + "'.");
+            }
+        }
+
+        const VentilationGovernor governor{config};
+        MineCoverageResult r;
+
+        for (const ZoneSurvey& z : zones) {
+            VentilationDemandResult demand = governor.calculateTotalDemand(z.input);
+            ZoneCoverageResult zr =
+                compare_zone(demand.q_total_m3min, z.measurement, params);
+            zr.zone_name = z.zone_name;
+            zr.demand = demand;
+
+            r.q_required_total_m3min += zr.q_required_m3min;
+            r.q_measured_total_m3min += zr.q_measured_m3min;
+
+            if (!zr.compliant) {
+                std::ostringstream oss;
+                oss << "Zona '" << z.zone_name << "': DEFICIT de "
+                    << zr.deficit_m3min << " m3/min (cobertura "
+                    << (zr.coverage_ratio * 100.0) << "%) - Art. 252 lit. g";
+                r.warnings.push_back(oss.str());
+            } else if (zr.near_deficit_warning) {
+                std::ostringstream oss;
+                oss << "Zona '" << z.zone_name << "': cobertura justa ("
+                    << (zr.coverage_ratio * 100.0)
+                    << "%) por debajo del margen ingenieril";
+                r.warnings.push_back(oss.str());
+            }
+            if (zr.overventilated) {
+                std::ostringstream oss;
+                oss << "Zona '" << z.zone_name << "': sobre-ventilada ("
+                    << (zr.coverage_ratio * 100.0)
+                    << "%) - posible desperdicio de energia";
+                r.warnings.push_back(oss.str());
+            }
+            for (const StationResult& sr : zr.stations) {
+                if (!sr.velocity_ok) {
+                    r.warnings.push_back("Zona '" + z.zone_name + "', " + sr.warning);
+                }
+            }
+            r.zones.push_back(std::move(zr));
+        }
+
+        r.coverage_ratio = r.q_measured_total_m3min / r.q_required_total_m3min;
+        r.global_compliant =
+            r.q_measured_total_m3min >= r.q_required_total_m3min;
+        r.all_zones_compliant = true;
+        for (const ZoneCoverageResult& zr : r.zones) {
+            if (!zr.compliant) { r.all_zones_compliant = false; break; }
+        }
+        r.compliant = r.global_compliant && r.all_zones_compliant;
+        r.deficit_total_m3min = r.global_compliant
+            ? 0.0
+            : safety_ceil(r.q_required_total_m3min - r.q_measured_total_m3min);
+        r.regulation_ref =
+            "DS 024-2016-EM (mod. DS 023-2017-EM), Art. 252: evaluacion "
+            "integral semestral; lit. f (cobertura de mina) y lit. g "
+            "(cobertura por labor)";
+        return r;
+    }
+
 private:
     /// Valida umbrales del análisis (frontera).
     static void validate_params(const CoverageParams& p) {
