@@ -120,14 +120,43 @@ private:
         }
     }
 
-    /// Task 2 la implementa; por ahora las mediciones por estaciones no
-    /// están soportadas.
-    static StationResult evaluate_station(
-        const AirflowStation&, const CoverageParams&
+    /// Evalúa una estación: caudal Q = A × v × 60 y velocidad vs Art. 248.
+    /// Con ANFO el mínimo efectivo es max(min_velocity_mpm, 25) — Art. 248.
+    [[nodiscard]] static StationResult evaluate_station(
+        const AirflowStation& s,
+        const CoverageParams& params
     ) {
-        throw std::invalid_argument(
-            "Error de dominio [VentPy]: mediciones por estaciones aun no "
-            "soportadas (Task 2).");
+        validation::require_positive(s.area_m2,
+            "area_m2 [m2] - Seccion de la estacion de aforo");
+        validation::require_non_negative(s.velocity_mps,
+            "velocity_mps [m/s] - Velocidad medida en la estacion");
+
+        StationResult r;
+        r.station_id = s.station_id;
+        r.area_m2 = s.area_m2;
+        r.velocity_mps = s.velocity_mps;
+        r.velocity_mpm = s.velocity_mps * 60.0;
+        r.q_station_m3min = s.area_m2 * s.velocity_mps * 60.0;
+
+        const double min_effective = params.anfo_or_blasting_agents
+            ? std::max(params.min_velocity_mpm, 25.0)
+            : params.min_velocity_mpm;
+
+        r.velocity_ok = (r.velocity_mpm >= min_effective) &&
+                        (r.velocity_mpm <= params.max_velocity_mpm);
+        if (!r.velocity_ok) {
+            std::ostringstream oss;
+            oss << "Estacion '" << s.station_id << "': velocidad "
+                << r.velocity_mpm << " m/min fuera de rango ["
+                << min_effective << ", " << params.max_velocity_mpm
+                << "] (DS 024-2016-EM, Art. 248";
+            if (params.anfo_or_blasting_agents) {
+                oss << "; minimo 25 m/min con ANFO u otros agentes de voladura";
+            }
+            oss << ")";
+            r.warning = oss.str();
+        }
+        return r;
     }
 };
 
