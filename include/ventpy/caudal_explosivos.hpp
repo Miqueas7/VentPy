@@ -162,6 +162,9 @@ public:
             "explosive_kg [kg] - Cantidad de explosivo por disparo");
         validation::require_positive(params.dilution_time_min,
             "dilution_time_min [min] - Tiempo de dilucion");
+        // 0 = sentinel "usar factores del tipo de explosivo"; negativo es dato inválido
+        validation::require_non_negative(params.gas_volume_per_kg,
+            "gas_volume_per_kg [m3/kg] - Volumen de gases por kg (0 = usar tipo)");
 
         BlastingFlowResult result;
         result.explosive_type = params.explosive_type;
@@ -184,8 +187,10 @@ public:
             result.total_gas_volume_m3 / params.dilution_time_min;
         result.q_for_min_velocity = 0.0;
         result.q_blasting = safety_ceil(result.q_for_volume_exchange);
-        result.governing_criterion = "total gas volume";
-        result.regulation_ref = "DS 024-2016-EM, Art. 243-244 [Gobernante: volumen total]";
+        result.governing_criterion = "volumen total";
+        // Misma referencia auditable que calculate_full: incluye la ADVERTENCIA
+        // si el tiempo de dilución excede el máximo normativo (Art. 243).
+        result.regulation_ref = build_regulation_ref(params, config, result);
         return result;
     }
 
