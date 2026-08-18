@@ -226,7 +226,7 @@ NB_MODULE(_ventpy_core, m) {
 
     nb::class_<DustParams>(m, "DustParams",
         "Parametros para calculo de dilucion de polvo.\n"
-        "DS 024-2016-EM, Art. 103-107.")
+        "DS 024-2016-EM, Art. 111 (LEO 3 mg/m3).")
         .def(nb::init<>())
         .def_rw("dust_generation_rate_mg_s", &DustParams::dust_generation_rate_mg_s,
                 "Tasa generacion polvo [mg/s]")
@@ -243,7 +243,8 @@ NB_MODULE(_ventpy_core, m) {
 
     nb::class_<ThermalParams>(m, "ThermalParams",
         "Parametros para calculo de carga termica.\n"
-        "DS 024-2016-EM, Art. 240: Temperatura efectiva maxima 30C.")
+        "DS 024-2016-EM: criterio ingenieril (herencia DS 055-2010-EM "
+        "derogado); normativo real: Art. 252.d y Art. 104/Anexo 13.")
         .def(nb::init<>())
         .def_rw("virgin_rock_temp_c", &ThermalParams::virgin_rock_temp_c,
                 "Temperatura roca virgen [C]")
