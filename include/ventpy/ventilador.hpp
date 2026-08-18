@@ -161,10 +161,12 @@ public:
                                    r.air_density_kg_m3);
         double q_prev = 0.0;
         double q_raw = 0.0;
+        double p_used = p_fan;
         NetworkSolveResult last_net;
         for (int it = 1; it <= params.max_iterations; ++it) {
             r.iterations = it;
             net.branches[fan_idx].fan_pressure_pa = p_fan;
+            p_used = p_fan;                      // la presión que este solve consume
             last_net = NetworkSolver::solve(net, atm, solver_params);
             if (!last_net.converged) break;   // red no balanceó: abortar auditable
             q_raw = std::abs(last_net.branches[fan_idx].q_m3min);
@@ -180,7 +182,8 @@ public:
         }
         r.network = last_net;
         r.q_m3min = q_raw;
-        r.pressure_pa = p_fan;
+        // presión del ÚLTIMO solve — trazable con network embebido (auditoría)
+        r.pressure_pa = p_used;
         r.in_curve_range = r.converged && q_raw >= q_lo && q_raw <= q_hi;
         if (!r.converged) {
             r.warnings.push_back(

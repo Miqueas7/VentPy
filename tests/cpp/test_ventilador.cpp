@@ -210,3 +210,14 @@ TEST(FanEnRed, RamalInexistenteLanza) {
                      red_a_sin_fan(), "NO-EXISTE", curva_red(), atm),
                  std::invalid_argument);
 }
+
+TEST(FanEnRed, PresionReportadaCoincideConElSolveEmbebido) {
+    AtmosphericParams atm;
+    SolverParams sp; sp.tolerance_m3min = 0.006; sp.max_iterations = 1000;
+    auto r = FanCalculator::operating_point_in_network(
+        red_a_sin_fan(), "F", curva_red(), atm, sp);
+    ASSERT_TRUE(r.converged);
+    ASSERT_TRUE(r.network.has_value());
+    // Trazabilidad exacta: la presión reportada ES la que alimentó el solve final
+    EXPECT_DOUBLE_EQ(r.pressure_pa, r.network->branches[0].fan_pressure_pa);
+}
