@@ -64,6 +64,14 @@ TEST(FanCurva, ValidacionesDeCurva) {
     EXPECT_THROW(FanCalculator::pressure_at(c, 1500.0, 1.2), std::invalid_argument);
 }
 
+TEST(FanCurva, RatedDensityDistintaEscalaCorrecto) {
+    FanCurve c = curva_tipica();
+    c.rated_density_kg_m3 = 1.0;   // curva referida a 1.0 kg/m3
+    // P_cat(1500)=1600; factor = 1.2041183163746156/1.0
+    const double p = FanCalculator::pressure_at(c, 1500.0, 1.2041183163746156);
+    EXPECT_NEAR(p, 1600.0 * 1.2041183163746156, 1e-9);
+}
+
 // ============================================================================
 // operating_point — probe_sp3c.py (analítico y stall)
 // ============================================================================
@@ -220,4 +228,22 @@ TEST(FanEnRed, PresionReportadaCoincideConElSolveEmbebido) {
     ASSERT_TRUE(r.network.has_value());
     // Trazabilidad exacta: la presión reportada ES la que alimentó el solve final
     EXPECT_DOUBLE_EQ(r.pressure_pa, r.network->branches[0].fan_pressure_pa);
+}
+
+TEST(FanEnRed, FlujoInvertidoAdvierteYNoConverge) {
+    // Red de 1 malla (S<->A) con 2 ramales paralelos: BIG impone 5000 Pa
+    // S->A (dominante frente a la curva, max ~900 Pa) forzando la circulacion
+    // de retorno A->S por el ramal del ventilador ("FAN") -> q_FAN < 0 en la
+    // convencion from(S)->to(A). Las fan laws no aplican a flujo invertido.
+    NetworkDefinition d;
+    d.branches = { mkb("BIG", "S", "A", 0.05, 5000.0), mkb("FAN", "S", "A", 0.5) };
+    AtmosphericParams atm;
+    SolverParams sp; sp.tolerance_m3min = 0.006; sp.max_iterations = 1000;
+    auto r = FanCalculator::operating_point_in_network(d, "FAN", curva_red(), atm, sp);
+
+    EXPECT_FALSE(r.converged);
+    bool aviso = false;
+    for (const auto& w : r.warnings)
+        if (w.find("FLUJO INVERTIDO") != std::string::npos) aviso = true;
+    EXPECT_TRUE(aviso);
 }
