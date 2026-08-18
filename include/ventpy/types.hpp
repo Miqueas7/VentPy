@@ -239,7 +239,7 @@ struct DuctParams {
 /**
  * @brief Parámetros para cálculo de dilución de polvo.
  *
- * DS 024-2016-EM, Art. 103-107: Límites de exposición a polvo.
+ * DS 024-2016-EM, Art. 111: LEO polvo respirable 3 mg/m³ (8 h).
  */
 struct DustParams {
     double dust_generation_rate_mg_s = 0.0;  ///< Tasa generación polvo [mg/s]
@@ -460,6 +460,7 @@ struct DustFlowResult {
     double q_dust;                      ///< Caudal requerido [m³/min]
     double resulting_velocity_mps;      ///< Velocidad resultante [m/s]
     std::string regulation_ref;
+    std::vector<std::string> warnings;  ///< Advertencias de cálculo
 };
 
 /**
