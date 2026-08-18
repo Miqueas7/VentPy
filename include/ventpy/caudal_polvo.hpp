@@ -17,8 +17,6 @@
  */
 #pragma once
 
-#include <cmath>
-#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -55,19 +53,16 @@ public:
         r.effective_generation = p.dust_generation_rate_mg_s *
             (p.water_suppression ? (1.0 - p.suppression_efficiency) : 1.0);
 
-        // Calcular caudal: reorganizar para minimizar errores de redondeo
-        const double q_m3min_raw = r.effective_generation * 60.0 / p.target_concentration_mg_m3;
+        // Calcular caudal
+        const double q_m3s = r.effective_generation / p.target_concentration_mg_m3;
 
-        // Aplicar safety_ceil robusto: si está muy cercano a un entero (dentro de
-        // error numérico típico), usar ese entero. Si no, aplicar ceil.
-        // Esto maneja correctamente casos como 300.0000001 que deberían ser 300.
-        const double rounded = std::round(q_m3min_raw);
-        constexpr double snap_epsilon = 1e-9;
-        if (std::abs(q_m3min_raw - rounded) < snap_epsilon) {
-            r.q_dust = (q_m3min_raw >= rounded) ? rounded : rounded + 1.0;
-        } else {
-            r.q_dust = safety_ceil(q_m3min_raw);
-        }
+        // Tolerancia FP sustractiva antes del ceil (patrón SP-2: V_TOL/P_TOL de
+        // ducto.hpp/cobertura.hpp): absorbe artefactos de punto flotante
+        // (ej. 50×(1−0.7)/3×60 = 300.00000000000006) sin usar round y sin
+        // poder JAMÁS sobre-reportar: ceil(x−eps) ≤ ceil(x); lo máximo que
+        // "resta" es < 1e-9 m³/min, por debajo de precisión instrumental.
+        constexpr double FP_TOL = 1e-9;
+        r.q_dust = safety_ceil(q_m3s * 60.0 - FP_TOL);
         if (p.face_area_m2 > 0.0) {
             r.resulting_velocity_mps = (r.q_dust / 60.0) / p.face_area_m2;
         }
