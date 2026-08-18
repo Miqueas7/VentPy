@@ -88,6 +88,28 @@ TEST(TablaChoque, ManualExigeXPositivo) {
     EXPECT_DOUBLE_EQ(resolve_shock_factor(s), 1.3);
 }
 
+TEST(TablaChoque, TablaInformativa7EntradasTodasConCita) {
+    const auto& t = shock_factors();
+    EXPECT_EQ(t.size(), 7u);
+    for (const auto& e : t) {
+        EXPECT_NE(e.biblio_ref.find("A5"), std::string::npos);
+    }
+    int exactos = 0;
+    for (const auto& e : t) {
+        if (e.type == SingularityType::Exit) {
+            EXPECT_DOUBLE_EQ(e.x, 1.0);
+            ++exactos;
+        } else if (e.type == SingularityType::Entrance) {
+            EXPECT_DOUBLE_EQ(e.x, 0.5);
+            ++exactos;
+        } else {
+            EXPECT_DOUBLE_EQ(e.x, 0.0);
+            EXPECT_FALSE(e.note.empty());
+        }
+    }
+    EXPECT_EQ(exactos, 2);
+}
+
 // ============================================================================
 // AtkinsonCalculator — esperados derivados con probe_sp3a.py (2026-08-17)
 // Galería: L=500 m, per=15 m, A=14 m², k manual 0.012, T bulbo seco 20 °C.
