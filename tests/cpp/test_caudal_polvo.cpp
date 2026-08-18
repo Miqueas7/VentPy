@@ -72,6 +72,28 @@ TEST(CaudalPolvo, GeneracionCeroEsCaudalCero) {
     EXPECT_DOUBLE_EQ(r.q_dust, 0.0);
 }
 
+TEST(CaudalPolvo, FronteraFpArtefactoNoInfla) {
+    // 50×(1−0.7) = 15.000000000000002 → crudo 300.00000000000006 → 300, no 301
+    // Verifica que tolerancia FP sustractiva absorbe el artefacto sin sobre-reportar
+    RegulatoryConfig cfg;
+    auto r = DustFlowCalculator::calculate(base_dust(), cfg);
+    EXPECT_DOUBLE_EQ(r.q_dust, 300.0);
+}
+
+TEST(CaudalPolvo, FraccionGenuinaSiempreSubeAlCeil) {
+    // target elegido para crudo = 50/2.999×60 = 1000.3334... → ceil 1001
+    // Verifica que fracciones genuinas (lejos del epsilon) siempre suben
+    auto p = base_dust();
+    p.water_suppression = false;      // efectiva 50
+    p.target_concentration_mg_m3 = 2.999;
+    RegulatoryConfig cfg;
+    auto r = DustFlowCalculator::calculate(p, cfg);
+    EXPECT_DOUBLE_EQ(r.q_dust, 1001.0);
+    // Verifica que NO advierte Art. 111 cuando target < 3 (no es sobre-LEO)
+    for (const auto& w : r.warnings)
+        EXPECT_EQ(w.find("Art. 111"), std::string::npos);
+}
+
 TEST(CaudalPolvo, Validaciones) {
     RegulatoryConfig cfg;
     auto p = base_dust(); p.dust_generation_rate_mg_s = -1.0;
