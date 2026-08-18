@@ -57,7 +57,11 @@ TEST(CaudalTermico, BalanceSensibleFactible) {
 }
 
 // Caso 2: depth=1000, atm dry_bulb=18 (alt 2500). inlet = 18+0.98*1000/100 = 27.8.
-// delta_t = 28-27.8 = 0.2 (artefacto FP: 0.1999999999999993) <= 0.5 => infactible.
+// delta_t = 28-27.8 = 0.2 (artefacto FP: 0.1999999999999993) <= 0.5 => infactible
+// por balance. PERO inlet 27.8 esta en [24,29] y face_area=12 (base_thermal) =>
+// FIX 1 (revision final SP-4): el piso legal Art. 252.d NUNCA se descarta, ni
+// siquiera cuando el balance termico es infactible: q_thermal =
+// safety_ceil(12*0.5*60 - FP_TOL) = 360 (derivado en probe-fixwave.py).
 TEST(CaudalTermico, InfactiblePorAutocompresion) {
     auto p = base_thermal();
     p.depth_below_surface_m = 1000.0;
@@ -66,11 +70,39 @@ TEST(CaudalTermico, InfactiblePorAutocompresion) {
     auto r = ThermalFlowCalculator::calculate(p, a, cfg);
     EXPECT_DOUBLE_EQ(r.inlet_temp_c, 27.8);
     EXPECT_NEAR(r.delta_t_available, 0.2, 1e-9);
-    EXPECT_DOUBLE_EQ(r.q_thermal, 0.0);
+    EXPECT_DOUBLE_EQ(r.q_thermal, 360.0);
+    EXPECT_NE(r.regulation_ref.find("252"), std::string::npos);
     bool aviso = false;
     for (const auto& w : r.warnings)
         if (w.find("refrigeracion") != std::string::npos) aviso = true;
     EXPECT_TRUE(aviso);
+}
+
+// FIX 1 (I2 - revision final SP-4): superficie 25, depth 1000 => inlet =
+// 25+0.98*1000/100 = 34.8 (> 29, fuera de [24,29]) => delta_t = 28-34.8 =
+// -6.8 (infactible). face_area=0 => el piso 252.d NO aplica (requiere
+// face_area>0) => q_thermal = 0. El chequeo "inlet>29 => advertencia 104"
+// debe ejecutarse TAMBIEN en la rama infactible: advertencias deben contener
+// tanto "refrigeracion" (piso 252.d/infactibilidad) como "104" (Art. 104 +
+// Anexo 13). Derivado en probe-fixwave.py.
+TEST(CaudalTermico, InfactibleCalienteAdvierte104) {
+    auto p = base_thermal();
+    p.face_area_m2 = 0.0;
+    p.depth_below_surface_m = 1000.0;
+    AtmosphericParams a; a.altitude_masl = 2500.0; a.dry_bulb_temp_c = 25.0;
+    RegulatoryConfig cfg;
+    auto r = ThermalFlowCalculator::calculate(p, a, cfg);
+    EXPECT_DOUBLE_EQ(r.inlet_temp_c, 34.8);
+    EXPECT_DOUBLE_EQ(r.q_thermal, 0.0);
+    EXPECT_DOUBLE_EQ(r.resulting_velocity_mps, 0.0);
+    bool aviso_refrigeracion = false;
+    bool aviso_104 = false;
+    for (const auto& w : r.warnings) {
+        if (w.find("refrigeracion") != std::string::npos) aviso_refrigeracion = true;
+        if (w.find("104") != std::string::npos) aviso_104 = true;
+    }
+    EXPECT_TRUE(aviso_refrigeracion);
+    EXPECT_TRUE(aviso_104);
 }
 
 // Caso 3: atm dry_bulb=16, depth=900 => inlet = 16+0.98*900/100 = 24.82 (en
@@ -171,4 +203,67 @@ TEST(CaudalTermico, Validaciones) {
     p = base_thermal(); p.auto_compression_c_per_100m = -1.0;
     EXPECT_THROW(ThermalFlowCalculator::calculate(p, atm_2500_12C(), cfg),
                  std::invalid_argument);
+}
+
+// ============================================================================
+// FIX 4 (revision final SP-4): fronteras exactas del rango [24,29] del
+// Art. 252.d. Derivado en probe-fixwave.py (regla de oro: replica Python
+// EXACTA antes de escribir el test).
+// ============================================================================
+
+// superficie=16.16, depth=800, autoc=0.98 => inlet = 16.16+7.84 = 24.0 EXACTO
+// (== inclusivo por el lado bajo del rango [24,29]). equipos=15, oxidacion=0,
+// target=28 => delta_t=4.0. rho(2500,16.16C)=0.8991976767783694.
+// balance crudo = 248.97817554093456 => ceil-eps = 249. 252.d = 12*0.5*60=360.
+// 360 > 249 => domina el piso 252.d => q_thermal = 360, ref contiene "252".
+TEST(CaudalTermico, Frontera24Activa252d) {
+    auto p = base_thermal();
+    p.heat_from_equipment_kw = 15.0;
+    p.heat_from_oxidation_kw = 0.0;
+    p.depth_below_surface_m = 800.0;
+    AtmosphericParams a; a.altitude_masl = 2500.0; a.dry_bulb_temp_c = 16.16;
+    RegulatoryConfig cfg;
+    auto r = ThermalFlowCalculator::calculate(p, a, cfg);
+    EXPECT_DOUBLE_EQ(r.inlet_temp_c, 24.0);
+    EXPECT_DOUBLE_EQ(r.q_thermal, 360.0);
+    EXPECT_NE(r.regulation_ref.find("252"), std::string::npos);
+}
+
+// superficie=21.16, depth=800, autoc=0.98 => inlet = 21.16+7.84 = 29.0 EXACTO
+// (== inclusivo por el lado alto del rango [24,29]). target override a 32
+// para que el balance sea factible (delta_t = 32-29 = 3.0 > 0.5). equipos=400,
+// oxidacion=50 (defaults). rho(2500,21.16C)=0.8839213070189598.
+// balance crudo = 10131.245631807053 => ceil-eps = 10132 > 252d (360) =>
+// domina el balance, pero la cita 252.d sigue presente por estar en rango.
+TEST(CaudalTermico, Frontera29Activa252d) {
+    auto p = base_thermal();
+    p.target_effective_temp_c = 32.0;
+    p.depth_below_surface_m = 800.0;
+    AtmosphericParams a; a.altitude_masl = 2500.0; a.dry_bulb_temp_c = 21.16;
+    RegulatoryConfig cfg;
+    auto r = ThermalFlowCalculator::calculate(p, a, cfg);
+    EXPECT_DOUBLE_EQ(r.inlet_temp_c, 29.0);
+    EXPECT_NEAR(r.delta_t_available, 3.0, 1e-9);
+    EXPECT_DOUBLE_EQ(r.q_thermal, 10132.0);
+    EXPECT_NE(r.regulation_ref.find("252"), std::string::npos);
+}
+
+// target = inlet + 0.5 EXACTO => delta_t_available == 0.5 exacto, que cae en
+// la frontera inclusiva "<= 0.5" del gate de infactibilidad. atm_2500_12C() +
+// depth=800 (default) => inlet = 12+0.98*800/100 = 19.84; target = 20.34 =>
+// delta_t = 0.5 EXACTO => infactible (q_thermal=0, advertencia refrigeracion).
+// inlet 19.84 no esta en [24,29] => el piso 252.d no aplica (independiente de
+// face_area).
+TEST(CaudalTermico, DeltaTMedioExactoInfactible) {
+    auto p = base_thermal();
+    p.target_effective_temp_c = 20.34;
+    RegulatoryConfig cfg;
+    auto r = ThermalFlowCalculator::calculate(p, atm_2500_12C(), cfg);
+    EXPECT_DOUBLE_EQ(r.inlet_temp_c, 19.84);
+    EXPECT_DOUBLE_EQ(r.delta_t_available, 0.5);
+    EXPECT_DOUBLE_EQ(r.q_thermal, 0.0);
+    bool aviso = false;
+    for (const auto& w : r.warnings)
+        if (w.find("refrigeracion") != std::string::npos) aviso = true;
+    EXPECT_TRUE(aviso);
 }

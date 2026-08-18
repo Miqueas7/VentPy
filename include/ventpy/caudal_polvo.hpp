@@ -17,6 +17,7 @@
  */
 #pragma once
 
+#include <algorithm>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -62,7 +63,9 @@ public:
         // poder JAMÁS sobre-reportar: ceil(x−eps) ≤ ceil(x); lo máximo que
         // "resta" es < 1e-9 m³/min, por debajo de precisión instrumental.
         constexpr double FP_TOL = 1e-9;
-        r.q_dust = safety_ceil(q_m3s * 60.0 - FP_TOL);
+        // Clamp cosmetico: evita -0.0 cuando la generacion es 0 (safety_ceil
+        // (-FP_TOL) puede devolver -0.0).
+        r.q_dust = std::max(0.0, safety_ceil(q_m3s * 60.0 - FP_TOL));
         if (p.face_area_m2 > 0.0) {
             r.resulting_velocity_mps = (r.q_dust / 60.0) / p.face_area_m2;
         }

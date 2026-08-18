@@ -72,6 +72,19 @@ TEST(CaudalPolvo, GeneracionCeroEsCaudalCero) {
     EXPECT_DOUBLE_EQ(r.q_dust, 0.0);
 }
 
+// FIX 2 (revision final SP-4): resulting_velocity_mps queda sin asignar
+// cuando face_area_m2 <= 0 (la rama "if (p.face_area_m2 > 0.0)" no corre).
+// Con el inicializador "= 0.0" agregado en types.hpp (DustFlowResult), el
+// valor debe ser 0.0 en vez de UB.
+TEST(CaudalPolvo, AreaCeroVelocidadCero) {
+    auto p = base_dust();
+    p.face_area_m2 = 0.0;
+    RegulatoryConfig cfg;
+    auto r = DustFlowCalculator::calculate(p, cfg);
+    EXPECT_DOUBLE_EQ(r.q_dust, 300.0);  // caudal normal, no afectado por area
+    EXPECT_DOUBLE_EQ(r.resulting_velocity_mps, 0.0);
+}
+
 TEST(CaudalPolvo, FronteraFpArtefactoNoInfla) {
     // 50×(1−0.7) = 15.000000000000002 → crudo 300.00000000000006 → 300, no 301
     // Verifica que tolerancia FP sustractiva absorbe el artefacto sin sobre-reportar

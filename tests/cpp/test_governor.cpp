@@ -238,6 +238,38 @@ TEST_F(GovernorPolvoTermico, PolvoGobiernaConPisoNeutralizado) {
     EXPECT_NEAR(result.dust->resulting_velocity_mps, 1035.0 / 60.0 / 0.1, 1e-9);
 }
 
+// FIX 6 (revision final SP-4): las advertencias de los sub-calculadores deben
+// subir al Governor con el prefijo del factor que las origino ("Q_polvo: ",
+// "Q_termico: "; ver governor.hpp lineas 171-188). Caso base de polvo
+// (DilucionConSupresionExacta de test_caudal_polvo.cpp) + silica 12% => el
+// calculador de polvo advierte remision al Anexo 15; esa advertencia debe
+// aparecer en result.warnings prefijada con "Q_polvo: ".
+TEST_F(GovernorPolvoTermico, WarningsPrefijadasSubenAlGovernor) {
+    VentilationInput input;
+    input.zone_type = ZoneType::DevelopmentFace;
+    input.num_workers = 1;
+
+    DustParams dust;
+    dust.dust_generation_rate_mg_s = 50.0;
+    dust.target_concentration_mg_m3 = 3.0;
+    dust.face_area_m2 = 12.0;
+    dust.water_suppression = true;
+    dust.suppression_efficiency = 0.7;
+    dust.silica_content_percent = 12.0;
+    input.dust_params = dust;
+
+    auto result = governor.calculateTotalDemand(input);
+
+    bool aviso = false;
+    for (const auto& w : result.warnings) {
+        if (w.find("Q_polvo: ") != std::string::npos &&
+            w.find("Anexo 15") != std::string::npos) {
+            aviso = true;
+        }
+    }
+    EXPECT_TRUE(aviso);
+}
+
 // DevelopmentFace, 10 trabajadores, atmospheric.altitude_masl=2500,
 // atmospheric.dry_bulb_temp_c=16, face_area_m2 default (12): Q_per = 180
 // (piso de velocidad; igual que GovernorTest.PersonnelOnly a altitude=2500).
@@ -297,7 +329,7 @@ TEST_F(GovernorPolvoTermico, TermicoGobiernaE2E) {
 //   q_thermal = 9391  (mismo caso 4 de Task 2 que TermicoGobiernaE2E)
 // suma = 180+0+1+300+9391 = 9872.
 // total = ceil(9872 x 1.15) = ceil(11352.8) = 11353.
-TEST_F(GovernorPolvoTermico, GeneralMineSumaCinco) {
+TEST_F(GovernorPolvoTermico, GeneralMineSumaSinFlota) {
     VentilationInput input;
     input.zone_type = ZoneType::GeneralMine;
     input.num_workers = 10;

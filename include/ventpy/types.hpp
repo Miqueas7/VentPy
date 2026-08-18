@@ -458,12 +458,12 @@ struct LeakageFlowResult {
  * @brief Resultado del cálculo de dilución de polvo.
  */
 struct DustFlowResult {
-    double dust_generation_mg_s;        ///< Generación de polvo [mg/s]
-    double target_concentration;        ///< Concentración objetivo [mg/m³]
-    double suppression_efficiency;      ///< Eficiencia supresión aplicada
-    double effective_generation;        ///< Generación efectiva post-supresión
-    double q_dust;                      ///< Caudal requerido [m³/min]
-    double resulting_velocity_mps;      ///< Velocidad resultante [m/s]
+    double dust_generation_mg_s = 0.0;        ///< Generación de polvo [mg/s]
+    double target_concentration = 0.0;        ///< Concentración objetivo [mg/m³]
+    double suppression_efficiency = 0.0;      ///< Eficiencia supresión aplicada
+    double effective_generation = 0.0;        ///< Generación efectiva post-supresión
+    double q_dust = 0.0;                      ///< Caudal requerido [m³/min]
+    double resulting_velocity_mps = 0.0;      ///< Velocidad resultante [m/s]
     std::string regulation_ref;
     std::vector<std::string> warnings;  ///< Advertencias de cálculo
 };
@@ -472,16 +472,16 @@ struct DustFlowResult {
  * @brief Resultado del cálculo de carga térmica.
  */
 struct ThermalFlowResult {
-    double heat_from_rock_kw;           ///< Calor de la roca [kW]
-    double heat_from_equipment_kw;      ///< Calor de equipos [kW]
-    double heat_from_autocompression_kw;///< Calor por autocompresión [kW]
-    double heat_from_other_kw;          ///< Otras fuentes [kW]
-    double total_heat_load_kw;          ///< Carga térmica total [kW]
-    double inlet_temp_c;                ///< Temperatura entrada aire [°C]
-    double target_temp_c;               ///< Temperatura objetivo [°C]
-    double delta_t_available;           ///< ΔT disponible [°C]
-    double q_thermal;                   ///< Caudal requerido [m³/min]
-    double resulting_velocity_mps;      ///< Velocidad resultante [m/s]
+    double heat_from_rock_kw = 0.0;           ///< Calor de la roca [kW]
+    double heat_from_equipment_kw = 0.0;      ///< Calor de equipos [kW]
+    double heat_from_autocompression_kw = 0.0;///< Calor por autocompresión [kW]
+    double heat_from_other_kw = 0.0;          ///< Otras fuentes [kW]
+    double total_heat_load_kw = 0.0;          ///< Carga térmica total [kW]
+    double inlet_temp_c = 0.0;                ///< Temperatura entrada aire [°C]
+    double target_temp_c = 0.0;               ///< Temperatura objetivo [°C]
+    double delta_t_available = 0.0;           ///< ΔT disponible [°C]
+    double q_thermal = 0.0;                   ///< Caudal requerido [m³/min]
+    double resulting_velocity_mps = 0.0;      ///< Velocidad resultante [m/s]
     std::string regulation_ref;
     std::vector<std::string> warnings;  ///< Advertencias de cálculo
 };
@@ -776,7 +776,7 @@ namespace constants {
     inline constexpr double TLV_NO_PPM = 25.0;
     inline constexpr double TLV_SO2_PPM = 5.0;
     inline constexpr double TLV_H2S_PPM = 10.0;
-    inline constexpr double TLV_DUST_RESPIRABLE_MG_M3 = 3.0; // Art. 103
+    inline constexpr double TLV_DUST_RESPIRABLE_MG_M3 = 3.0; // Art. 111
     inline constexpr double MIN_O2_PERCENT = 19.5;           // Art. 236
     inline constexpr double MAX_EFFECTIVE_TEMP_C = 30.0;     // INGENIERIL:
         // la norma vigente NO fija TE maxima (herencia del derogado DS
