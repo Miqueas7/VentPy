@@ -112,6 +112,89 @@ public:
         return r;
     }
 
+    /**
+     * @brief Punto de operación del ventilador DENTRO de una red: punto fijo
+     * con sub-relajación sobre NetworkSolver::solve (iteración externa —
+     * viable porque cada solve usa presión fija; ver spec SP-3c).
+     *
+     * El fan_pressure_pa declarado en el ramal se IGNORA (lo gobierna la
+     * curva); se advierte si venía > 0. El clamp del caudal al rango del
+     * catálogo es solo estabilizador interno: si la ITERACIÓN FINAL queda
+     * fuera de rango, in_curve_range = false con advertencia.
+     */
+    [[nodiscard]] static FanOperatingResult operating_point_in_network(
+        const NetworkDefinition& network, const std::string& fan_branch_id,
+        const FanCurve& curve, const AtmosphericParams& atm,
+        const SolverParams& solver_params = {},
+        const FanOperatingParams& params = {}
+    ) {
+        validate_curve(curve);
+        validate_params(params);
+
+        int fan_idx = -1;
+        for (size_t i = 0; i < network.branches.size(); ++i)
+            if (network.branches[i].branch_id == fan_branch_id)
+                fan_idx = static_cast<int>(i);
+        if (fan_idx < 0) {
+            throw std::invalid_argument(
+                "Error de dominio [VentPy]: fan_branch_id '" + fan_branch_id +
+                "' no existe en la red.");
+        }
+
+        FanOperatingResult r;
+        r.fan_id = curve.fan_id;
+        r.air_density_kg_m3 = site_density(atm);
+        r.density_factor = r.air_density_kg_m3 / curve.rated_density_kg_m3;
+        r.biblio_ref = BIBLIO;
+
+        NetworkDefinition net = network;
+        if (net.branches[fan_idx].fan_pressure_pa > 0.0) {
+            r.warnings.push_back(
+                "El fan_pressure_pa declarado en el ramal '" + fan_branch_id +
+                "' se ignora: lo gobierna la curva del ventilador.");
+        }
+
+        const double q_lo = curve.points.front().q_m3min;
+        const double q_hi = curve.points.back().q_m3min;
+        // Arranque: presión del punto medio del catálogo (a densidad de sitio)
+        double p_fan = pressure_at(curve, 0.5 * (q_lo + q_hi),
+                                   r.air_density_kg_m3);
+        double q_prev = 0.0;
+        double q_raw = 0.0;
+        NetworkSolveResult last_net;
+        for (int it = 1; it <= params.max_iterations; ++it) {
+            r.iterations = it;
+            net.branches[fan_idx].fan_pressure_pa = p_fan;
+            last_net = NetworkSolver::solve(net, atm, solver_params);
+            if (!last_net.converged) break;   // red no balanceó: abortar auditable
+            q_raw = std::abs(last_net.branches[fan_idx].q_m3min);
+            const double q_clamped = std::clamp(q_raw, q_lo, q_hi);
+            const double p_target =
+                pressure_at(curve, q_clamped, r.air_density_kg_m3);
+            p_fan += params.under_relaxation * (p_target - p_fan);
+            if (it > 1 && std::abs(q_raw - q_prev) <= solver_params.tolerance_m3min) {
+                r.converged = true;
+                break;
+            }
+            q_prev = q_raw;
+        }
+        r.network = last_net;
+        r.q_m3min = q_raw;
+        r.pressure_pa = p_fan;
+        r.in_curve_range = r.converged && q_raw >= q_lo && q_raw <= q_hi;
+        if (!r.converged) {
+            r.warnings.push_back(
+                "NO CONVERGIO el punto fijo ventilador-red (o la red interna "
+                "no balanceo). Resultados NO confiables.");
+        } else if (!r.in_curve_range) {
+            r.warnings.push_back(
+                "El punto de operacion quedo FUERA del rango del catalogo "
+                "(se uso clamp estabilizador): revisar seleccion del ventilador.");
+        }
+        assess_stall(r, curve, params);
+        return r;
+    }
+
 private:
     static constexpr const char* BIBLIO =
         "McPherson (2009), Cap. 10 'Fans': ec. 10.28 (fan laws, densidad); "

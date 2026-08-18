@@ -142,3 +142,71 @@ TEST(FanOperacion, Validaciones) {
     EXPECT_THROW(FanCalculator::operating_point(curva_lineal(), 0.5, atm, p),
                  std::invalid_argument);
 }
+
+// ============================================================================
+// operating_point_in_network — Red A de SP-3b + curva (probe_sp3c.py):
+// equilibrio Q_F = 2797.4401 m³/min, P = 519.2961 Pa; Q_P1 = 1864.96, Q_P2 = 932.48
+// ============================================================================
+
+namespace {
+NetworkBranch mkb(const std::string& id, const std::string& f, const std::string& t,
+                  double r, double fan = 0.0) {
+    NetworkBranch b;
+    b.branch_id = id; b.from_node = f; b.to_node = t;
+    b.r_manual = r; b.fan_pressure_pa = fan;
+    return b;
+}
+NetworkDefinition red_a_sin_fan() {
+    NetworkDefinition d;
+    d.branches = { mkb("F","S","A",0.05), mkb("P1","A","B",0.2),
+                   mkb("P2","A","B",0.8), mkb("R","B","S",0.1) };
+    return d;
+}
+FanCurve curva_red() {
+    FanCurve c; c.fan_id = "AX-RED";
+    c.points = { {1200.0,900.0}, {1800.0,800.0}, {2400.0,650.0},
+                 {3000.0,450.0}, {3600.0,200.0} };
+    return c;
+}
+} // namespace
+
+TEST(FanEnRed, PuntoFijoConvergeAlEquilibrio) {
+    AtmosphericParams atm;
+    SolverParams sp; sp.tolerance_m3min = 0.006; sp.max_iterations = 1000;
+    auto r = FanCalculator::operating_point_in_network(
+        red_a_sin_fan(), "F", curva_red(), atm, sp);
+
+    EXPECT_TRUE(r.converged);
+    EXPECT_TRUE(r.in_curve_range);
+    EXPECT_NEAR(r.q_m3min, 2797.440074748137, 1.0);
+    EXPECT_NEAR(r.pressure_pa, 519.2960675736035, 1.0);
+    // La red embebida trae el balance completo en el punto de operación
+    ASSERT_TRUE(r.network.has_value());
+    EXPECT_TRUE(r.network->converged);
+    EXPECT_NEAR(r.network->branches[1].q_m3min, 1864.96, 1.0);   // P1
+    EXPECT_NEAR(r.network->branches[2].q_m3min,  932.48, 1.0);   // P2
+    // Curva monótona decreciente → stall_ok con nota informativa
+    EXPECT_TRUE(r.stall_ok);
+}
+
+TEST(FanEnRed, FanPressureDeclaradoSeIgnoraConAdvertencia) {
+    auto d = red_a_sin_fan();
+    d.branches[0].fan_pressure_pa = 500.0;   // declarado: debe ignorarse
+    AtmosphericParams atm;
+    SolverParams sp; sp.tolerance_m3min = 0.006; sp.max_iterations = 1000;
+    auto r = FanCalculator::operating_point_in_network(d, "F", curva_red(), atm, sp);
+
+    EXPECT_TRUE(r.converged);
+    EXPECT_NEAR(r.q_m3min, 2797.440074748137, 1.0);   // mismo equilibrio
+    bool aviso = false;
+    for (const auto& w : r.warnings)
+        if (w.find("ignora") != std::string::npos) aviso = true;
+    EXPECT_TRUE(aviso);
+}
+
+TEST(FanEnRed, RamalInexistenteLanza) {
+    AtmosphericParams atm;
+    EXPECT_THROW(FanCalculator::operating_point_in_network(
+                     red_a_sin_fan(), "NO-EXISTE", curva_red(), atm),
+                 std::invalid_argument);
+}
