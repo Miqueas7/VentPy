@@ -51,6 +51,50 @@ public:
         return r;
     }
 
+    /**
+     * @brief Económico: entre los viables, costo total mínimo.
+     *
+     * Costo energía = ΔP[Pa]·Q[m³/s]/η [W] → kW × horas × tarifa.
+     * Costo capital = duct_cost_per_m_per_m_diam × D × L (lineal en D —
+     * simplificación documentada; sin NPV/descuento: fuera de alcance).
+     */
+    [[nodiscard]] static DuctSizingResult calculate_full(
+        const DuctSizingParams& p, const AtmosphericParams& atm,
+        const EconomicParams& eco
+    ) {
+        validation::require_positive(eco.energy_cost_per_kwh,
+            "energy_cost_per_kwh [USD/kWh] - Tarifa de energia");
+        validation::require_positive(eco.duct_cost_per_m_per_m_diam,
+            "duct_cost_per_m_per_m_diam [USD/(m*m)] - Costo de ducto");
+        validation::require_positive(eco.operating_hours,
+            "operating_hours [h] - Horas de operacion");
+        validation::require_in_range(eco.fan_efficiency, 1e-9, 1.0,
+            "fan_efficiency");
+
+        DuctSizingResult r = evaluate_options(p, atm, &eco);
+        r.selection_criterion = "economico: costo total minimo entre viables";
+        const double q_m3s = p.q_m3min / 60.0;
+        double best_cost = 0.0;
+        for (DuctOptionResult& o : r.options) {
+            o.energy_cost = (o.pressure_drop_pa * q_m3s / eco.fan_efficiency)
+                            / 1000.0 * eco.operating_hours * eco.energy_cost_per_kwh;
+            o.capital_cost = eco.duct_cost_per_m_per_m_diam * o.diameter_m * p.length_m;
+            o.total_cost = o.energy_cost + o.capital_cost;
+            if (o.rejection_reason.empty() &&
+                (!r.feasible || o.total_cost < best_cost)) {
+                r.feasible = true;
+                best_cost = o.total_cost;
+                r.selected_diameter_m = o.diameter_m;
+            }
+        }
+        if (!r.feasible) {
+            r.warnings.push_back(
+                "Ningun diametro comercial cumple las restricciones "
+                "(revisar velocidad maxima, presion disponible o lista de diametros)");
+        }
+        return r;
+    }
+
 private:
     // Task 4 añade calculate_full y el costeo; evaluate_options es compartido.
     [[nodiscard]] static DuctSizingResult evaluate_options(
