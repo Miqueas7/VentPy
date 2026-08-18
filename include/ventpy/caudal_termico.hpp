@@ -114,11 +114,27 @@ public:
 
         if (r.delta_t_available <= 0.5) {
             // Piso documentado: infactible por autocompresión — nunca un
-            // caudal absurdo por división cercana a cero.
-            r.q_thermal = 0.0;
-            r.regulation_ref =
-                "DS 024-2016-EM: objetivo de diseño no alcanzable por "
-                "ventilacion (autocompresion agota el ΔT disponible)";
+            // caudal absurdo por división cercana a cero. Pero el piso legal
+            // de velocidad del Art. 252.d (30 m/min con temperatura seca en
+            // [24,29] C) NUNCA se descarta: si aplica, sigue siendo exigible
+            // aunque el balance térmico sensible sea infactible.
+            const bool in_252d_range_infeasible =
+                inlet_temp_bottom >= 24.0 && inlet_temp_bottom <= 29.0;
+            if (in_252d_range_infeasible && p.face_area_m2 > 0.0) {
+                r.q_thermal = std::max(0.0,
+                    safety_ceil(p.face_area_m2 * 0.5 * 60.0 - FP_TOL));
+                r.regulation_ref =
+                    "DS 024-2016-EM, Art. 252.d (velocidad minima 30 m/min "
+                    "con temperatura seca 24-29 C) — balance termico "
+                    "sensible INFACTIBLE por autocompresion, se requiere "
+                    "refrigeracion mecanica adicional para alcanzar el "
+                    "objetivo termico";
+            } else {
+                r.q_thermal = 0.0;
+                r.regulation_ref =
+                    "DS 024-2016-EM: objetivo de diseño no alcanzable por "
+                    "ventilacion (autocompresion agota el ΔT disponible)";
+            }
             std::ostringstream oss;
             oss << "INFACTIBLE por autocompresion: temperatura de entrada ("
                 << inlet_temp_bottom << " C) deja un ΔT disponible ("
@@ -128,6 +144,18 @@ public:
                    "alcanzar el objetivo de " << p.target_effective_temp_c
                 << " C";
             r.warnings.push_back(oss.str());
+
+            // I2: la remisión al Art. 104 + Anexo 13 (estrés térmico WBGT)
+            // aplica por temperatura de entrada, independiente de si el
+            // balance térmico es factible o no.
+            if (inlet_temp_bottom > 29.0) {
+                std::ostringstream oss2;
+                oss2 << "Temperatura de entrada (" << inlet_temp_bottom
+                    << " C) supera 29 C: remitir a evaluacion de estres "
+                       "termico WBGT (Art. 104 + Anexo 13; no calculado por "
+                       "este calculador)";
+                r.warnings.push_back(oss2.str());
+            }
             return r;
         }
 
@@ -164,7 +192,9 @@ public:
                 "sensible (criterio ingenieril)";
         }
 
-        r.q_thermal = q_thermal;
+        // Clamp cosmetico: evita -0.0 cuando la carga/generacion es 0
+        // (safety_ceil(-FP_TOL) puede devolver -0.0).
+        r.q_thermal = std::max(0.0, q_thermal);
         r.regulation_ref = regulation_ref;
         if (p.face_area_m2 > 0.0) {
             r.resulting_velocity_mps = (r.q_thermal / 60.0) / p.face_area_m2;
