@@ -650,6 +650,55 @@ struct DuctSizingResult {
 };
 
 // ============================================================================
+// Structs para solver de red de ventilación (SP-3b Hardy Cross)
+// ============================================================================
+
+/// Ramal de la red. Resistencia: exactamente UNA fuente (XOR):
+/// `airway` (R vía AtkinsonCalculator con la atmósfera dada) o `r_manual`.
+struct NetworkBranch {
+    std::string branch_id;
+    std::string from_node;
+    std::string to_node;
+    std::optional<AirwayParams> airway;  ///< R calculada (incluye choque)
+    double r_manual = 0.0;               ///< [Ns²/m⁸] > 0 si no hay airway
+    double fan_pressure_pa = 0.0;        ///< ≥ 0; presión de ventilador en sentido from→to
+    double q_initial_m3min = 0.0;        ///< 0 = estimación automática (solo cuerdas)
+};
+
+/// Red completa. Convención: la red se modela CERRADA — el nodo "superficie"
+/// cierra el circuito admisión/retorno. Un árbol (sin mallas) no tiene
+/// solución de circulación y lanza.
+struct NetworkDefinition {
+    std::vector<NetworkBranch> branches;
+};
+
+struct SolverParams {
+    double tolerance_m3min = 0.6;   ///< max|ΔQ| de malla para converger (ingenieril)
+    int max_iterations = 100;       ///< (ingenieril)
+};
+
+struct BranchFlowResult {
+    std::string branch_id, from_node, to_node;
+    double r_ns2m8 = 0.0;
+    double q_m3min = 0.0;           ///< signo: + = from→to
+    double pressure_drop_pa = 0.0;  ///< R·Q·|Q| (con signo, crudo)
+    double fan_pressure_pa = 0.0;
+    double velocity_mps = 0.0;      ///< solo si airway con área
+    std::vector<std::string> warnings;  ///< Art. 248 si área conocida
+};
+
+struct NetworkSolveResult {
+    std::vector<BranchFlowResult> branches;
+    bool converged = false;
+    int iterations = 0;
+    double max_residual_m3min = 0.0;
+    int mesh_count = 0;
+    int node_count = 0;
+    std::vector<std::string> warnings;
+    std::string biblio_ref;   ///< McPherson Cap. 7 §7.3.2
+};
+
+// ============================================================================
 // Constantes de conversión y físicas
 // ============================================================================
 
