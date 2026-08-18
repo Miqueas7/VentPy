@@ -187,3 +187,163 @@ TEST_F(GovernorTest, ConfigIsPreserved) {
     EXPECT_DOUBLE_EQ(governor.config().diesel_hp_factor(), 3.0);
     EXPECT_DOUBLE_EQ(governor.config().default_leakage_factor(), 0.15);
 }
+
+// ============================================================================
+// SP-4 Task 3: cableo de dust_params/thermal_params al Governor.
+//
+// Valores derivados con replica Python EXACTA ANTES de escribir estos tests
+// (regla de oro del anexo del controlador; script guardado en el workspace
+// SDD: .superpowers/sdd/2026-08-18-sp4-polvo-termico/probe-governor-sp4.py,
+// salida completa en probe-governor-sp4-output.txt). Reutiliza resultados ya
+// testeados y GREEN de Task 1 (test_caudal_polvo.cpp) y Task 2
+// (test_caudal_termico.cpp) -- no se rederivan distinto.
+// ============================================================================
+
+class GovernorPolvoTermico : public ::testing::Test {
+protected:
+    RegulatoryConfig default_config;
+    VentilationGovernor governor{default_config};
+};
+
+// DevelopmentFace, 1 trabajador, altitude 0, face_area_m2 = 0.1 (neutraliza
+// el piso de velocidad de personal: 0.1 x 0.25 x 60 = 1.5 < normativo 3 =>
+// Q_per = 3, igual que GovernorTest.SafetyCeil_NeverRoundsDown).
+// dust_params = caso "SinSupresionYSafetyCeil" de Task 1 (test_caudal_polvo.cpp):
+// 50 mg/s SIN supresion, target 2.9 => q_dust = 1035 (NO se fija face_area
+// propio: hereda 0.1 del input, mismo patron que blasting_params).
+// q_governing = max(3, 1035) = 1035 (domina polvo).
+// total = ceil(1035 x 1.15) = ceil(1190.25) = 1191.
+TEST_F(GovernorPolvoTermico, PolvoGobiernaConPisoNeutralizado) {
+    VentilationInput input;
+    input.zone_type = ZoneType::DevelopmentFace;
+    input.num_workers = 1;
+    input.altitude_masl = 0.0;
+    input.face_area_m2 = 0.1;
+
+    DustParams dust;
+    dust.dust_generation_rate_mg_s = 50.0;
+    dust.water_suppression = false;
+    dust.target_concentration_mg_m3 = 2.9;
+    // dust.face_area_m2 queda en 0 => el governor lo completa con input.face_area_m2.
+    input.dust_params = dust;
+
+    auto result = governor.calculateTotalDemand(input);
+
+    EXPECT_DOUBLE_EQ(result.q_personnel_m3min, 3.0);
+    EXPECT_DOUBLE_EQ(result.q_dust_m3min, 1035.0);
+    EXPECT_EQ(result.governing_factor, "dust (Q_Dust)");
+    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 1035.0);
+    EXPECT_DOUBLE_EQ(result.q_total_m3min, 1191.0);
+    ASSERT_TRUE(result.dust.has_value());
+    EXPECT_NEAR(result.dust->resulting_velocity_mps, 1035.0 / 60.0 / 0.1, 1e-9);
+}
+
+// DevelopmentFace, 10 trabajadores, atmospheric.altitude_masl=2500,
+// atmospheric.dry_bulb_temp_c=16, face_area_m2 default (12): Q_per = 180
+// (piso de velocidad; igual que GovernorTest.PersonnelOnly a altitude=2500).
+// thermal_params = caso 4 de Task 2 (test_caudal_termico.cpp,
+// BalanceDominaSobre252d): equipos 400 kW + oxidacion 50 kW, depth 900 m,
+// autocompresion 0.98, target 28 C, face_area 12 => q_thermal = 9391
+// (REUTILIZADO, no rederivado distinto).
+// q_governing = max(180, 9391) = 9391 (domina termico).
+// total = ceil(9391 x 1.15) = ceil(10799.65) = 10800.
+// VRT del caso: virgen 25 + 1.0x900/100 = 34 <= target+10 (38) => sin
+// advertencia de estudio geotermico. inlet=24.82 en [24,29] => regulation_ref
+// del resultado termico contiene "252" (Art. 252.d aplica).
+TEST_F(GovernorPolvoTermico, TermicoGobiernaE2E) {
+    VentilationInput input;
+    input.zone_type = ZoneType::DevelopmentFace;
+    input.num_workers = 10;
+    input.atmospheric.altitude_masl = 2500.0;
+    input.atmospheric.dry_bulb_temp_c = 16.0;
+
+    ThermalParams thermal;
+    thermal.virgin_rock_temp_c = 25.0;
+    thermal.geothermal_gradient_c_per_100m = 1.0;
+    thermal.depth_below_surface_m = 900.0;
+    thermal.auto_compression_c_per_100m = 0.98;
+    thermal.heat_from_equipment_kw = 400.0;
+    thermal.heat_from_oxidation_kw = 50.0;
+    thermal.target_effective_temp_c = 28.0;
+    thermal.face_area_m2 = 12.0;
+    input.thermal_params = thermal;
+
+    auto result = governor.calculateTotalDemand(input);
+
+    EXPECT_DOUBLE_EQ(result.q_personnel_m3min, 180.0);
+    EXPECT_DOUBLE_EQ(result.q_thermal_m3min, 9391.0);
+    EXPECT_EQ(result.governing_factor, "thermal (Q_Thermal)");
+    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 9391.0);
+    EXPECT_DOUBLE_EQ(result.q_total_m3min, 10800.0);
+    ASSERT_TRUE(result.thermal.has_value());
+    EXPECT_NE(result.thermal->regulation_ref.find("252"), std::string::npos);
+    // Sin advertencia de estudio geotermico (VRT 34 <= target+10 = 38).
+    for (const auto& w : result.thermal->warnings)
+        EXPECT_EQ(w.find("estudio"), std::string::npos);
+}
+
+// GeneralMine: sumatoria de los factores. 10 trabajadores, atmospheric
+// altitude=2500/dry_bulb=16, face_area_m2 default (12) para TODO el input
+// (piso de velocidad de personal Y criterio 252.d termico).
+// SIMPLIFICACION documentada (permitida por el anexo del controlador): SIN
+// flota diesel (q_eq = 0) -- suma de 4 factores en vez de 5, para no
+// rederivar aqui el modelo Tier3 de dilucion NOx del diesel.
+//   q_per     = 180   (piso velocidad; igual que TermicoGobiernaE2E)
+//   q_eq      = 0     (sin flota diesel; simplificacion documentada)
+//   q_exp     = 1     (blasting simple 50 kg, 0.04 m3/kg, 30 min:
+//                       ceil((50*0.04)/30) = ceil(0.0667) = 1)
+//   q_dust    = 300   (caso A de Task 1, DilucionConSupresionExacta: 50 mg/s
+//                       con supresion 0.7, target 3.0 => exacto, sin resto)
+//   q_thermal = 9391  (mismo caso 4 de Task 2 que TermicoGobiernaE2E)
+// suma = 180+0+1+300+9391 = 9872.
+// total = ceil(9872 x 1.15) = ceil(11352.8) = 11353.
+TEST_F(GovernorPolvoTermico, GeneralMineSumaCinco) {
+    VentilationInput input;
+    input.zone_type = ZoneType::GeneralMine;
+    input.num_workers = 10;
+    input.atmospheric.altitude_masl = 2500.0;
+    input.atmospheric.dry_bulb_temp_c = 16.0;
+
+    BlastingParams blast;
+    blast.explosive_kg = 50.0;
+    blast.gas_volume_per_kg = 0.04;
+    blast.dilution_time_min = 30.0;
+    input.blasting_params = blast;
+
+    DustParams dust;
+    dust.dust_generation_rate_mg_s = 50.0;
+    dust.target_concentration_mg_m3 = 3.0;
+    dust.face_area_m2 = 12.0;
+    dust.water_suppression = true;
+    dust.suppression_efficiency = 0.7;
+    input.dust_params = dust;
+
+    ThermalParams thermal;
+    thermal.virgin_rock_temp_c = 25.0;
+    thermal.geothermal_gradient_c_per_100m = 1.0;
+    thermal.depth_below_surface_m = 900.0;
+    thermal.auto_compression_c_per_100m = 0.98;
+    thermal.heat_from_equipment_kw = 400.0;
+    thermal.heat_from_oxidation_kw = 50.0;
+    thermal.target_effective_temp_c = 28.0;
+    thermal.face_area_m2 = 12.0;
+    input.thermal_params = thermal;
+
+    // Sin input.diesel_fleet (simplificacion documentada arriba).
+
+    auto result = governor.calculateTotalDemand(input);
+
+    EXPECT_DOUBLE_EQ(result.q_personnel_m3min, 180.0);
+    EXPECT_DOUBLE_EQ(result.q_diesel_m3min, 0.0);
+    EXPECT_DOUBLE_EQ(result.q_blasting_m3min, 1.0);
+    EXPECT_DOUBLE_EQ(result.q_dust_m3min, 300.0);
+    EXPECT_DOUBLE_EQ(result.q_thermal_m3min, 9391.0);
+
+    double suma_manual = result.q_personnel_m3min + result.q_diesel_m3min +
+                          result.q_blasting_m3min + result.q_dust_m3min +
+                          result.q_thermal_m3min;
+    EXPECT_DOUBLE_EQ(suma_manual, 9872.0);
+    EXPECT_EQ(result.governing_factor, "summation (mine total)");
+    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 9872.0);
+    EXPECT_DOUBLE_EQ(result.q_total_m3min, 11353.0);
+}
