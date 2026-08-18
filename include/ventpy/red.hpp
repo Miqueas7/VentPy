@@ -215,6 +215,26 @@ public:
             result.branches[i].pressure_drop_pa =
                 result.branches[i].r_ns2m8 * q[i] * std::abs(q[i]);
         }
+
+        // --- Post-proceso: velocidad por ramal + advertencia Art. 248 ---
+        for (size_t i = 0; i < network.branches.size(); ++i) {
+            const NetworkBranch& src = network.branches[i];
+            if (src.airway.has_value() && src.airway->area_m2 > 0.0) {
+                const double v_mps = std::abs(q[i]) / src.airway->area_m2;
+                result.branches[i].velocity_mps = v_mps;
+                const double v_mpm = v_mps * 60.0;
+                // DS 024-2016-EM, Art. 248 (misma cita que cobertura/atkinson)
+                if (std::abs(result.branches[i].q_m3min) > 0.0 &&
+                    (v_mpm < 20.0 || v_mpm > 250.0)) {
+                    std::ostringstream oss;
+                    oss << "Ramal '" << src.branch_id << "': velocidad " << v_mpm
+                        << " m/min fuera del rango [20, 250] (DS 024-2016-EM, Art. 248)";
+                    result.branches[i].warnings.push_back(oss.str());
+                    result.warnings.push_back(result.branches[i].warnings.back());
+                }
+            }
+        }
+
         return result;
     }
 
