@@ -36,6 +36,8 @@
 #include "ventpy/caudal_explosivos.hpp"
 #include "ventpy/caudal_fugas.hpp"
 #include "ventpy/caudal_personal.hpp"
+#include "ventpy/caudal_polvo.hpp"
+#include "ventpy/caudal_termico.hpp"
 #include "ventpy/normativa.hpp"
 #include "ventpy/types.hpp"
 
@@ -63,6 +65,11 @@ struct VentilationInput {
 
     // Explosivos (opcional: aplica en frentes ciegos)
     std::optional<BlastingParams> blasting_params;
+
+    // Polvo (opcional)
+    std::optional<DustParams> dust_params;
+    // Carga térmica (opcional)
+    std::optional<ThermalParams> thermal_params;
 
     // Sistema de ductos (opcional: para cálculo de fugas)
     std::optional<DuctParams> duct_params;
@@ -158,6 +165,28 @@ public:
                     : BlastingFlowCalculator::calculate_full(blast, atm, config_);
             result.q_blasting_m3min = blast_result.q_blasting;
             result.blasting = blast_result;
+        }
+
+        // === 4b. Caudal por Polvo (Q_polvo) ===
+        if (input.dust_params.has_value()) {
+            DustParams dust = input.dust_params.value();
+            if (dust.face_area_m2 <= 0) dust.face_area_m2 = input.face_area_m2;
+            auto dust_result = DustFlowCalculator::calculate(dust, config_);
+            result.q_dust_m3min = dust_result.q_dust;
+            for (const auto& w : dust_result.warnings)
+                result.warnings.push_back("Q_polvo: " + w);
+            result.dust = std::move(dust_result);
+        }
+
+        // === 4c. Caudal por Carga Térmica (Q_termico) ===
+        if (input.thermal_params.has_value()) {
+            ThermalParams thermal = input.thermal_params.value();
+            if (thermal.face_area_m2 <= 0) thermal.face_area_m2 = input.face_area_m2;
+            auto thermal_result = ThermalFlowCalculator::calculate(thermal, atm, config_);
+            result.q_thermal_m3min = thermal_result.q_thermal;
+            for (const auto& w : thermal_result.warnings)
+                result.warnings.push_back("Q_termico: " + w);
+            result.thermal = std::move(thermal_result);
         }
 
         // === 5. Lógica de Selección (Governor) ===
