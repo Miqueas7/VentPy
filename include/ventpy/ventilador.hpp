@@ -64,7 +64,110 @@ public:
         throw std::logic_error("[VentPy] pressure_at: inalcanzable");
     }
 
+    /**
+     * @brief Punto de operación contra resistencia de sistema: P(Q) = R·(Q/60)².
+     * Bisección sobre el rango del catálogo (precisión interna 1e-6 m³/min).
+     */
+    [[nodiscard]] static FanOperatingResult operating_point(
+        const FanCurve& curve, double r_system_ns2m8,
+        const AtmosphericParams& atm, const FanOperatingParams& params = {}
+    ) {
+        validate_curve(curve);
+        validation::require_positive(r_system_ns2m8,
+            "r_system_ns2m8 [Ns2/m8] - Resistencia del sistema");
+        validate_params(params);
+
+        FanOperatingResult r;
+        r.fan_id = curve.fan_id;
+        r.air_density_kg_m3 = site_density(atm);
+        r.density_factor = r.air_density_kg_m3 / curve.rated_density_kg_m3;
+        r.biblio_ref = BIBLIO;
+
+        const double q_lo = curve.points.front().q_m3min;
+        const double q_hi = curve.points.back().q_m3min;
+        auto f = [&](double q) {
+            return pressure_at(curve, q, r.air_density_kg_m3) -
+                   r_system_ns2m8 * (q / 60.0) * (q / 60.0);
+        };
+        const double f_lo = f(q_lo), f_hi = f(q_hi);
+        if (!(f_lo > 0.0 && f_hi < 0.0)) {
+            r.warnings.push_back(f_lo < 0.0
+                ? "Sin interseccion en catalogo: sistema demasiado resistivo "
+                  "(el punto de operacion caeria ANTES del primer punto de la curva)"
+                : "Sin interseccion en catalogo: sistema poco resistivo "
+                  "(el punto de operacion caeria MAS ALLA del ultimo punto)");
+            assess_stall(r, curve, params);   // pico informativo igual
+            return r;                          // converged=false, in_curve_range=false
+        }
+        double lo = q_lo, hi = q_hi;
+        while (hi - lo > 1e-6) {
+            const double mid = 0.5 * (lo + hi);
+            (f(mid) > 0.0 ? lo : hi) = mid;
+        }
+        r.q_m3min = 0.5 * (lo + hi);
+        r.pressure_pa = r_system_ns2m8 * (r.q_m3min / 60.0) * (r.q_m3min / 60.0);
+        r.in_curve_range = true;
+        r.converged = true;
+        assess_stall(r, curve, params);
+        return r;
+    }
+
 private:
+    static constexpr const char* BIBLIO =
+        "McPherson (2009), Cap. 10 'Fans': ec. 10.28 (fan laws, densidad); "
+        "caracteristica de stall sec. 10.1";
+
+    static void validate_params(const FanOperatingParams& p) {
+        validation::require_non_negative(p.stall_margin,
+            "stall_margin - Margen de stall en caudal");
+        validation::require_in_range(p.under_relaxation, 1e-9, 1.0,
+            "under_relaxation");
+        validation::require_positive_int(p.max_iterations,
+            "max_iterations - Iteraciones del punto fijo");
+    }
+
+    /// Pico del catálogo y semántica de stall. El índice del pico no depende
+    /// de la densidad (factor común a toda la curva).
+    static void assess_stall(FanOperatingResult& r, const FanCurve& curve,
+                             const FanOperatingParams& params) {
+        size_t peak = 0;
+        for (size_t i = 1; i < curve.points.size(); ++i)
+            if (curve.points[i].pressure_pa > curve.points[peak].pressure_pa)
+                peak = i;
+        r.q_peak_m3min = curve.points[peak].q_m3min;
+        r.pressure_peak_pa = curve.points[peak].pressure_pa * r.density_factor;
+
+        if (peak == 0) {
+            // Curva monótona decreciente: sin zona inestable en catálogo
+            r.stall_ok = true;
+            if (r.converged) {
+                r.stall_margin_actual =
+                    (r.q_m3min - r.q_peak_m3min) / r.q_peak_m3min;
+            }
+            r.warnings.push_back(
+                "Curva monotona decreciente en catalogo: sin zona de stall "
+                "observable (pico en el primer punto)");
+            return;
+        }
+        if (!r.converged) return;   // sin punto de operación no hay veredicto
+        r.stall_margin_actual = (r.q_m3min - r.q_peak_m3min) / r.q_peak_m3min;
+        r.stall_ok = r.q_m3min >= r.q_peak_m3min * (1.0 + params.stall_margin);
+        if (r.q_m3min <= r.q_peak_m3min) {
+            std::ostringstream oss;
+            oss << "ZONA DE STALL: el punto de operacion (" << r.q_m3min
+                << " m3/min) esta en o a la izquierda del pico ("
+                << r.q_peak_m3min << " m3/min) - operacion inestable "
+                << "(McPherson Cap. 10, sec. 10.1)";
+            r.warnings.push_back(oss.str());
+        } else if (!r.stall_ok) {
+            std::ostringstream oss;
+            oss << "Margen de stall insuficiente: "
+                << (r.stall_margin_actual * 100.0) << "% < "
+                << (params.stall_margin * 100.0) << "% requerido";
+            r.warnings.push_back(oss.str());
+        }
+    }
+
     static void validate_curve(const FanCurve& c) {
         if (c.points.size() < 2) {
             throw std::invalid_argument(
