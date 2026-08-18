@@ -89,6 +89,23 @@ TEST(DuctoTecnico, Validaciones) {
     EXPECT_THROW(DuctSizingCalculator::calculate(p, atm), std::invalid_argument);
 }
 
+TEST(DuctoTecnico, PresionDisponibleExactaEsViable) {
+    auto p = base_params();
+    p.available_pressure_pa = 4237.2263042954680;   // DeltaP exacto de D=1.22 (probe_sp3a.py)
+    AtmosphericParams atm;
+    auto r = DuctSizingCalculator::calculate(p, atm);
+    EXPECT_TRUE(r.feasible);
+    EXPECT_DOUBLE_EQ(r.selected_diameter_m, 1.22);
+}
+
+TEST(DuctoTecnico, NegativosLanzanNoCoercionan) {
+    AtmosphericParams atm;
+    auto p = base_params(); p.max_velocity_mps = -5.0;
+    EXPECT_THROW(DuctSizingCalculator::calculate(p, atm), std::invalid_argument);
+    p = base_params(); p.available_pressure_pa = -3000.0;
+    EXPECT_THROW(DuctSizingCalculator::calculate(p, atm), std::invalid_argument);
+}
+
 // ============================================================================
 // Económico — probe_sp3a.py: vmax=25 ⇒ viables 1.07 y 1.22; la energía domina
 // y el óptimo económico es el diámetro MAYOR que el técnico.

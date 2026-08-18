@@ -103,8 +103,13 @@ private:
     ) {
         validation::require_positive(p.q_m3min,  "q_m3min [m3/min] - Caudal del ducto");
         validation::require_positive(p.length_m, "length_m [m] - Longitud del ducto");
+        validation::require_non_negative(p.max_velocity_mps,
+            "max_velocity_mps [m/s] - Velocidad maxima de ducto (0 = default)");
+        validation::require_non_negative(p.available_pressure_pa,
+            "available_pressure_pa [Pa] - Presion disponible (0 = sin restriccion)");
         // Tolerancia FP absoluta en fronteras (leccion SP-2)
         constexpr double V_TOL = 1e-9;   // [m/s]
+        constexpr double P_TOL = 1e-6;   // [Pa] absorbe artefacto FP; despreciable (~1e-10 de los ΔP típicos)
 
         const double vmax = p.max_velocity_mps > 0.0 ? p.max_velocity_mps : 20.0;
         std::vector<double> diams = p.diameters_m.empty()
@@ -138,7 +143,7 @@ private:
 
             o.velocity_ok = o.velocity_mps <= vmax + V_TOL;
             o.pressure_ok = p.available_pressure_pa <= 0.0 ||
-                            o.pressure_drop_pa <= p.available_pressure_pa;
+                            o.pressure_drop_pa <= p.available_pressure_pa + P_TOL;
             if (!o.velocity_ok) {
                 std::ostringstream oss;
                 oss << "velocidad " << o.velocity_mps << " m/s > maximo " << vmax;
