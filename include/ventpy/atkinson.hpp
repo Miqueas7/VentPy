@@ -60,6 +60,36 @@ inline const std::vector<FrictionFactorEntry>& atkinson_friction_factors() {
     return table;
 }
 
+/// Tabla informativa de factores de choque — McPherson (2009), Apéndice A5
+/// (p. 5-26 a 5-38). x > 0 solo para los valores exactos; x = 0 indica
+/// "por fórmula" (nota) o "manual-only" (nota). NO incluye Manual.
+inline const std::vector<ShockFactorEntry>& shock_factors() {
+    static const std::vector<ShockFactorEntry> table = {
+        {SingularityType::Exit, 1.0,
+         "McPherson (2009), Ap. A5.2(a), p. 5-28",
+         "Limite exacto de expansion brusca con A2 -> infinito: X = (1 - A1/A2)^2 -> 1"},
+        {SingularityType::Entrance, 0.5,
+         "McPherson (2009), Ap. A5.2(b), p. 5-28",
+         "Limite exacto de contraccion brusca con A1 -> infinito: X = 0.5(1 - A2/A1)^2 -> 0.5"},
+        {SingularityType::Expansion, 0.0,
+         "McPherson (2009), Ap. A5.2(a), p. 5-28",
+         "Por formula: X = (1 - area_ratio)^2 con area_ratio = A1/A2 en (0,1)"},
+        {SingularityType::Contraction, 0.0,
+         "McPherson (2009), Ap. A5.2(b), p. 5-28",
+         "Por formula: X = 0.5*(1 - area_ratio)^2 con area_ratio = A2/A1 en (0,1)"},
+        {SingularityType::Bend90, 0.0,
+         "McPherson (2009), Figs. A5.1-A5.2, p. 5-27",
+         "Manual-only v1 (gate 2026-08-17): la fuente publica graficos, no constantes"},
+        {SingularityType::Bend45, 0.0,
+         "McPherson (2009), Fig. A5.3, p. 5-28",
+         "Manual-only v1: correccion por angulo X_theta = X90 * k (grafico)"},
+        {SingularityType::Junction, 0.0,
+         "McPherson (2009), Ap. A5.3, p. 5-28",
+         "Manual-only en SP-3a: la formula exige velocidades de ramales (red, SP-3b)"},
+    };
+    return table;
+}
+
 /// k de la tabla para un tipo de labor. @throws si Manual (k lo pone el usuario).
 inline double friction_factor_for(AirwayLining lining) {
     if (lining == AirwayLining::Manual) {
