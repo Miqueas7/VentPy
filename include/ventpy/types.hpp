@@ -699,6 +699,49 @@ struct NetworkSolveResult {
 };
 
 // ============================================================================
+// Structs para ventilador (SP-3c)
+// ============================================================================
+
+struct FanCurvePoint {
+    double q_m3min = 0.0;      ///< Caudal del punto de catálogo [m³/min]
+    double pressure_pa = 0.0;  ///< Presión total del ventilador [Pa] (≥ 0)
+};
+
+/// Curva de catálogo del fabricante. Puntos ESTRICTAMENTE crecientes en Q
+/// (mínimo 2). Referida a rated_density_kg_m3 (fan laws, ec. 10.28).
+struct FanCurve {
+    std::string fan_id;
+    std::vector<FanCurvePoint> points;
+    double rated_density_kg_m3 = 1.2;
+};
+
+struct FanOperatingParams {
+    double stall_margin = 0.10;     ///< Q_op ≥ Q_pico·(1+margen) — ingenieril
+    double under_relaxation = 0.5;  ///< amortiguación del punto fijo (modo red)
+    int max_iterations = 50;        ///< iteraciones del punto fijo (modo red)
+};
+
+struct FanOperatingResult {
+    std::string fan_id;
+    double q_m3min = 0.0;             ///< Caudal de operación
+    double pressure_pa = 0.0;         ///< Presión de operación (a densidad de sitio)
+    double air_density_kg_m3 = 0.0;   ///< ρ de sitio usada (ec. 10.28)
+    double density_factor = 0.0;      ///< ρ_sitio / rated_density aplicado a la curva
+    bool   in_curve_range = false;    ///< la solución cayó dentro del catálogo
+    // Stall (pico a densidad de sitio)
+    double q_peak_m3min = 0.0;
+    double pressure_peak_pa = 0.0;
+    bool   stall_ok = false;          ///< Q_op ≥ Q_pico·(1+margen)
+    double stall_margin_actual = 0.0; ///< (Q_op − Q_pico)/Q_pico (crudo, con signo)
+    // Modo red
+    bool   converged = false;         ///< punto fijo convergió (red); true en modo simple si hay solución
+    int    iterations = 0;
+    std::optional<NetworkSolveResult> network;  ///< desglose de red en el punto de operación
+    std::vector<std::string> warnings;
+    std::string biblio_ref;
+};
+
+// ============================================================================
 // Constantes de conversión y físicas
 // ============================================================================
 

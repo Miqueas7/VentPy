@@ -101,6 +101,7 @@ if(VENTPY_BUILD_TESTS)
         tests/cpp/test_atkinson.cpp
         tests/cpp/test_ducto.cpp
         tests/cpp/test_red.cpp
+        tests/cpp/test_ventilador.cpp
     )
     target_link_libraries(ventpy_tests PRIVATE
         ventpy_core
