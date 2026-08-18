@@ -184,6 +184,17 @@ public:
         r.q_m3min = q_raw;
         // presión del ÚLTIMO solve — trazable con network embebido (auditoría)
         r.pressure_pa = p_used;
+        // Signo ANTES del abs, sobre la última red resuelta: si la red fuerza
+        // flujo to->from por el ramal del ventilador, las fan laws no aplican
+        // (curva definida para flujo from->to) y el punto no es válido.
+        if (last_net.converged &&
+            last_net.branches[fan_idx].q_m3min < 0.0) {
+            r.warnings.push_back(
+                "FLUJO INVERTIDO en el ramal del ventilador '" + fan_branch_id +
+                "': la red fuerza flujo contra el sentido del ventilador - el punto "
+                "de operacion NO es fisicamente valido (curva no aplica a flujo inverso).");
+            r.converged = false;
+        }
         r.in_curve_range = r.converged && q_raw >= q_lo && q_raw <= q_hi;
         if (!r.converged) {
             r.warnings.push_back(
