@@ -191,3 +191,56 @@ TEST(RedHardyCross, QInicialCustomRespetado) {
     EXPECT_TRUE(r.converged);
     EXPECT_NEAR(r.branches[1].q_m3min, 1829.9828, 0.05);
 }
+
+// ============================================================================
+// Integración con atkinson + advertencias de velocidad por ramal
+// ============================================================================
+
+TEST(RedIntegracion, RamalPorAirwayUsaRTotalDeAtkinson) {
+    // Galería del caso SP-3a: L=500, per=15, A=14, k=0.012 manual
+    AirwayParams gal;
+    gal.airway_id = "GAL"; gal.length_m = 500.0; gal.perimeter_m = 15.0;
+    gal.area_m2 = 14.0; gal.lining = AirwayLining::Manual; gal.atkinson_k = 0.012;
+
+    NetworkDefinition d = red_a();
+    d.branches[1].r_manual = 0.0;
+    d.branches[1].airway = gal;     // P1 ahora es la galería
+    AtmosphericParams atm;
+    SolverParams sp; sp.tolerance_m3min = 0.006; sp.max_iterations = 1000;
+    auto r = NetworkSolver::solve(d, atm, sp);
+
+    // R de P1 = la de AtkinsonCalculator (probe SP-3a): 0.0329113971312304
+    EXPECT_NEAR(r.branches[1].r_ns2m8, 0.0329113971312304, 1e-12);
+    EXPECT_TRUE(r.converged);
+    // velocidad reportada = Q/(60·A)
+    EXPECT_NEAR(r.branches[1].velocity_mps,
+                r.branches[1].q_m3min / 60.0 / 14.0, 1e-9);
+}
+
+TEST(RedIntegracion, VelocidadFueraDeRangoAdvierteArt248) {
+    // Red mínima con galería de área enorme → velocidad < 20 m/min
+    AirwayParams gal;
+    gal.airway_id = "GAL"; gal.length_m = 100.0; gal.perimeter_m = 40.0;
+    gal.area_m2 = 100.0; gal.lining = AirwayLining::Manual; gal.atkinson_k = 0.012;
+
+    NetworkDefinition d;
+    NetworkBranch b1 = mk("FAN","S","A",0.5, 50.0);
+    NetworkBranch b2; b2.branch_id = "GAL"; b2.from_node = "A"; b2.to_node = "S";
+    b2.airway = gal;
+    d.branches = { b1, b2 };
+    AtmosphericParams atm;
+    SolverParams sp; sp.tolerance_m3min = 0.006; sp.max_iterations = 1000;
+    auto r = NetworkSolver::solve(d, atm, sp);
+
+    ASSERT_TRUE(r.converged);
+    bool cita = false;
+    for (const auto& w : r.branches[1].warnings)
+        if (w.find("248") != std::string::npos) cita = true;
+    EXPECT_TRUE(cita);
+    // y la advertencia sube al nivel de red con el id del ramal
+    bool arriba = false;
+    for (const auto& w : r.warnings)
+        if (w.find("GAL") != std::string::npos && w.find("248") != std::string::npos)
+            arriba = true;
+    EXPECT_TRUE(arriba);
+}
