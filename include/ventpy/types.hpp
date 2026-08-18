@@ -253,7 +253,12 @@ struct DustParams {
 /**
  * @brief Parámetros para cálculo de carga térmica.
  *
- * DS 024-2016-EM, Art. 240: Temperatura efectiva máxima 30°C.
+ * INGENIERIL — la norma vigente (DS 024-2016-EM / DS 023-2017-EM) NO fija una
+ * temperatura efectiva máxima; `target_effective_temp_c` (default 28°C) es un
+ * objetivo de diseño heredado del derogado DS 055-2010-EM. El criterio
+ * normativo real es el Art. 252.d (velocidad mínima 30 m/min con temperatura
+ * seca 24-29°C) y el Art. 104 + Anexo 13 (remisión a evaluación WBGT de
+ * estrés térmico) — ver `ThermalFlowCalculator` (caudal_termico.hpp).
  */
 struct ThermalParams {
     double virgin_rock_temp_c = 25.0;       ///< Temperatura roca virgen [°C]
@@ -478,6 +483,7 @@ struct ThermalFlowResult {
     double q_thermal;                   ///< Caudal requerido [m³/min]
     double resulting_velocity_mps;      ///< Velocidad resultante [m/s]
     std::string regulation_ref;
+    std::vector<std::string> warnings;  ///< Advertencias de cálculo
 };
 
 /**
@@ -772,7 +778,11 @@ namespace constants {
     inline constexpr double TLV_H2S_PPM = 10.0;
     inline constexpr double TLV_DUST_RESPIRABLE_MG_M3 = 3.0; // Art. 103
     inline constexpr double MIN_O2_PERCENT = 19.5;           // Art. 236
-    inline constexpr double MAX_EFFECTIVE_TEMP_C = 30.0;     // Art. 240
+    inline constexpr double MAX_EFFECTIVE_TEMP_C = 30.0;     // INGENIERIL:
+        // la norma vigente NO fija TE maxima (herencia del derogado DS
+        // 055-2010-EM); el criterio normativo real es Art. 252.d (30 m/min,
+        // 24-29 C) y Art. 104/Anexo 13 (WBGT) — ver caudal_termico.hpp
+    inline constexpr double AIR_CP_KJ_KG_K = 1.005;           // cp aire seco
 
     // --- Velocidades mínimas DS 024-2016-EM ---
     inline constexpr double MIN_VELOCITY_DEVELOPMENT_MPS = 0.25;  // Art. 236
