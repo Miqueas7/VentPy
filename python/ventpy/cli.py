@@ -130,8 +130,19 @@ def _build(struct_cls, data, allowed, builders=None):
     Clave fuera de `allowed` -> ValueError. Si hay un builder registrado
     para la clave (construccion de sub-struct/enum anidado) se usa antes
     de asignar; si no, setattr directo.
+
+    Revision final SP-5 (hallazgo F-1): `data` puede venir con forma
+    equivocada desde JSON de usuario (struct esperado pero llega una lista,
+    tipo escalar equivocado para un campo). Sin estas dos guardas, nanobind
+    deja pasar un TypeError/AttributeError crudo hasta consola (traceback
+    completo) en vez del ValueError limpio que `main()` sabe presentar.
     """
     builders = builders or {}
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"se esperaba un objeto (dict) para {struct_cls.__name__}, "
+            f"se recibio {type(data).__name__}"
+        )
     obj = struct_cls()
     for key, value in data.items():
         if key not in allowed:
@@ -140,8 +151,20 @@ def _build(struct_cls, data, allowed, builders=None):
                 f"(validas: {', '.join(sorted(allowed))})"
             )
         if key in builders:
-            value = builders[key](value)
-        setattr(obj, key, value)
+            try:
+                value = builders[key](value)
+            except ValueError as e:
+                # Propaga el error del sub-struct/enum anidado con la clave
+                # contenedora al frente (ej. "blasting_params": ... en vez
+                # de solo "BlastingParams": ...) para que el usuario ubique
+                # de inmediato que parte del JSON esta mal formada.
+                raise ValueError(f"'{key}': {e}") from e
+        try:
+            setattr(obj, key, value)
+        except TypeError as e:
+            raise ValueError(
+                f"valor invalido para '{key}' en {struct_cls.__name__}: {e}"
+            ) from e
     return obj
 
 
@@ -675,6 +698,14 @@ def cmd_ventilador(args):
     if mode == "simple":
         if "r_system_ns2m8" not in data:
             raise ValueError("modo 'simple' requiere 'r_system_ns2m8'")
+        # HALLAZGO F-2 (revision final SP-5, gemelo de HALLAZGO 1): "network"
+        # y "fan_branch_id" son exclusivos del modo "red". Aceptarlos en
+        # modo "simple" los descartaria en silencio (exit 0) dejando creer
+        # al usuario que la red que escribio se tuvo en cuenta. Se rechaza
+        # explicitamente, igual que el atmospheric sobrante en modo "red".
+        if "network" in data or "fan_branch_id" in data:
+            sobra = "network" if "network" in data else "fan_branch_id"
+            raise ValueError(f"en modo 'simple' sobra '{sobra}'")
         atm = (_build_atmospheric(data["atmospheric"])
                if "atmospheric" in data else ventpy.AtmosphericParams())
         result = ventpy.FanCalculator.operating_point(
@@ -692,6 +723,12 @@ def cmd_ventilador(args):
                 "en modo 'red' la atmosfera va dentro de network{}; "
                 "quita el atmospheric de nivel superior"
             )
+        # HALLAZGO F-2 (revision final SP-5): "r_system_ns2m8" es exclusivo
+        # del modo "simple" - en modo "red" la resistencia la define la red
+        # (network{}). Aceptarlo en modo "red" lo descartaria en silencio
+        # (exit 0), igual riesgo que el atmospheric de nivel superior arriba.
+        if "r_system_ns2m8" in data:
+            raise ValueError("en modo 'red' sobra 'r_system_ns2m8'")
         if "network" not in data:
             raise ValueError("modo 'red' requiere 'network'")
         if "fan_branch_id" not in data:
@@ -718,11 +755,18 @@ def cmd_ventilador(args):
 # ============================================================================
 # Parser / entrypoint
 # ============================================================================
+_EXIT_CODES_EPILOG = (
+    "Exit codes: 0 ok | 1 error de entrada | 2 resultado NO confiable "
+    "(no convergio / no cumple / fuera de catalogo)"
+)
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="ventpy",
         description="VentPy - calculos de ventilacion de minas subterraneas "
                      "(DS 024-2016-EM Peru / DS 132 Chile).",
+        epilog=_EXIT_CODES_EPILOG,
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -750,7 +794,8 @@ def build_parser():
 
     cobertura = subparsers.add_parser(
         "cobertura",
-        help="Analisis de deficit/cobertura de un levantamiento de zonas")
+        help="Analisis de deficit/cobertura de un levantamiento de zonas",
+        epilog=_EXIT_CODES_EPILOG)
     cobertura.add_argument("archivo", help="JSON con el levantamiento (zones/params)")
     cobertura.add_argument(
         "--norma", choices=sorted(_NORMAS), default="peru",
@@ -760,7 +805,8 @@ def build_parser():
     cobertura.set_defaults(func=cmd_cobertura)
 
     red = subparsers.add_parser(
-        "red", help="Balance de una red de ventilacion (Hardy Cross)")
+        "red", help="Balance de una red de ventilacion (Hardy Cross)",
+        epilog=_EXIT_CODES_EPILOG)
     red.add_argument("archivo", help="JSON con la red (branches/solver/atmospheric)")
     red.add_argument(
         "--json", action="store_true", help="Salida en formato JSON")
@@ -768,7 +814,8 @@ def build_parser():
 
     ventilador = subparsers.add_parser(
         "ventilador",
-        help="Punto de operacion de un ventilador (simple o en red)")
+        help="Punto de operacion de un ventilador (simple o en red)",
+        epilog=_EXIT_CODES_EPILOG)
     ventilador.add_argument(
         "archivo", help="JSON con la curva y el modo (simple/red)")
     ventilador.add_argument(
@@ -792,11 +839,16 @@ def main(argv=None):
 
     try:
         return args.func(args)
-    except (ValueError, OSError) as exc:
+    except (ValueError, OSError, TypeError) as exc:
         # ValueError: whitelist/enum invalidos o excepciones del nucleo C++
         # (nanobind traduce std::invalid_argument -> ValueError).
         # OSError: archivo de entrada inexistente/sin permisos/ruta invalida
         # (FileNotFoundError, PermissionError, etc. heredan de OSError).
+        # TypeError: red de seguridad (revision final SP-5, hallazgo F-1)
+        # para formas de JSON que ni `_build` ni un builder a medida
+        # alcanzan a traducir a ValueError (ej. un punto de curva escalar
+        # donde se esperaba [q, p]: falla en un len() interno con
+        # TypeError). Mejor un "error:" limpio que un traceback crudo.
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
