@@ -366,28 +366,51 @@ NB_MODULE(_ventpy_core, m) {
 
     nb::class_<DustFlowResult>(m, "DustFlowResult",
         "Resultado del calculo de dilucion de polvo.")
-        .def_ro("dust_generation_mg_s", &DustFlowResult::dust_generation_mg_s)
-        .def_ro("target_concentration", &DustFlowResult::target_concentration)
-        .def_ro("suppression_efficiency", &DustFlowResult::suppression_efficiency)
-        .def_ro("effective_generation", &DustFlowResult::effective_generation)
-        .def_ro("q_dust", &DustFlowResult::q_dust)
-        .def_ro("resulting_velocity_mps", &DustFlowResult::resulting_velocity_mps)
-        .def_ro("regulation_ref", &DustFlowResult::regulation_ref);
+        .def_ro("dust_generation_mg_s", &DustFlowResult::dust_generation_mg_s,
+                "Generacion de polvo [mg/s]")
+        .def_ro("target_concentration", &DustFlowResult::target_concentration,
+                "Concentracion objetivo [mg/m3]")
+        .def_ro("suppression_efficiency", &DustFlowResult::suppression_efficiency,
+                "Eficiencia de supresion aplicada")
+        .def_ro("effective_generation", &DustFlowResult::effective_generation,
+                "Generacion efectiva post-supresion [mg/s]")
+        .def_ro("q_dust", &DustFlowResult::q_dust,
+                "Caudal requerido [m3/min]")
+        .def_ro("resulting_velocity_mps", &DustFlowResult::resulting_velocity_mps,
+                "Velocidad resultante [m/s]")
+        .def_ro("regulation_ref", &DustFlowResult::regulation_ref,
+                "Referencia normativa aplicada (DS 024-2016-EM, Art. 111)")
+        .def_ro("warnings", &DustFlowResult::warnings,
+                "Advertencias de calculo (p.ej. remision al Anexo 15 por silice)");
 
     nb::class_<ThermalFlowResult>(m, "ThermalFlowResult",
         "Resultado del calculo de carga termica.")
-        .def_ro("heat_from_rock_kw", &ThermalFlowResult::heat_from_rock_kw)
-        .def_ro("heat_from_equipment_kw", &ThermalFlowResult::heat_from_equipment_kw)
-        .def_ro("heat_from_oxidation_kw", &ThermalFlowResult::heat_from_oxidation_kw)
-        .def_ro("heat_from_autocompression_kw", &ThermalFlowResult::heat_from_autocompression_kw)
-        .def_ro("heat_from_other_kw", &ThermalFlowResult::heat_from_other_kw)
-        .def_ro("total_heat_load_kw", &ThermalFlowResult::total_heat_load_kw)
-        .def_ro("inlet_temp_c", &ThermalFlowResult::inlet_temp_c)
-        .def_ro("target_temp_c", &ThermalFlowResult::target_temp_c)
-        .def_ro("delta_t_available", &ThermalFlowResult::delta_t_available)
-        .def_ro("q_thermal", &ThermalFlowResult::q_thermal)
-        .def_ro("resulting_velocity_mps", &ThermalFlowResult::resulting_velocity_mps)
-        .def_ro("regulation_ref", &ThermalFlowResult::regulation_ref);
+        .def_ro("heat_from_rock_kw", &ThermalFlowResult::heat_from_rock_kw,
+                "Calor de la roca [kW] (v1: sin modelo roca-aire, siempre 0)")
+        .def_ro("heat_from_equipment_kw", &ThermalFlowResult::heat_from_equipment_kw,
+                "Calor de equipos [kW]")
+        .def_ro("heat_from_oxidation_kw", &ThermalFlowResult::heat_from_oxidation_kw,
+                "Calor de oxidacion mineral [kW]")
+        .def_ro("heat_from_autocompression_kw", &ThermalFlowResult::heat_from_autocompression_kw,
+                "Calor por autocompresion [kW] (reduce el DT, no es carga)")
+        .def_ro("heat_from_other_kw", &ThermalFlowResult::heat_from_other_kw,
+                "Otras fuentes de calor [kW]")
+        .def_ro("total_heat_load_kw", &ThermalFlowResult::total_heat_load_kw,
+                "Carga termica total [kW]")
+        .def_ro("inlet_temp_c", &ThermalFlowResult::inlet_temp_c,
+                "Temperatura de entrada del aire [C]")
+        .def_ro("target_temp_c", &ThermalFlowResult::target_temp_c,
+                "Temperatura objetivo [C]")
+        .def_ro("delta_t_available", &ThermalFlowResult::delta_t_available,
+                "DT disponible [C]")
+        .def_ro("q_thermal", &ThermalFlowResult::q_thermal,
+                "Caudal requerido [m3/min]")
+        .def_ro("resulting_velocity_mps", &ThermalFlowResult::resulting_velocity_mps,
+                "Velocidad resultante [m/s]")
+        .def_ro("regulation_ref", &ThermalFlowResult::regulation_ref,
+                "Referencia normativa aplicada (Art. 252.d y/o criterio ingenieril)")
+        .def_ro("warnings", &ThermalFlowResult::warnings,
+                "Advertencias de calculo (p.ej. infactibilidad, remision WBGT Art. 104)");
 
     nb::class_<VentilationDemandResult>(m, "VentilationDemandResult",
         "Resultado consolidado de demanda de ventilacion.\n"
@@ -552,6 +575,10 @@ NB_MODULE(_ventpy_core, m) {
                 "Factor de simultaneidad [0-1]")
         .def_rw("blasting_params", &VentilationInput::blasting_params,
                 "Parametros de voladura (BlastingParams)")
+        .def_rw("dust_params", &VentilationInput::dust_params,
+                "Parametros de dilucion de polvo (DustParams)")
+        .def_rw("thermal_params", &VentilationInput::thermal_params,
+                "Parametros de carga termica (ThermalParams)")
         .def_rw("duct_params", &VentilationInput::duct_params,
                 "Parametros de ductos (DuctParams)")
         .def_rw("leakage_factor", &VentilationInput::leakage_factor,
@@ -1221,6 +1248,26 @@ NB_MODULE(_ventpy_core, m) {
           nb::arg("params"), nb::arg("config"),
           "Calcula Q_Exp (caudal por explosivos) - version simple.\n"
           "DS 024-2016-EM, Art. 243-244.");
+
+    m.def("calculate_dust_flow",
+          [](const DustParams& p, const RegulatoryConfig& c) {
+              return DustFlowCalculator::calculate(p, c);
+          },
+          nb::arg("params"), nb::arg("config"),
+          "Calcula Q_polvo (caudal por dilucion de polvo respirable).\n"
+          "DS 024-2016-EM, Art. 111 (LEO 3 mg/m3, 8 h; la silice remite\n"
+          "al Anexo 15 / DS 015-2005-SA, no cuantificado aqui).");
+
+    m.def("calculate_thermal_flow",
+          [](const ThermalParams& p, const AtmosphericParams& atm,
+             const RegulatoryConfig& c) {
+              return ThermalFlowCalculator::calculate(p, atm, c);
+          },
+          nb::arg("params"), nb::arg("atm"), nb::arg("config"),
+          "Calcula Q_termico (caudal por carga termica).\n"
+          "DS 024-2016-EM, Art. 252.d (velocidad minima 30 m/min con\n"
+          "temperatura seca 24-29 C) combinado con balance termico sensible\n"
+          "(criterio ingenieril - herencia del derogado DS 055-2010-EM).");
 
     // ========================================================================
     // Constantes normativas DS 024-2016-EM
