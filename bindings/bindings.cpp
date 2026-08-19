@@ -17,6 +17,7 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
+#include "ventpy/cobertura.hpp"
 #include "ventpy/governor.hpp"
 #include "ventpy/limites_gases.hpp"
 
@@ -584,6 +585,125 @@ NB_MODULE(_ventpy_core, m) {
              "Retorna VentilationDemandResult con desglose completo.")
         .def_prop_ro("config", &VentilationGovernor::config,
              "Configuracion normativa actual (solo lectura).");
+
+    // ========================================================================
+    // Cobertura / deficit (analisis medido vs requerido - Art. 252 f/g)
+    // ========================================================================
+    nb::class_<AirflowStation>(m, "AirflowStation",
+        "Estacion de aforo de un levantamiento de ventilacion.\n"
+        "El caudal de la estacion se calcula como Q = area x velocidad x 60.")
+        .def(nb::init<>())
+        .def_rw("station_id", &AirflowStation::station_id,
+                "Identificador de la estacion")
+        .def_rw("area_m2", &AirflowStation::area_m2,
+                "Seccion de la labor en la estacion [m2] (> 0)")
+        .def_rw("velocity_mps", &AirflowStation::velocity_mps,
+                "Velocidad promedio medida [m/s] (>= 0; 0 = sin flujo)")
+        .def("__repr__", [](const AirflowStation& s) {
+            return "AirflowStation('" + s.station_id + "', area=" +
+                   std::to_string(s.area_m2) + " m2, v=" +
+                   std::to_string(s.velocity_mps) + " m/s)";
+        });
+
+    nb::class_<ZoneMeasurement>(m, "ZoneMeasurement",
+        "Medicion de caudal de una zona: exactamente UNA fuente.\n"
+        "O bien el caudal ya aforado (q_measured_m3min), o bien la lista de\n"
+        "estaciones (entradas PARALELAS de la zona: sus caudales se suman;\n"
+        "si se aforo la misma labor varias veces, promediar antes de ingresar).")
+        .def(nb::init<>())
+        .def_rw("zone_name", &ZoneMeasurement::zone_name,
+                "Nombre de la zona")
+        .def_rw("q_measured_m3min", &ZoneMeasurement::q_measured_m3min,
+                "Caudal ya aforado [m3/min] (fuente directa)")
+        .def_rw("stations", &ZoneMeasurement::stations,
+                "Estaciones de aforo (fuente alternativa)");
+
+    nb::class_<CoverageParams>(m, "CoverageParams",
+        "Umbrales del analisis de cobertura.\n"
+        "warning_margin y overventilation_factor son criterios ingenieriles\n"
+        "(no normados). Los limites de velocidad provienen del DS 024-2016-EM,\n"
+        "Art. 248 (texto original vigente).")
+        .def(nb::init<>())
+        .def_rw("warning_margin", &CoverageParams::warning_margin,
+                "Advertir si cobertura < 1+margen (ingenieril)")
+        .def_rw("overventilation_factor", &CoverageParams::overventilation_factor,
+                "Advertir si cobertura > factor (ingenieril)")
+        .def_rw("min_velocity_mpm", &CoverageParams::min_velocity_mpm,
+                "DS 024, Art. 248: minimo 20 m/min")
+        .def_rw("max_velocity_mpm", &CoverageParams::max_velocity_mpm,
+                "DS 024, Art. 248: maximo 250 m/min")
+        .def_rw("anfo_or_blasting_agents", &CoverageParams::anfo_or_blasting_agents,
+                "Art. 248: con ANFO el minimo es 25 m/min");
+
+    nb::class_<ZoneSurvey>(m, "ZoneSurvey",
+        "Zona del levantamiento: demanda (entrada del Governor) + medicion.\n"
+        "input.zone_type NO puede ser GeneralMine: el total de mina lo calcula\n"
+        "el propio analisis (evita doble conteo).\n"
+        "El zone_name del ZoneSurvey es el que manda en el informe; el de\n"
+        "measurement.zone_name se ignora en la ruta analyze_survey.")
+        .def(nb::init<>())
+        .def_rw("zone_name", &ZoneSurvey::zone_name,
+                "Nombre de la zona (el que manda en el informe)")
+        .def_rw("input", &ZoneSurvey::input,
+                "Entrada de demanda (VentilationInput)")
+        .def_rw("measurement", &ZoneSurvey::measurement,
+                "Medicion de campo (ZoneMeasurement)");
+
+    nb::class_<StationResult>(m, "StationResult",
+        "Resultado de una estacion de aforo (auditable).")
+        .def_ro("station_id", &StationResult::station_id)
+        .def_ro("area_m2", &StationResult::area_m2)
+        .def_ro("velocity_mps", &StationResult::velocity_mps)
+        .def_ro("velocity_mpm", &StationResult::velocity_mpm)
+        .def_ro("q_station_m3min", &StationResult::q_station_m3min)
+        .def_ro("velocity_ok", &StationResult::velocity_ok)
+        .def_ro("warning", &StationResult::warning);
+
+    nb::class_<ZoneCoverageResult>(m, "ZoneCoverageResult",
+        "Cobertura de una zona: requerido vs medido (auditable).")
+        .def_ro("zone_name", &ZoneCoverageResult::zone_name)
+        .def_ro("q_required_m3min", &ZoneCoverageResult::q_required_m3min)
+        .def_ro("q_measured_m3min", &ZoneCoverageResult::q_measured_m3min)
+        .def_ro("coverage_ratio", &ZoneCoverageResult::coverage_ratio)
+        .def_ro("deficit_m3min", &ZoneCoverageResult::deficit_m3min)
+        .def_ro("compliant", &ZoneCoverageResult::compliant)
+        .def_ro("near_deficit_warning", &ZoneCoverageResult::near_deficit_warning)
+        .def_ro("overventilated", &ZoneCoverageResult::overventilated)
+        .def_ro("stations", &ZoneCoverageResult::stations)
+        .def_ro("demand", &ZoneCoverageResult::demand,
+                "Desglose completo del Governor (solo via analyze_survey)")
+        .def_ro("regulation_ref", &ZoneCoverageResult::regulation_ref);
+
+    nb::class_<MineCoverageResult>(m, "MineCoverageResult",
+        "Balance de cobertura de la mina completa (auditable).")
+        .def_ro("zones", &MineCoverageResult::zones)
+        .def_ro("q_required_total_m3min", &MineCoverageResult::q_required_total_m3min)
+        .def_ro("q_measured_total_m3min", &MineCoverageResult::q_measured_total_m3min)
+        .def_ro("coverage_ratio", &MineCoverageResult::coverage_ratio)
+        .def_ro("deficit_total_m3min", &MineCoverageResult::deficit_total_m3min)
+        .def_ro("global_compliant", &MineCoverageResult::global_compliant)
+        .def_ro("all_zones_compliant", &MineCoverageResult::all_zones_compliant)
+        .def_ro("compliant", &MineCoverageResult::compliant)
+        .def_ro("warnings", &MineCoverageResult::warnings)
+        .def_ro("regulation_ref", &MineCoverageResult::regulation_ref);
+
+    nb::class_<CoverageCalculator>(m, "CoverageCalculator",
+        "Calculador de deficit/cobertura: caudal medido vs requerido.\n"
+        "DS 024-2016-EM (mod. DS 023-2017-EM), Art. 252.")
+        .def_static("compare_zone", &CoverageCalculator::compare_zone,
+             nb::arg("q_required_m3min"), nb::arg("measurement"),
+             nb::arg("params") = CoverageParams{},
+             "Nivel puro: compara un requerido ya calculado contra la medicion.\n"
+             "Lanza ValueError si la medicion no tiene exactamente una fuente,\n"
+             "o ante cualquier dato fuera de dominio.")
+        .def_static("analyze_survey", &CoverageCalculator::analyze_survey,
+             nb::arg("zones"), nb::arg("config"),
+             nb::arg("params") = CoverageParams{},
+             "Orquestador: corre el Governor por zona y agrega el balance.\n"
+             "Cumplimiento estricto (safety-first): compliant exige cobertura\n"
+             "global (Art. 252.f) Y todas las zonas cubiertas (Art. 252.g).\n"
+             "Lanza ValueError si el levantamiento esta vacio, hay nombres de\n"
+             "zona duplicados o alguna zona es GeneralMine.");
 
     // ========================================================================
     // AtmosphereCalculator (acceso directo)

@@ -74,11 +74,21 @@ from ventpy._ventpy_core import (
     VentilationDemandResult,
     GasLimit,
 
+    # Cobertura / deficit structs
+    AirflowStation,
+    ZoneMeasurement,
+    CoverageParams,
+    ZoneSurvey,
+    StationResult,
+    ZoneCoverageResult,
+    MineCoverageResult,
+
     # Main classes
     DieselFleet,
     RegulatoryConfig,
     VentilationInput,
     VentilationGovernor,
+    CoverageCalculator,
 
     # Individual calculators (simple API)
     calculate_personnel_flow,
@@ -156,11 +166,21 @@ __all__ = [
     "VentilationDemandResult",
     "GasLimit",
 
+    # Cobertura / deficit structs
+    "AirflowStation",
+    "ZoneMeasurement",
+    "CoverageParams",
+    "ZoneSurvey",
+    "StationResult",
+    "ZoneCoverageResult",
+    "MineCoverageResult",
+
     # Main classes
     "DieselFleet",
     "RegulatoryConfig",
     "VentilationInput",
     "VentilationGovernor",
+    "CoverageCalculator",
 
     # Individual calculators
     "calculate_personnel_flow",
