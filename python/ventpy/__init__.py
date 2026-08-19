@@ -124,6 +124,8 @@ from ventpy._ventpy_core import (
     calculate_personnel_flow,
     calculate_diesel_flow,
     calculate_blasting_flow,
+    calculate_dust_flow,
+    calculate_thermal_flow,
 
     # Atkinson (resistencia de ramal: tablas y funciones sueltas)
     atkinson_friction_factors,
@@ -252,6 +254,8 @@ __all__ = [
     "calculate_personnel_flow",
     "calculate_diesel_flow",
     "calculate_blasting_flow",
+    "calculate_dust_flow",
+    "calculate_thermal_flow",
 
     # Atkinson (resistencia de ramal: tablas y funciones sueltas)
     "atkinson_friction_factors",
