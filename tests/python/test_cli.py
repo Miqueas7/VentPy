@@ -164,6 +164,45 @@ class TestCmdCobertura:
         stderr = capsys.readouterr().err
         assert "zonas" in stderr
 
+    def test_cobertura_modo_texto_tabla(self, tmp_path, capsys):
+        # Fix round (hallazgo 2): modo texto debe ser tabla, no el dump
+        # generico. La cabecera lleva las columnas del brief y la zona en
+        # deficit debe aparecer marcada como tal.
+        payload = {
+            "zones": [
+                {
+                    "zone_name": "Rampa 4200",
+                    "input": {
+                        "zone_type": "DevelopmentFace",
+                        "num_workers": 10,
+                        "altitude_masl": 4200.0,
+                    },
+                    "measurement": {"q_measured_m3min": 270.0},
+                },
+                {
+                    "zone_name": "Frente N-02",
+                    "input": {
+                        "zone_type": "DevelopmentFace",
+                        "num_workers": 10,
+                        "altitude_masl": 2500.0,
+                    },
+                    "measurement": {"q_measured_m3min": 150.0},
+                },
+            ],
+        }
+        archivo = _write_json(tmp_path, "cobertura.json", payload)
+
+        exit_code = cli.main(["cobertura", archivo])
+
+        assert exit_code == 2
+        stdout = capsys.readouterr().out
+        assert "ZONA" in stdout
+        assert "REQUERIDO" in stdout
+        assert "MEDIDO" in stdout
+        assert "COBERTURA" in stdout
+        assert "ESTADO" in stdout
+        assert "DEFICIT" in stdout
+
 
 _RED_A_BRANCHES = [
     {"branch_id": "F", "from_node": "S", "to_node": "A", "r_manual": 0.05,
@@ -212,6 +251,23 @@ class TestCmdRed:
         assert exit_code == 2
         data = json.loads(capsys.readouterr().out)
         assert data["converged"] is False
+
+    def test_red_modo_texto_tabla(self, tmp_path, capsys):
+        # Fix round (hallazgo 2): tabla ramal / Q / dP + pie de convergencia.
+        payload = {
+            "branches": _RED_A_BRANCHES,
+            "solver": {"tolerance_m3min": 0.006, "max_iterations": 1000},
+        }
+        archivo = _write_json(tmp_path, "red.json", payload)
+
+        exit_code = cli.main(["red", archivo])
+
+        assert exit_code == 0
+        stdout = capsys.readouterr().out
+        assert "RAMAL" in stdout
+        assert "Q [m3/min]" in stdout
+        assert "dP [Pa]" in stdout
+        assert "F" in stdout
 
 
 class TestCmdVentilador:
@@ -283,6 +339,56 @@ class TestCmdVentilador:
         assert exit_code == 2
         data = json.loads(capsys.readouterr().out)
         assert data["stall_ok"] is False
+
+    def test_ventilador_red_atmospheric_toplevel_exit1(self, tmp_path, capsys):
+        # Fix round (hallazgo 1): en modo "red" la atmosfera vive DENTRO de
+        # network{}; un atmospheric de nivel superior se descartaria en
+        # silencio (el usuario obtendria un punto de operacion con la
+        # atmosfera equivocada sin ninguna senal). Debe rechazarse.
+        payload = {
+            "curve": {
+                "fan_id": "AX-RED",
+                "points": [
+                    [1200.0, 900.0], [1800.0, 800.0], [2400.0, 650.0],
+                    [3000.0, 450.0], [3600.0, 200.0],
+                ],
+            },
+            "atmospheric": {"altitude_masl": 4200.0},
+            "mode": "red",
+            "fan_branch_id": "F",
+            "network": {
+                "branches": _RED_A_SIN_FAN_BRANCHES,
+                "solver": {"tolerance_m3min": 0.006, "max_iterations": 1000},
+            },
+        }
+        archivo = _write_json(tmp_path, "ventilador.json", payload)
+
+        exit_code = cli.main(["ventilador", archivo, "--json"])
+
+        assert exit_code == 1
+        stderr = capsys.readouterr().err
+        assert "network" in stderr
+
+    def test_ventilador_modo_texto_bloques(self, tmp_path, capsys):
+        # Fix round (hallazgo 2): bloque Q/P de operacion, pico y margen de
+        # stall con veredicto, en vez del dump generico.
+        payload = {
+            "curve": {
+                "fan_id": "LIN",
+                "points": [[600.0, 3000.0], [3000.0, 600.0]],
+            },
+            "mode": "simple",
+            "r_system_ns2m8": 0.5,
+        }
+        archivo = _write_json(tmp_path, "ventilador.json", payload)
+
+        exit_code = cli.main(["ventilador", archivo])
+
+        assert exit_code == 0
+        stdout = capsys.readouterr().out
+        assert "PUNTO DE OPERACION" in stdout
+        assert "PICO" in stdout
+        assert "STALL" in stdout.upper()
 
 
 class TestMainMisc:
