@@ -107,3 +107,35 @@ class TestGovernorDust:
         assert result.governing_factor == "dust (Q_Dust)"
         assert result.q_total_m3min == 1191.0
         assert any(w.startswith("Q_polvo: ") for w in result.warnings)
+
+
+# ============================================================================
+# Governor E2E (thermal gobernante)
+# ============================================================================
+
+
+class TestGovernorThermal:
+    def test_thermal_via_governor(self, governor):
+        inp = ventpy.VentilationInput()
+        inp.zone_type = ventpy.ZoneType.DevelopmentFace
+        inp.face_area_m2 = 12.0
+        inp.num_workers = 5
+
+        atm = ventpy.AtmosphericParams()
+        atm.altitude_masl = 2500.0
+        atm.dry_bulb_temp_c = 16.0
+        inp.atmospheric = atm
+
+        thermal = ventpy.ThermalParams()
+        thermal.depth_below_surface_m = 900.0
+        thermal.auto_compression_c_per_100m = 0.98
+        thermal.heat_from_equipment_kw = 400.0
+        thermal.heat_from_oxidation_kw = 50.0
+        thermal.target_effective_temp_c = 28.0
+        thermal.face_area_m2 = 12.0
+        inp.thermal_params = thermal
+
+        result = governor.calculate_total_demand(inp)
+
+        assert result.governing_factor == "thermal (Q_Thermal)"
+        assert result.thermal.heat_from_oxidation_kw == 50.0

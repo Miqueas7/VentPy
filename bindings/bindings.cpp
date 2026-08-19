@@ -624,19 +624,35 @@ NB_MODULE(_ventpy_core, m) {
              nb::arg("standard"),
              "Construye el preset oficial de la norma indicada.\n"
              "Lanza ValueError si la norma no tiene preset implementado.")
-        .def_prop_ro("standard", &RegulatoryConfig::standard)
-        .def_prop_ro("min_flow_per_person", &RegulatoryConfig::min_flow_per_person)
-        .def_prop_ro("altitude_threshold_1", &RegulatoryConfig::altitude_threshold_1)
-        .def_prop_ro("flow_above_threshold_1", &RegulatoryConfig::flow_above_threshold_1)
-        .def_prop_ro("altitude_threshold_2", &RegulatoryConfig::altitude_threshold_2)
-        .def_prop_ro("flow_above_threshold_2", &RegulatoryConfig::flow_above_threshold_2)
-        .def_prop_ro("altitude_threshold_3", &RegulatoryConfig::altitude_threshold_3)
-        .def_prop_ro("flow_above_threshold_3", &RegulatoryConfig::flow_above_threshold_3)
-        .def_prop_ro("diesel_hp_factor", &RegulatoryConfig::diesel_hp_factor)
-        .def_prop_ro("max_dilution_time", &RegulatoryConfig::max_dilution_time)
-        .def_prop_ro("default_gas_volume_per_kg", &RegulatoryConfig::default_gas_volume_per_kg)
-        .def_prop_ro("default_leakage_factor", &RegulatoryConfig::default_leakage_factor)
-        .def_prop_ro("standard_name", &RegulatoryConfig::standard_name);
+        .def_prop_ro("standard", &RegulatoryConfig::standard,
+             "Norma regulatoria activa (RegulatoryStandard).")
+        .def_prop_ro("min_flow_per_person", &RegulatoryConfig::min_flow_per_person,
+             "Caudal minimo por persona [m3/min] (DS 024-2016-EM, Art. 247: "
+             "3.0 hasta 1,500 msnm; DS 132 Chile, Art. 138: 3.0 sin escalon).")
+        .def_prop_ro("altitude_threshold_1", &RegulatoryConfig::altitude_threshold_1,
+             "Umbral de altitud, escalon 1 [msnm] (Art. 247).")
+        .def_prop_ro("flow_above_threshold_1", &RegulatoryConfig::flow_above_threshold_1,
+             "Caudal por persona sobre el umbral 1 [m3/min] (Art. 247).")
+        .def_prop_ro("altitude_threshold_2", &RegulatoryConfig::altitude_threshold_2,
+             "Umbral de altitud, escalon 2 [msnm] (Art. 247).")
+        .def_prop_ro("flow_above_threshold_2", &RegulatoryConfig::flow_above_threshold_2,
+             "Caudal por persona sobre el umbral 2 [m3/min] (Art. 247).")
+        .def_prop_ro("altitude_threshold_3", &RegulatoryConfig::altitude_threshold_3,
+             "Umbral de altitud, escalon 3 [msnm] (Art. 247).")
+        .def_prop_ro("flow_above_threshold_3", &RegulatoryConfig::flow_above_threshold_3,
+             "Caudal por persona sobre el umbral 3 [m3/min] (Art. 247: 6.0).")
+        .def_prop_ro("diesel_hp_factor", &RegulatoryConfig::diesel_hp_factor,
+             "Factor HP x m3/min para equipos diesel (DS 024-2016-EM, Art. 246: "
+             "3.0; DS 132 Chile, Art. 132: 2.83 por HP efectivo al freno).")
+        .def_prop_ro("max_dilution_time", &RegulatoryConfig::max_dilution_time,
+             "Tiempo maximo de dilucion de gases de voladura [min] "
+             "(DS 024-2016-EM, Art. 243).")
+        .def_prop_ro("default_gas_volume_per_kg", &RegulatoryConfig::default_gas_volume_per_kg,
+             "Volumen de gases por defecto por kg de explosivo [m3/kg].")
+        .def_prop_ro("default_leakage_factor", &RegulatoryConfig::default_leakage_factor,
+             "Factor de fugas por defecto (fraccion, ej. 0.15 = 15%).")
+        .def_prop_ro("standard_name", &RegulatoryConfig::standard_name,
+             "Referencia normativa como texto legible (norma + pais).");
 
     // ========================================================================
     // VentilationInput
