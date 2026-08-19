@@ -83,17 +83,53 @@ from ventpy._ventpy_core import (
     ZoneCoverageResult,
     MineCoverageResult,
 
+    # Red de ventilacion (SP-3): enums
+    AirwayLining,
+    SingularityType,
+
+    # Red de ventilacion (SP-3): structs de entrada
+    AirwaySingularity,
+    AirwayParams,
+    DuctSizingParams,
+    EconomicParams,
+    NetworkBranch,
+    NetworkDefinition,
+    SolverParams,
+    FanCurvePoint,
+    FanCurve,
+    FanOperatingParams,
+
+    # Red de ventilacion (SP-3): structs de resultado
+    FrictionFactorEntry,
+    ShockFactorEntry,
+    AirwayResistanceResult,
+    DuctOptionResult,
+    DuctSizingResult,
+    BranchFlowResult,
+    NetworkSolveResult,
+    FanOperatingResult,
+
     # Main classes
     DieselFleet,
     RegulatoryConfig,
     VentilationInput,
     VentilationGovernor,
     CoverageCalculator,
+    AtkinsonCalculator,
+    DuctSizingCalculator,
+    NetworkSolver,
+    FanCalculator,
 
     # Individual calculators (simple API)
     calculate_personnel_flow,
     calculate_diesel_flow,
     calculate_blasting_flow,
+
+    # Atkinson (resistencia de ramal: tablas y funciones sueltas)
+    atkinson_friction_factors,
+    shock_factors,
+    friction_factor_for,
+    resolve_shock_factor,
 
     # Atmospheric calculations
     calculate_pressure_kpa,
@@ -175,17 +211,53 @@ __all__ = [
     "ZoneCoverageResult",
     "MineCoverageResult",
 
+    # Red de ventilacion (SP-3): enums
+    "AirwayLining",
+    "SingularityType",
+
+    # Red de ventilacion (SP-3): structs de entrada
+    "AirwaySingularity",
+    "AirwayParams",
+    "DuctSizingParams",
+    "EconomicParams",
+    "NetworkBranch",
+    "NetworkDefinition",
+    "SolverParams",
+    "FanCurvePoint",
+    "FanCurve",
+    "FanOperatingParams",
+
+    # Red de ventilacion (SP-3): structs de resultado
+    "FrictionFactorEntry",
+    "ShockFactorEntry",
+    "AirwayResistanceResult",
+    "DuctOptionResult",
+    "DuctSizingResult",
+    "BranchFlowResult",
+    "NetworkSolveResult",
+    "FanOperatingResult",
+
     # Main classes
     "DieselFleet",
     "RegulatoryConfig",
     "VentilationInput",
     "VentilationGovernor",
     "CoverageCalculator",
+    "AtkinsonCalculator",
+    "DuctSizingCalculator",
+    "NetworkSolver",
+    "FanCalculator",
 
     # Individual calculators
     "calculate_personnel_flow",
     "calculate_diesel_flow",
     "calculate_blasting_flow",
+
+    # Atkinson (resistencia de ramal: tablas y funciones sueltas)
+    "atkinson_friction_factors",
+    "shock_factors",
+    "friction_factor_for",
+    "resolve_shock_factor",
 
     # Atmospheric calculations
     "calculate_pressure_kpa",
