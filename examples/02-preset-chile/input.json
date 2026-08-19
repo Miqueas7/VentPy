@@ -1,0 +1,12 @@
+{
+  "num_workers": 10,
+  "altitude_masl": 4200.0,
+  "diesel_fleet": [
+    {
+      "name": "Scoop ST7",
+      "horsepower": 150,
+      "availability": 0.85,
+      "utilization": 0.70
+    }
+  ]
+}
