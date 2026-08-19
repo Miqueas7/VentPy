@@ -17,9 +17,13 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
+#include "ventpy/atkinson.hpp"
 #include "ventpy/cobertura.hpp"
+#include "ventpy/ducto.hpp"
 #include "ventpy/governor.hpp"
 #include "ventpy/limites_gases.hpp"
+#include "ventpy/red.hpp"
+#include "ventpy/ventilador.hpp"
 
 namespace nb = nanobind;
 using namespace ventpy;
@@ -704,6 +708,417 @@ NB_MODULE(_ventpy_core, m) {
              "global (Art. 252.f) Y todas las zonas cubiertas (Art. 252.g).\n"
              "Lanza ValueError si el levantamiento esta vacio, hay nombres de\n"
              "zona duplicados o alguna zona es GeneralMine.");
+
+    // ========================================================================
+    // Red de ventilacion (SP-3): enums de Atkinson
+    // ========================================================================
+    nb::enum_<AirwayLining>(m, "AirwayLining",
+        "Tipo de labor/revestimiento para el factor de friccion de Atkinson.\n"
+        "McPherson (2009), Cap. 5, Tabla 5.1 (p. 5-6).")
+        .value("SmoothLined", AirwayLining::SmoothLined,
+               "Concreto liso (rectangular) - k=0.004")
+        .value("Shotcrete", AirwayLining::Shotcrete,
+               "Shotcrete (rectangular) - k=0.0055")
+        .value("UnlinedMinorIrreg", AirwayLining::UnlinedMinorIrreg,
+               "Sin revestir, irregularidades menores - k=0.009")
+        .value("UnlinedTypical", AirwayLining::UnlinedTypical,
+               "Sin revestir, condiciones tipicas - k=0.012")
+        .value("UnlinedRough", AirwayLining::UnlinedRough,
+               "Sin revestir, rugoso/irregular - k=0.016")
+        .value("ArchedDriftBolted", AirwayLining::ArchedDriftBolted,
+               "Galeria arqueada, pernos y malla (metal mines) - k=0.010")
+        .value("ArchedRampBolted", AirwayLining::ArchedRampBolted,
+               "Rampa arqueada, pernos y malla (metal mines) - k=0.014")
+        .value("TimberedCribbed", AirwayLining::TimberedCribbed,
+               "Entibado/cribbed (coal mines) - k=0.14 (extremo conservador del rango)")
+        .value("DuctFabricCollapsible", AirwayLining::DuctFabricCollapsible,
+               "Ducto de tela colapsable (forzado) - k=0.0037, ducto nuevo")
+        .value("DuctFlexibleSpiral", AirwayLining::DuctFlexibleSpiral,
+               "Ducto flexible con espiral estirado - k=0.011, ducto nuevo")
+        .value("DuctFiberglass", AirwayLining::DuctFiberglass,
+               "Ducto fibra de vidrio - k=0.0024, ducto nuevo")
+        .value("DuctSteelSpiral", AirwayLining::DuctSteelSpiral,
+               "Ducto espiral acero galvanizado - k=0.0021, ducto nuevo")
+        .value("Manual", AirwayLining::Manual,
+               "k provisto por el usuario (atkinson_k obligatorio > 0)");
+
+    nb::enum_<SingularityType>(m, "SingularityType",
+        "Tipo de singularidad de choque en un ramal.\n"
+        "McPherson (2009), Apendice A5 (p. 5-26 a 5-38).")
+        .value("Bend90", SingularityType::Bend90,
+               "Codo 90 grados - manual-only v1 (McPherson solo publica graficos)")
+        .value("Bend45", SingularityType::Bend45,
+               "Codo 45 grados - manual-only v1 (correccion angular por grafico)")
+        .value("Entrance", SingularityType::Entrance,
+               "Entrada - X=0.5 exacto (Ap. A5.2(b), A1 -> infinito)")
+        .value("Exit", SingularityType::Exit,
+               "Salida - X=1.0 exacto (Ap. A5.2(a), A2 -> infinito)")
+        .value("Expansion", SingularityType::Expansion,
+               "Expansion brusca - X por formula (Ap. A5.2(a))")
+        .value("Contraction", SingularityType::Contraction,
+               "Contraccion brusca - X por formula (Ap. A5.2(b))")
+        .value("Junction", SingularityType::Junction,
+               "Union - manual-only en SP-3a (la formula exige velocidades de red)")
+        .value("Manual", SingularityType::Manual,
+               "X provisto por el usuario (shock_factor_x obligatorio > 0)");
+
+    // ========================================================================
+    // Red de ventilacion (SP-3): structs de entrada
+    // ========================================================================
+    nb::class_<AirwaySingularity>(m, "AirwaySingularity",
+        "Singularidad de choque de un ramal (McPherson Apendice A5).")
+        .def(nb::init<>())
+        .def_rw("type", &AirwaySingularity::type,
+                "Tipo de singularidad (SingularityType)")
+        .def_rw("shock_factor_x", &AirwaySingularity::shock_factor_x,
+                "X manual (> 0 para Manual/Bend90/Bend45/Junction)")
+        .def_rw("area_ratio", &AirwaySingularity::area_ratio,
+                "Expansion: A1/A2; Contraction: A2/A1 (0 < r < 1)")
+        .def_rw("description", &AirwaySingularity::description,
+                "Descripcion libre de la singularidad");
+
+    nb::class_<AirwayParams>(m, "AirwayParams",
+        "Parametros geometricos y de revestimiento de un ramal.\n"
+        "Fuente de R (friccion + choque) via AtkinsonCalculator.")
+        .def(nb::init<>())
+        .def_rw("airway_id", &AirwayParams::airway_id,
+                "Identificador del ramal")
+        .def_rw("length_m", &AirwayParams::length_m,
+                "Longitud del ramal [m]")
+        .def_rw("perimeter_m", &AirwayParams::perimeter_m,
+                "Perimetro de la seccion [m]")
+        .def_rw("area_m2", &AirwayParams::area_m2,
+                "Seccion del ramal [m2]")
+        .def_rw("lining", &AirwayParams::lining,
+                "Tipo de labor/revestimiento (AirwayLining)")
+        .def_rw("atkinson_k", &AirwayParams::atkinson_k,
+                "k manual [kg/m3 a rho=1.2]; > 0 obligatorio si lining=Manual")
+        .def_rw("singularities", &AirwayParams::singularities,
+                "Singularidades de choque del ramal");
+
+    nb::class_<DuctSizingParams>(m, "DuctSizingParams",
+        "Parametros para dimensionamiento tecnico/economico de ducto.")
+        .def(nb::init<>())
+        .def_rw("q_m3min", &DuctSizingParams::q_m3min,
+                "Caudal requerido [m3/min]")
+        .def_rw("length_m", &DuctSizingParams::length_m,
+                "Longitud del ducto [m]")
+        .def_rw("duct_lining", &DuctSizingParams::duct_lining,
+                "Tipo de ducto (AirwayLining)")
+        .def_rw("atkinson_k", &DuctSizingParams::atkinson_k,
+                "k manual [kg/m3], > 0 si duct_lining=Manual")
+        .def_rw("singularities", &DuctSizingParams::singularities,
+                "Singularidades de choque")
+        .def_rw("max_velocity_mps", &DuctSizingParams::max_velocity_mps,
+                "Velocidad maxima [m/s]; 0 = default 20")
+        .def_rw("available_pressure_pa", &DuctSizingParams::available_pressure_pa,
+                "Presion disponible [Pa]; 0 = sin restriccion")
+        .def_rw("diameters_m", &DuctSizingParams::diameters_m,
+                "Diametros comerciales a evaluar [m]; vacio = default comercial");
+
+    nb::class_<EconomicParams>(m, "EconomicParams",
+        "Parametros economicos para optimizacion de ducto.")
+        .def(nb::init<>())
+        .def_rw("energy_cost_per_kwh", &EconomicParams::energy_cost_per_kwh,
+                "Costo de energia [USD/kWh]")
+        .def_rw("duct_cost_per_m_per_m_diam", &EconomicParams::duct_cost_per_m_per_m_diam,
+                "Costo lineal de ducto [USD/(m*m_diam)]")
+        .def_rw("operating_hours", &EconomicParams::operating_hours,
+                "Horas de operacion anuales [h/ano]")
+        .def_rw("fan_efficiency", &EconomicParams::fan_efficiency,
+                "Eficiencia del ventilador (0, 1]");
+
+    nb::class_<NetworkBranch>(m, "NetworkBranch",
+        "Ramal de la red. Resistencia: exactamente UNA fuente (XOR):\n"
+        "airway (R calculada via AtkinsonCalculator) o r_manual.")
+        .def(nb::init<>())
+        .def_rw("branch_id", &NetworkBranch::branch_id,
+                "Identificador del ramal")
+        .def_rw("from_node", &NetworkBranch::from_node,
+                "Nodo de origen")
+        .def_rw("to_node", &NetworkBranch::to_node,
+                "Nodo de destino")
+        .def_rw("airway", &NetworkBranch::airway,
+                "Parametros del ramal para R via AtkinsonCalculator (opcional)")
+        .def_rw("r_manual", &NetworkBranch::r_manual,
+                "R manual [Ns2/m8]; > 0 si no hay airway")
+        .def_rw("fan_pressure_pa", &NetworkBranch::fan_pressure_pa,
+                "Presion de ventilador en sentido from->to [Pa] (>= 0)")
+        .def_rw("q_initial_m3min", &NetworkBranch::q_initial_m3min,
+                "Caudal inicial [m3/min]; 0 = estimacion automatica (solo cuerdas)");
+
+    nb::class_<NetworkDefinition>(m, "NetworkDefinition",
+        "Red completa. La red se modela CERRADA: el nodo 'superficie'\n"
+        "cierra el circuito de admision/retorno.")
+        .def(nb::init<>())
+        .def_rw("branches", &NetworkDefinition::branches,
+                "Ramales de la red");
+
+    nb::class_<SolverParams>(m, "SolverParams",
+        "Parametros de convergencia del solver Hardy Cross (ingenieriles).")
+        .def(nb::init<>())
+        .def_rw("tolerance_m3min", &SolverParams::tolerance_m3min,
+                "max|deltaQ| de malla para converger [m3/min]")
+        .def_rw("max_iterations", &SolverParams::max_iterations,
+                "Iteraciones maximas");
+
+    nb::class_<FanCurvePoint>(m, "FanCurvePoint",
+        "Punto de la curva de catalogo del ventilador.")
+        .def(nb::init<>())
+        .def_rw("q_m3min", &FanCurvePoint::q_m3min,
+                "Caudal del punto de catalogo [m3/min]")
+        .def_rw("pressure_pa", &FanCurvePoint::pressure_pa,
+                "Presion total del ventilador [Pa] (>= 0)");
+
+    nb::class_<FanCurve>(m, "FanCurve",
+        "Curva de catalogo del fabricante. Puntos ESTRICTAMENTE crecientes\n"
+        "en Q (minimo 2). Referida a rated_density_kg_m3 (fan laws, ec. 10.28).")
+        .def(nb::init<>())
+        .def_rw("fan_id", &FanCurve::fan_id,
+                "Identificador del ventilador")
+        .def_rw("points", &FanCurve::points,
+                "Puntos de catalogo (FanCurvePoint)")
+        .def_rw("rated_density_kg_m3", &FanCurve::rated_density_kg_m3,
+                "Densidad de referencia de la curva [kg/m3] (default 1.2)");
+
+    nb::class_<FanOperatingParams>(m, "FanOperatingParams",
+        "Parametros del punto de operacion del ventilador.")
+        .def(nb::init<>())
+        .def_rw("stall_margin", &FanOperatingParams::stall_margin,
+                "Q_op >= Q_pico*(1+margen) - ingenieril")
+        .def_rw("under_relaxation", &FanOperatingParams::under_relaxation,
+                "Amortiguacion del punto fijo (modo red) (0, 1]")
+        .def_rw("max_iterations", &FanOperatingParams::max_iterations,
+                "Iteraciones del punto fijo (modo red)");
+
+    // ========================================================================
+    // Red de ventilacion (SP-3): structs de resultado (auditables)
+    // ========================================================================
+    nb::class_<FrictionFactorEntry>(m, "FrictionFactorEntry",
+        "Entrada de la tabla de friccion de Atkinson (auditable, con cita).")
+        .def_ro("lining", &FrictionFactorEntry::lining)
+        .def_ro("k", &FrictionFactorEntry::k,
+                "[kg/m3] a rho = 1.2")
+        .def_ro("biblio_ref", &FrictionFactorEntry::biblio_ref);
+
+    nb::class_<ShockFactorEntry>(m, "ShockFactorEntry",
+        "Entrada informativa de la tabla de factores de choque.")
+        .def_ro("type", &ShockFactorEntry::type)
+        .def_ro("x", &ShockFactorEntry::x,
+                "0 si es formula/manual (ver note)")
+        .def_ro("biblio_ref", &ShockFactorEntry::biblio_ref)
+        .def_ro("note", &ShockFactorEntry::note);
+
+    nb::class_<AirwayResistanceResult>(m, "AirwayResistanceResult",
+        "Resultado auditable de resistencia de ramal (Atkinson + choque).\n"
+        "SIN safety_ceil: R y deltaP crudos (redondearlos falsearia el balance).")
+        .def_ro("airway_id", &AirwayResistanceResult::airway_id)
+        .def_ro("k_used", &AirwayResistanceResult::k_used,
+                "k a densidad estandar 1.2 kg/m3")
+        .def_ro("k_corrected", &AirwayResistanceResult::k_corrected,
+                "k x rho/1.2")
+        .def_ro("air_density_kg_m3", &AirwayResistanceResult::air_density_kg_m3)
+        .def_ro("r_friction", &AirwayResistanceResult::r_friction,
+                "[Ns2/m8]")
+        .def_ro("r_shock", &AirwayResistanceResult::r_shock)
+        .def_ro("r_total", &AirwayResistanceResult::r_total)
+        .def_ro("q_m3min", &AirwayResistanceResult::q_m3min)
+        .def_ro("velocity_mps", &AirwayResistanceResult::velocity_mps)
+        .def_ro("pressure_drop_pa", &AirwayResistanceResult::pressure_drop_pa)
+        .def_ro("pressure_drop_mmh2o", &AirwayResistanceResult::pressure_drop_mmh2o)
+        .def_ro("biblio_ref", &AirwayResistanceResult::biblio_ref)
+        .def_ro("warnings", &AirwayResistanceResult::warnings,
+                "Ej. velocidad fuera de rango, DS 024-2016-EM Art. 248");
+
+    nb::class_<DuctOptionResult>(m, "DuctOptionResult",
+        "Resultado de una opcion de diametro comercial de ducto.")
+        .def_ro("diameter_m", &DuctOptionResult::diameter_m,
+                "Diametro evaluado [m]")
+        .def_ro("area_m2", &DuctOptionResult::area_m2,
+                "Area de seccion [m2]")
+        .def_ro("velocity_mps", &DuctOptionResult::velocity_mps,
+                "Velocidad de aire [m/s]")
+        .def_ro("r_total", &DuctOptionResult::r_total,
+                "Resistencia total [Ns2/m8]")
+        .def_ro("pressure_drop_pa", &DuctOptionResult::pressure_drop_pa,
+                "Caida de presion [Pa]")
+        .def_ro("velocity_ok", &DuctOptionResult::velocity_ok,
+                "Cumple v <= vmax")
+        .def_ro("pressure_ok", &DuctOptionResult::pressure_ok,
+                "Cumple deltaP <= disponible (si aplica)")
+        .def_ro("energy_cost", &DuctOptionResult::energy_cost,
+                "Costo energetico anual [USD]")
+        .def_ro("capital_cost", &DuctOptionResult::capital_cost,
+                "Costo capital [USD]")
+        .def_ro("total_cost", &DuctOptionResult::total_cost,
+                "Costo total [USD]")
+        .def_ro("rejection_reason", &DuctOptionResult::rejection_reason,
+                "Razon de rechazo; vacio si viable");
+
+    nb::class_<DuctSizingResult>(m, "DuctSizingResult",
+        "Resultado consolidado del dimensionamiento de ducto.")
+        .def_ro("selected_diameter_m", &DuctSizingResult::selected_diameter_m,
+                "Diametro elegido [m]")
+        .def_ro("options", &DuctSizingResult::options,
+                "Todas las opciones evaluadas")
+        .def_ro("feasible", &DuctSizingResult::feasible,
+                "Existe opcion viable?")
+        .def_ro("selection_criterion", &DuctSizingResult::selection_criterion,
+                "Criterio de seleccion aplicado")
+        .def_ro("biblio_ref", &DuctSizingResult::biblio_ref)
+        .def_ro("warnings", &DuctSizingResult::warnings,
+                "Ej. ninguna opcion viable");
+
+    nb::class_<BranchFlowResult>(m, "BranchFlowResult",
+        "Resultado de balance de un ramal de red (auditable, crudo).")
+        .def_ro("branch_id", &BranchFlowResult::branch_id)
+        .def_ro("from_node", &BranchFlowResult::from_node)
+        .def_ro("to_node", &BranchFlowResult::to_node)
+        .def_ro("r_ns2m8", &BranchFlowResult::r_ns2m8)
+        .def_ro("q_m3min", &BranchFlowResult::q_m3min,
+                "Signo: + = from->to")
+        .def_ro("pressure_drop_pa", &BranchFlowResult::pressure_drop_pa,
+                "R*Q*|Q| (con signo, crudo)")
+        .def_ro("fan_pressure_pa", &BranchFlowResult::fan_pressure_pa)
+        .def_ro("velocity_mps", &BranchFlowResult::velocity_mps,
+                "Solo si el ramal tiene airway con area")
+        .def_ro("warnings", &BranchFlowResult::warnings,
+                "DS 024-2016-EM Art. 248 si el area es conocida");
+
+    nb::class_<NetworkSolveResult>(m, "NetworkSolveResult",
+        "Resultado del balance Hardy Cross de la red completa.\n"
+        "McPherson (2009), Cap. 7, sec. 7.3.2.")
+        .def_ro("branches", &NetworkSolveResult::branches)
+        .def_ro("converged", &NetworkSolveResult::converged)
+        .def_ro("iterations", &NetworkSolveResult::iterations)
+        .def_ro("max_residual_m3min", &NetworkSolveResult::max_residual_m3min)
+        .def_ro("mesh_count", &NetworkSolveResult::mesh_count)
+        .def_ro("node_count", &NetworkSolveResult::node_count)
+        .def_ro("warnings", &NetworkSolveResult::warnings)
+        .def_ro("biblio_ref", &NetworkSolveResult::biblio_ref);
+
+    nb::class_<FanOperatingResult>(m, "FanOperatingResult",
+        "Resultado del punto de operacion del ventilador (simple o en red).\n"
+        "McPherson (2009), Cap. 10 'Fans'.")
+        .def_ro("fan_id", &FanOperatingResult::fan_id)
+        .def_ro("q_m3min", &FanOperatingResult::q_m3min,
+                "Caudal de operacion")
+        .def_ro("pressure_pa", &FanOperatingResult::pressure_pa,
+                "Presion de operacion (a densidad de sitio)")
+        .def_ro("air_density_kg_m3", &FanOperatingResult::air_density_kg_m3,
+                "Rho de sitio usada (ec. 10.28)")
+        .def_ro("density_factor", &FanOperatingResult::density_factor,
+                "rho_sitio / rated_density aplicado a la curva")
+        .def_ro("in_curve_range", &FanOperatingResult::in_curve_range,
+                "La solucion cayo dentro del catalogo")
+        .def_ro("q_peak_m3min", &FanOperatingResult::q_peak_m3min,
+                "Pico del catalogo (a densidad de sitio)")
+        .def_ro("pressure_peak_pa", &FanOperatingResult::pressure_peak_pa,
+                "Presion del pico (a densidad de sitio)")
+        .def_ro("stall_ok", &FanOperatingResult::stall_ok,
+                "Q_op >= Q_pico*(1+margen)")
+        .def_ro("stall_margin_actual", &FanOperatingResult::stall_margin_actual,
+                "(Q_op - Q_pico)/Q_pico (crudo, con signo)")
+        .def_ro("converged", &FanOperatingResult::converged,
+                "Punto fijo convergio (red); true en modo simple si hay solucion")
+        .def_ro("iterations", &FanOperatingResult::iterations)
+        .def_ro("network", &FanOperatingResult::network,
+                "Desglose de red en el punto de operacion (solo modo red, opcional)")
+        .def_ro("warnings", &FanOperatingResult::warnings)
+        .def_ro("biblio_ref", &FanOperatingResult::biblio_ref);
+
+    // ========================================================================
+    // AtkinsonCalculator: tablas y calculador de resistencia de ramal
+    // ========================================================================
+    m.def("atkinson_friction_factors", &atkinson_friction_factors,
+          nb::rv_policy::reference,
+          "Tabla k de Atkinson - McPherson (2009), Cap. 5, Tabla 5.1, p. 5-6.\n"
+          "12 entradas, todas con cita bibliografica.");
+
+    m.def("shock_factors", &shock_factors,
+          nb::rv_policy::reference,
+          "Tabla informativa de factores de choque - McPherson (2009),\n"
+          "Apendice A5 (p. 5-26 a 5-38). NO incluye Manual.");
+
+    m.def("friction_factor_for", &friction_factor_for,
+          nb::arg("lining"),
+          "k de la tabla para un tipo de labor.\n"
+          "Lanza ValueError si lining=Manual (el usuario debe proveer k).");
+
+    m.def("resolve_shock_factor", &resolve_shock_factor,
+          nb::arg("singularity"),
+          "Resuelve el factor de choque X de una singularidad.\n"
+          "Lanza ValueError si falta el dato requerido (area_ratio o\n"
+          "shock_factor_x segun el tipo).");
+
+    nb::class_<AtkinsonCalculator>(m, "AtkinsonCalculator",
+        "Calculador de resistencia de ramal (Atkinson + choque).\n"
+        "Unidades: Q en m3/min (API); internamente ley cuadratica en m3/s.\n"
+        "SIN safety_ceil: R y deltaP crudos (spec).")
+        .def_static("calculate_resistance", &AtkinsonCalculator::calculate_resistance,
+             nb::arg("params"), nb::arg("atm"),
+             "Calcula R_friccion + R_choque de un ramal (sin caudal).")
+        .def_static("calculate", &AtkinsonCalculator::calculate,
+             nb::arg("params"), nb::arg("atm"), nb::arg("q_m3min"),
+             "Calcula R, deltaP (Pa y mmH2O) y velocidad de un ramal para un\n"
+             "caudal dado. Advierte fuera de [20, 250] m/min\n"
+             "(DS 024-2016-EM, Art. 248).");
+
+    // ========================================================================
+    // DuctSizingCalculator: dimensionamiento tecnico/economico de ducto
+    // ========================================================================
+    nb::class_<DuctSizingCalculator>(m, "DuctSizingCalculator",
+        "Dimensionamiento de ducto de ventilacion auxiliar.\n"
+        "Diametros comerciales default (gate 2026-08-17, NO normativos):\n"
+        "{0.30, 0.40, 0.50, 0.60, 0.76, 0.91, 1.07, 1.22} m.")
+        .def_static("calculate", &DuctSizingCalculator::calculate,
+             nb::arg("params"), nb::arg("atm"),
+             "Tecnico: menor diametro comercial con v <= vmax y\n"
+             "deltaP <= presion disponible.")
+        .def_static("calculate_full", &DuctSizingCalculator::calculate_full,
+             nb::arg("params"), nb::arg("atm"), nb::arg("economics"),
+             "Economico: entre los diametros viables, costo total\n"
+             "(energia + capital) minimo.");
+
+    // ========================================================================
+    // NetworkSolver: balance de red por Hardy Cross
+    // ========================================================================
+    nb::class_<NetworkSolver>(m, "NetworkSolver",
+        "Solver de red de ventilacion - balance por Hardy Cross.\n"
+        "McPherson (2009), Cap. 7, sec. 7.3.2 (pp. 7-13 a 7-19).\n"
+        "La red se modela CERRADA (nodo 'superficie' cierra el circuito).")
+        .def_static("solve", &NetworkSolver::solve,
+             nb::arg("network"), nb::arg("atm"),
+             nb::arg("params") = SolverParams{},
+             "Resuelve la red por Hardy Cross.\n"
+             "Lanza ValueError si la red esta vacia, no es conexa, no tiene\n"
+             "mallas (arbol sin circulacion) o hay datos fuera de dominio.");
+
+    // ========================================================================
+    // FanCalculator: curva de ventilador, punto de operacion y stall
+    // ========================================================================
+    nb::class_<FanCalculator>(m, "FanCalculator",
+        "Curva de ventilador, punto de operacion y margen de stall.\n"
+        "McPherson (2009), Cap. 10 'Fans' - ec. 10.28 (fan laws, densidad).\n"
+        "SIN safety_ceil: puntos de equilibrio crudos.")
+        .def_static("pressure_at", &FanCalculator::pressure_at,
+             nb::arg("curve"), nb::arg("q_m3min"), nb::arg("air_density_kg_m3"),
+             "Presion de la curva a densidad de sitio (interpolacion lineal).\n"
+             "Lanza ValueError fuera del rango del catalogo (nunca extrapola).")
+        .def_static("operating_point", &FanCalculator::operating_point,
+             nb::arg("curve"), nb::arg("r_system_ns2m8"), nb::arg("atm"),
+             nb::arg("params") = FanOperatingParams{},
+             "Punto de operacion contra resistencia de sistema\n"
+             "P(Q) = R*(Q/60)^2 (biseccion sobre el rango del catalogo).")
+        .def_static("operating_point_in_network",
+             &FanCalculator::operating_point_in_network,
+             nb::arg("network"), nb::arg("fan_branch_id"), nb::arg("curve"),
+             nb::arg("atm"), nb::arg("solver_params") = SolverParams{},
+             nb::arg("params") = FanOperatingParams{},
+             "Punto de operacion del ventilador DENTRO de una red: punto fijo\n"
+             "con sub-relajacion sobre NetworkSolver::solve. El\n"
+             "fan_pressure_pa declarado en el ramal se ignora (lo gobierna\n"
+             "la curva); se advierte si venia > 0.");
 
     // ========================================================================
     // AtmosphereCalculator (acceso directo)
