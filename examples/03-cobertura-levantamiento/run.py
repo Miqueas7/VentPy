@@ -58,9 +58,11 @@ for zone in result.zones:
 # --- Global cubre la demanda total (Art. 252.f) ---
 assert result.global_compliant is True
 
-# --- Pero NO todas las zonas individuales cumplen (Art. 252.g): el
-# "Frente N-02" (altitud mas baja, menos caudal requerido, pero tambien
-# menos medido) esta en deficit ---
+# --- Pero NO todas las zonas individuales cumplen (Art. 252.g): ambas
+# zonas requieren el mismo caudal (207 m3/min - mismo num_workers y
+# zone_type, la altitud no cambia el factor gobernante aqui), pero
+# "Frente N-02" midio bastante menos (150 vs 270) y por eso esta en
+# deficit ---
 assert result.all_zones_compliant is False
 assert result.compliant is False  # compliant estricto = global AND todas las zonas
 

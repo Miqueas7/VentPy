@@ -91,8 +91,9 @@ subcommands:
 - `ventpy ventilador <archivo.json> [--json]` — fan operating point (standalone or coupled to a network)
 
 Exit codes are meaningful: `0` success, `1` invalid input, `2` a
-calculated-but-unreliable result (e.g. a network that did not converge, or
-a zone in deficit) — see each subcommand's help (`ventpy <subcommand> -h`).
+calculated-but-unreliable result (e.g. a network that did not converge, a
+zone in deficit, or a fan operating point outside its catalog curve) — see
+each subcommand's help (`ventpy <subcommand> -h`).
 
 Five worked, self-verifying examples (each `run.py` asserts its own
 documented numbers) live under [`examples/`](examples/), one per JSON input
