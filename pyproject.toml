@@ -28,6 +28,9 @@ Homepage = "https://github.com/Miqueas7/VentPy"
 Repository = "https://github.com/Miqueas7/VentPy"
 Issues = "https://github.com/Miqueas7/VentPy/issues"
 
+[project.scripts]
+ventpy = "ventpy.cli:main"
+
 [project.optional-dependencies]
 test = ["pytest>=7.0"]
 viz = ["matplotlib>=3.7", "numpy>=1.24"]
