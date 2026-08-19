@@ -452,8 +452,10 @@ NB_MODULE(_ventpy_core, m) {
         "en regulation_ref. Los campos de valor son opcionales porque cada\n"
         "norma define combinaciones distintas (TWA+STEL, solo techo, minimo\n"
         "para O2). Unidad canonica: ppm / % vol.")
-        .def_ro("gas", &GasLimit::gas)
-        .def_ro("unit", &GasLimit::unit)
+        .def_ro("gas", &GasLimit::gas,
+                "Gas regulado (GasType)")
+        .def_ro("unit", &GasLimit::unit,
+                "Unidad del limite (ConcentrationUnit: PPM o porcentaje en volumen)")
         .def_ro("twa_8h", &GasLimit::twa_8h,
                 "Promedio ponderado 8 h (TWA / LPP)")
         .def_ro("stel", &GasLimit::stel,
