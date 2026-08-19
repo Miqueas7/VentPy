@@ -47,7 +47,12 @@ Dentro del calculo de `Q_Eq` (`DieselFlowCalculator::calculate_full`,
 `include/ventpy/caudal_equipo.hpp`) se evaluan 3 sub-criterios y se toma el
 maximo:
 
-1. Factor HP normativo (Art. 246): ~323 m3/min
+1. Factor HP normativo (Art. 246): ~384 m3/min
+   (`total_effective_hp * hp_factor_corrected * simultaneity_factor` =
+   `89.25 HP * 5.0628 m3/min/HP * 0.85` — HP con disponibilidad/utilizacion
+   pero SIN de-rating por altitud, ya que `hp_factor_corrected` ya trae su
+   propia correccion volumetrica; el de-rating de altitud del motor es un
+   criterio aparte, no se aplica dos veces aqui)
 2. Dilucion de CO a su TLV: ~117 m3/min
 3. **Dilucion de NOx a su TLV: ~852 m3/min ← gobierna**
 
