@@ -113,12 +113,16 @@ constexpr void require_non_negative(T value, const std::string& param_name) {
  * @param min_val Límite inferior (inclusivo)
  * @param max_val Límite superior (inclusivo)
  * @param param_name Nombre del parámetro
- * @throws std::invalid_argument si value no es finito o esta fuera de rango
+ * @throws std::invalid_argument si value, min_val o max_val no son finitos
+ *         (un bound NaN dejaría el chequeo de rango inerte: value < NaN y
+ *         value > NaN son siempre false), o si value esta fuera de rango
  */
 template <Numeric T>
 constexpr void require_in_range(T value, T min_val, T max_val,
                                 const std::string& param_name) {
     require_finite(value, param_name);
+    require_finite(min_val, param_name);
+    require_finite(max_val, param_name);
     if (value < min_val || value > max_val) {
         throw std::invalid_argument(
             "Error de dominio [VentPy]: El parametro '" + param_name +

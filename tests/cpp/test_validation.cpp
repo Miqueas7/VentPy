@@ -94,6 +94,18 @@ TEST(Validation, RequireInRange_RejectsAboveMax) {
                  std::invalid_argument);
 }
 
+TEST(Validation, RechazaBoundsNoFinitos) {
+    // Hallazgo de revision: require_in_range validaba isfinite de `value` pero
+    // NO de min_val/max_val. Con un bound NaN, value < NaN y value > NaN son
+    // SIEMPRE false -> el chequeo queda INERTE (acepta cualquier value) —
+    // justo lo opuesto al endurecimiento del FIX 1.
+    EXPECT_THROW(v::require_in_range(0.5, std::nan(""), 1.0, "x"),
+                 std::invalid_argument);
+    EXPECT_THROW(
+        v::require_in_range(0.5, 0.0, std::numeric_limits<double>::infinity(), "x"),
+        std::invalid_argument);
+}
+
 // ============================================================================
 // require_positive_int
 // ============================================================================
