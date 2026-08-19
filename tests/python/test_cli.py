@@ -115,6 +115,176 @@ class TestCmdLmp:
         assert len(data["gas_limits"]) == 8
 
 
+class TestCmdCobertura:
+    def test_cobertura_deficit_zona(self, tmp_path, capsys):
+        # Espejo de TestAnalyzeSurvey.test_global_covers_with_zone_in_deficit
+        # (tests/python/test_cobertura.py): 2 zonas DevelopmentFace/10 trab.,
+        # 4200msnm->270 medido (207 requerido, OK) y 2500msnm->150 medido
+        # (207 requerido, deficit 57). Global cubre (420>=414) pero la zona 2
+        # esta en deficit -> compliant estricto = False -> exit 2.
+        payload = {
+            "zones": [
+                {
+                    "zone_name": "Rampa 4200",
+                    "input": {
+                        "zone_type": "DevelopmentFace",
+                        "num_workers": 10,
+                        "altitude_masl": 4200.0,
+                    },
+                    "measurement": {"q_measured_m3min": 270.0},
+                },
+                {
+                    "zone_name": "Frente N-02",
+                    "input": {
+                        "zone_type": "DevelopmentFace",
+                        "num_workers": 10,
+                        "altitude_masl": 2500.0,
+                    },
+                    "measurement": {"q_measured_m3min": 150.0},
+                },
+            ],
+        }
+        archivo = _write_json(tmp_path, "cobertura.json", payload)
+
+        exit_code = cli.main(["cobertura", archivo, "--json"])
+
+        assert exit_code == 2
+        data = json.loads(capsys.readouterr().out)
+        assert data["global_compliant"] is True
+        assert data["all_zones_compliant"] is False
+        assert data["compliant"] is False
+        assert data["zones"][1]["deficit_m3min"] == 57.0
+
+    def test_cobertura_clave_desconocida_exit1(self, tmp_path, capsys):
+        archivo = _write_json(tmp_path, "cobertura.json", {"zonas": []})
+
+        exit_code = cli.main(["cobertura", archivo, "--json"])
+
+        assert exit_code == 1
+        stderr = capsys.readouterr().err
+        assert "zonas" in stderr
+
+
+_RED_A_BRANCHES = [
+    {"branch_id": "F", "from_node": "S", "to_node": "A", "r_manual": 0.05,
+     "fan_pressure_pa": 500.0},
+    {"branch_id": "P1", "from_node": "A", "to_node": "B", "r_manual": 0.2},
+    {"branch_id": "P2", "from_node": "A", "to_node": "B", "r_manual": 0.8},
+    {"branch_id": "R", "from_node": "B", "to_node": "S", "r_manual": 0.1},
+]
+
+_RED_A_SIN_FAN_BRANCHES = [
+    {"branch_id": "F", "from_node": "S", "to_node": "A", "r_manual": 0.05},
+    {"branch_id": "P1", "from_node": "A", "to_node": "B", "r_manual": 0.2},
+    {"branch_id": "P2", "from_node": "A", "to_node": "B", "r_manual": 0.8},
+    {"branch_id": "R", "from_node": "B", "to_node": "S", "r_manual": 0.1},
+]
+
+
+class TestCmdRed:
+    def test_red_dos_mallas(self, tmp_path, capsys):
+        # Espejo de TestNetworkSolver.test_red_paralela_converge_a_la_solucion_analitica
+        # (tests/python/test_red_ventilacion.py): red A, Q de F ~ 2744.974.
+        payload = {
+            "branches": _RED_A_BRANCHES,
+            "solver": {"tolerance_m3min": 0.006, "max_iterations": 1000},
+        }
+        archivo = _write_json(tmp_path, "red.json", payload)
+
+        exit_code = cli.main(["red", archivo, "--json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["converged"] is True
+        f = data["branches"][0]
+        assert f["branch_id"] == "F"
+        assert f["q_m3min"] == pytest.approx(2744.974, abs=0.05)
+
+    def test_red_no_converge_exit2(self, tmp_path, capsys):
+        payload = {
+            "branches": _RED_A_BRANCHES,
+            "solver": {"tolerance_m3min": 1e-9, "max_iterations": 1},
+        }
+        archivo = _write_json(tmp_path, "red.json", payload)
+
+        exit_code = cli.main(["red", archivo, "--json"])
+
+        assert exit_code == 2
+        data = json.loads(capsys.readouterr().out)
+        assert data["converged"] is False
+
+
+class TestCmdVentilador:
+    def test_ventilador_simple(self, tmp_path, capsys):
+        # Espejo de TestFanOperatingPoint.test_interseccion_analitica:
+        # curva lineal (600,3000)-(3000,600), r=0.5 -> q ~ 2637.29.
+        payload = {
+            "curve": {
+                "fan_id": "LIN",
+                "points": [[600.0, 3000.0], [3000.0, 600.0]],
+            },
+            "mode": "simple",
+            "r_system_ns2m8": 0.5,
+        }
+        archivo = _write_json(tmp_path, "ventilador.json", payload)
+
+        exit_code = cli.main(["ventilador", archivo, "--json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["q_m3min"] == pytest.approx(2637.29, abs=0.01)
+        assert data["stall_ok"] is True
+
+    def test_ventilador_en_red(self, tmp_path, capsys):
+        # Espejo de TestFanOperatingPointInNetwork.test_punto_fijo_converge_al_equilibrio:
+        # red A sin fan + curva AX-RED en el ramal F -> q ~ 2797.44.
+        payload = {
+            "curve": {
+                "fan_id": "AX-RED",
+                "points": [
+                    [1200.0, 900.0], [1800.0, 800.0], [2400.0, 650.0],
+                    [3000.0, 450.0], [3600.0, 200.0],
+                ],
+            },
+            "mode": "red",
+            "fan_branch_id": "F",
+            "network": {
+                "branches": _RED_A_SIN_FAN_BRANCHES,
+                "solver": {"tolerance_m3min": 0.006, "max_iterations": 1000},
+            },
+        }
+        archivo = _write_json(tmp_path, "ventilador.json", payload)
+
+        exit_code = cli.main(["ventilador", archivo, "--json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["q_m3min"] == pytest.approx(2797.44, abs=1.0)
+        assert data["network"]["converged"] is True
+
+    def test_ventilador_stall_exit2(self, tmp_path, capsys):
+        # Espejo de TestFanOperatingPoint.test_zona_de_stall_detectada:
+        # curva con pico, r=5.722049850540529 -> stall_ok False.
+        payload = {
+            "curve": {
+                "fan_id": "PICO",
+                "points": [
+                    [600.0, 1500.0], [1200.0, 2000.0], [1800.0, 1900.0],
+                    [2400.0, 1200.0], [3000.0, 400.0],
+                ],
+            },
+            "mode": "simple",
+            "r_system_ns2m8": 5.722049850540529,
+        }
+        archivo = _write_json(tmp_path, "ventilador.json", payload)
+
+        exit_code = cli.main(["ventilador", archivo, "--json"])
+
+        assert exit_code == 2
+        data = json.loads(capsys.readouterr().out)
+        assert data["stall_ok"] is False
+
+
 class TestMainMisc:
     def test_help_exits_zero(self, capsys):
         exit_code = cli.main(["--help"])
