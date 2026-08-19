@@ -100,6 +100,28 @@ class TestCompareZoneStations:
         assert r.q_measured_m3min == 750.0
         assert r.compliant is True
 
+    def test_reasignar_medicion_a_estaciones(self):
+        # Reasignar la fuente de medicion (de directa a estaciones) debe
+        # dejar la anterior sin efecto: compare_zone usa exactamente UNA
+        # fuente (has_direct == has_stations lanza), la vigente al momento
+        # de la llamada.
+        m = ventpy.ZoneMeasurement()
+        m.zone_name = "Z-reasignada"
+        m.q_measured_m3min = 100.0
+
+        m.q_measured_m3min = None
+        e1 = ventpy.AirflowStation()
+        e1.station_id = "E-1"
+        e1.area_m2 = 10.0
+        e1.velocity_mps = 1.0  # Q = 10 x 1.0 x 60 = 600
+        m.stations = [e1]
+
+        r = ventpy.CoverageCalculator.compare_zone(500.0, m)
+
+        assert len(r.stations) == 1
+        assert r.q_measured_m3min == 600.0
+        assert r.compliant is True
+
     def test_velocity_out_of_range_warns_248(self):
         m = ventpy.ZoneMeasurement()
         m.zone_name = "Z"
