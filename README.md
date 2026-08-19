@@ -78,6 +78,33 @@ For development:
 pip install -e .[test,viz]
 ```
 
+## CLI and Examples
+
+Installing VentPy also installs the `ventpy` command, a thin presentation
+layer over the same public API (no calculation logic of its own) with 5
+subcommands:
+
+- `ventpy demanda <archivo.json> [--norma peru|chile] [--json]` — total ventilation demand for a zone/face
+- `ventpy lmp [--norma peru|chile] [--gas GAS] [--json]` — permissible exposure limits (LMP) for regulated gases
+- `ventpy cobertura <archivo.json> [--norma peru|chile] [--json]` — coverage/deficit analysis of a zone survey
+- `ventpy red <archivo.json> [--json]` — ventilation network balance (Hardy Cross)
+- `ventpy ventilador <archivo.json> [--json]` — fan operating point (standalone or coupled to a network)
+
+Exit codes are meaningful: `0` success, `1` invalid input, `2` a
+calculated-but-unreliable result (e.g. a network that did not converge, or
+a zone in deficit) — see each subcommand's help (`ventpy <subcommand> -h`).
+
+Five worked, self-verifying examples (each `run.py` asserts its own
+documented numbers) live under [`examples/`](examples/), one per JSON input
+schema plus a duct-sizing case that only uses the API (no CLI subcommand
+for it yet):
+
+- [`examples/01-demanda-peru`](examples/01-demanda-peru/) — diesel-limited demand, Peru preset
+- [`examples/02-preset-chile`](examples/02-preset-chile/) — same case with `--norma chile`
+- [`examples/03-cobertura-levantamiento`](examples/03-cobertura-levantamiento/) — 2-zone survey, one zone in deficit (`exit 2`)
+- [`examples/04-red-ventilador`](examples/04-red-ventilador/) — fan coupled to a parallel-mesh network
+- [`examples/05-ducto-seleccion`](examples/05-ducto-seleccion/) — duct sizing, technical vs. economic criterion (API only)
+
 ## Quick Start
 
 ```python

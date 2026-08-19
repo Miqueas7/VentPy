@@ -1,0 +1,20 @@
+{
+  "zone_type": "DevelopmentFace",
+  "num_workers": 15,
+  "altitude_masl": 4200.0,
+  "diesel_fleet": [
+    {
+      "name": "Scoop ST7",
+      "horsepower": 150,
+      "availability": 0.85,
+      "utilization": 0.70
+    }
+  ],
+  "blasting_params": {
+    "explosive_kg": 50,
+    "gas_volume_per_kg": 0.04,
+    "dilution_time_min": 30,
+    "face_area_m2": 12,
+    "face_length_m": 200
+  }
+}
