@@ -54,6 +54,14 @@ TEST(CaudalTermico, BalanceSensibleFactible) {
     EXPECT_DOUBLE_EQ(r.q_thermal, 3609.0);
     EXPECT_EQ(r.regulation_ref.find("252"), std::string::npos);
     EXPECT_GT(r.resulting_velocity_mps, 0.0);
+    // FIX 3 (Task 1 pre-bindings): la oxidacion debe aparecer en el desglose
+    // de auditoria (antes se sumaba a total_heat_load_kw pero no se exponia).
+    EXPECT_DOUBLE_EQ(r.heat_from_oxidation_kw, 50.0);
+    EXPECT_DOUBLE_EQ(
+        r.heat_from_equipment_kw + r.heat_from_oxidation_kw +
+            r.heat_from_rock_kw + r.heat_from_autocompression_kw +
+            r.heat_from_other_kw,
+        r.total_heat_load_kw);
 }
 
 // Caso 2: depth=1000, atm dry_bulb=18 (alt 2500). inlet = 18+0.98*1000/100 = 27.8.

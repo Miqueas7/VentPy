@@ -175,8 +175,19 @@ public:
                 pressure_at(curve, q_clamped, r.air_density_kg_m3);
             p_fan += params.under_relaxation * (p_target - p_fan);
             if (it > 1 && std::abs(q_raw - q_prev) <= solver_params.tolerance_m3min) {
-                r.converged = true;
-                break;
+                // Cierre real curva-red: |Δq| pequeño no basta si p_fan sigue
+                // lejos de la presion que la curva exige en q_raw (posible con
+                // sub-relajacion extrema: p_fan casi no se mueve, pero el
+                // sistema es sensible y el flujo si se mueve lo suficiente
+                // para que Δq caiga bajo tolerancia sin haber llegado al
+                // equilibrio). Solo se exige el residual si q_raw cae dentro
+                // del catalogo (fuera de rango ya se reporta aparte).
+                const bool q_in_range = (q_raw >= q_lo && q_raw <= q_hi);
+                const double residual_pa = std::abs(p_used - p_target);
+                if (!q_in_range || residual_pa <= FAN_RESIDUAL_TOL_PA) {
+                    r.converged = true;
+                    break;
+                }
             }
             q_prev = q_raw;
         }
@@ -213,6 +224,11 @@ private:
     static constexpr const char* BIBLIO =
         "McPherson (2009), Cap. 10 'Fans': ec. 10.28 (fan laws, densidad); "
         "caracteristica de stall sec. 10.1";
+
+    // [Pa] ingenieril: cierre real curva-red (evita convergencia espuria por
+    // sub-relajacion extrema). El solo-Δq puede caer bajo tolerancia mientras
+    // p_fan sigue lejos de la presion que la curva exige en ese caudal.
+    static constexpr double FAN_RESIDUAL_TOL_PA = 1.0;
 
     static void validate_params(const FanOperatingParams& p) {
         validation::require_non_negative(p.stall_margin,

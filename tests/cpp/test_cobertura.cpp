@@ -4,6 +4,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <limits>
 #include <stdexcept>
 
 #include "ventpy/cobertura.hpp"
@@ -130,6 +131,18 @@ TEST(CoverageZone, MedidoNegativoLanza) {
     ZoneMeasurement m;
     m.zone_name = "Z";
     m.q_measured_m3min = -5.0;
+
+    EXPECT_THROW(CoverageCalculator::compare_zone(100.0, m),
+                 std::invalid_argument);
+}
+
+TEST(CoverageZone, MedidoInfinitoLanza) {
+    // FIX 1 (Task 1 pre-bindings): ANTES de isfinite en la frontera, un
+    // q_measured_m3min = inf pasaba require_non_negative (inf >= 0) y
+    // reportaba compliant=true de forma espuria. Debe lanzar.
+    ZoneMeasurement m;
+    m.zone_name = "Z";
+    m.q_measured_m3min = std::numeric_limits<double>::infinity();
 
     EXPECT_THROW(CoverageCalculator::compare_zone(100.0, m),
                  std::invalid_argument);

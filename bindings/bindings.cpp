@@ -353,6 +353,7 @@ NB_MODULE(_ventpy_core, m) {
         "Resultado del calculo de carga termica.")
         .def_ro("heat_from_rock_kw", &ThermalFlowResult::heat_from_rock_kw)
         .def_ro("heat_from_equipment_kw", &ThermalFlowResult::heat_from_equipment_kw)
+        .def_ro("heat_from_oxidation_kw", &ThermalFlowResult::heat_from_oxidation_kw)
         .def_ro("heat_from_autocompression_kw", &ThermalFlowResult::heat_from_autocompression_kw)
         .def_ro("heat_from_other_kw", &ThermalFlowResult::heat_from_other_kw)
         .def_ro("total_heat_load_kw", &ThermalFlowResult::total_heat_load_kw)
