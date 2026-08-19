@@ -156,10 +156,18 @@ def _check_allowed(data, allowed, label):
             )
 
 
-def _emit(obj_dict, as_json):
-    """Imprime `obj_dict` (dict) como JSON o como reporte legible simple."""
+def _emit(obj_dict, as_json, text_printer=None):
+    """Imprime `obj_dict` (dict) como JSON o como reporte legible.
+
+    `--json` SIEMPRE es el dump generico de `obj_dict` (contrato estable).
+    En modo texto, si el subcomando registro un `text_printer` (tabla a
+    medida) se usa ese; si no, cae al dump generico indentado.
+    """
     if as_json:
         print(json.dumps(obj_dict, indent=2, ensure_ascii=False))
+        return
+    if text_printer is not None:
+        text_printer(obj_dict)
         return
     _print_report(obj_dict, indent=0)
 
@@ -345,6 +353,47 @@ def _mine_coverage_report(result):
     }
 
 
+# Traduccion SOLO para la columna ESTADO de la tabla de texto (el campo
+# "status" del --json NO cambia: sigue siendo OK/DEFICIT/SOBREVENTILADO/
+# ADVERTENCIA, contrato estable de _coverage_status).
+_COVERAGE_STATUS_LABEL = {
+    "OK": "OK",
+    "DEFICIT": "DEFICIT",
+    "SOBREVENTILADO": "SOBRE-VENT",
+    "ADVERTENCIA": "AJUSTADO",
+}
+
+
+def _print_cobertura_table(report):
+    """Reporte tipo tabla (modo texto): zona | requerido | medido |
+    cobertura % | estado + totales + advertencias."""
+    header = (f"{'ZONA':<24} {'REQUERIDO':>12} {'MEDIDO':>12} "
+              f"{'COBERTURA %':>12}  {'ESTADO':<12}")
+    print(header)
+    print("-" * len(header))
+    for zone in report["zones"]:
+        estado = _COVERAGE_STATUS_LABEL.get(zone["status"], zone["status"])
+        print(
+            f"{zone['zone_name']:<24} {zone['q_required_m3min']:>12.2f} "
+            f"{zone['q_measured_m3min']:>12.2f} "
+            f"{zone['coverage_percent']:>11.1f}%  {estado:<12}"
+        )
+    print()
+    print(f"TOTAL REQUERIDO : {report['q_required_total_m3min']:.2f} m3/min")
+    print(f"TOTAL MEDIDO    : {report['q_measured_total_m3min']:.2f} m3/min")
+    print(f"COBERTURA GLOBAL: {report['coverage_ratio'] * 100.0:.1f} %")
+    print(f"DEFICIT TOTAL   : {report['deficit_total_m3min']:.2f} m3/min")
+    print(
+        f"global_compliant={report['global_compliant']}  "
+        f"all_zones_compliant={report['all_zones_compliant']}  "
+        f"compliant={report['compliant']}"
+    )
+    if report["warnings"]:
+        print("ADVERTENCIAS:")
+        for w in report["warnings"]:
+            print(f"  - {w}")
+
+
 # ============================================================================
 # T2: Construccion de red (NetworkSolver) desde JSON
 # ============================================================================
@@ -429,6 +478,32 @@ def _red_report(result):
     }
 
 
+def _print_red_table(report):
+    """Reporte tipo tabla (modo texto): ramal | Q | dP + convergencia,
+    iteraciones, residual."""
+    header = (f"{'RAMAL':<10} {'DESDE->HASTA':<18} "
+              f"{'Q [m3/min]':>14} {'dP [Pa]':>14}")
+    print(header)
+    print("-" * len(header))
+    for branch in report["branches"]:
+        desde_hasta = f"{branch['from_node']}->{branch['to_node']}"
+        print(
+            f"{branch['branch_id']:<10} {desde_hasta:<18} "
+            f"{branch['q_m3min']:>14.3f} {branch['pressure_drop_pa']:>14.3f}"
+        )
+    print()
+    print(
+        f"convergencia={report['converged']}  "
+        f"iteraciones={report['iterations']}  "
+        f"residual_max={report['max_residual_m3min']:.6f} m3/min"
+    )
+    print(f"mallas={report['mesh_count']}  nodos={report['node_count']}")
+    if report["warnings"]:
+        print("ADVERTENCIAS:")
+        for w in report["warnings"]:
+            print(f"  - {w}")
+
+
 # ============================================================================
 # T2: Construccion de ventilador (FanCalculator) desde JSON
 # ============================================================================
@@ -481,6 +556,45 @@ def _fan_operating_report(result):
     return report
 
 
+def _print_ventilador_table(report, stall_margin_required):
+    """Reporte de bloques (modo texto): Q/P de operacion, pico, margen de
+    stall real vs requerido con veredicto, banderas y advertencias.
+
+    `stall_margin_required` viene de FanOperatingParams.stall_margin (el
+    umbral pedido, disponible en cmd_ventilador via el objeto `params`) y
+    NO forma parte del dict de `--json` (contrato estable de
+    `_fan_operating_report`) - se pasa aparte solo para el texto.
+    """
+    print(f"VENTILADOR: {report['fan_id']}")
+    print(
+        f"PUNTO DE OPERACION: Q = {report['q_m3min']:.2f} m3/min  "
+        f"P = {report['pressure_pa']:.2f} Pa"
+    )
+    print(
+        f"PICO DE CATALOGO:   Q_pico = {report['q_peak_m3min']:.2f} m3/min  "
+        f"P_pico = {report['pressure_peak_pa']:.2f} Pa"
+    )
+    veredicto = "OK (fuera de la zona de stall)" if report["stall_ok"] \
+        else "RIESGO DE STALL (margen insuficiente)"
+    print(
+        f"MARGEN DE STALL: real = {report['stall_margin_actual'] * 100.0:.1f} %  "
+        f"requerido >= {stall_margin_required * 100.0:.1f} %  -> {veredicto}"
+    )
+    print(
+        f"converged={report['converged']}  "
+        f"in_curve_range={report['in_curve_range']}  "
+        f"stall_ok={report['stall_ok']}"
+    )
+    if report["warnings"]:
+        print("ADVERTENCIAS:")
+        for w in report["warnings"]:
+            print(f"  - {w}")
+    if "network" in report:
+        print()
+        print("RED ASOCIADA:")
+        _print_red_table(report["network"])
+
+
 # ============================================================================
 # Subcomandos
 # ============================================================================
@@ -531,7 +645,8 @@ def cmd_cobertura(args):
 
     result = ventpy.CoverageCalculator.analyze_survey(zones, config, params)
 
-    _emit(_mine_coverage_report(result), args.json)
+    _emit(_mine_coverage_report(result), args.json,
+          text_printer=_print_cobertura_table)
     return _flags_exit({"compliant": result.compliant})
 
 
@@ -542,7 +657,7 @@ def cmd_red(args):
     network, atm, solver_params = _build_red_request(data)
     result = ventpy.NetworkSolver.solve(network, atm, solver_params)
 
-    _emit(_red_report(result), args.json)
+    _emit(_red_report(result), args.json, text_printer=_print_red_table)
     return _flags_exit({"converged": result.converged})
 
 
@@ -565,6 +680,18 @@ def cmd_ventilador(args):
         result = ventpy.FanCalculator.operating_point(
             curve, data["r_system_ns2m8"], atm, params)
     elif mode == "red":
+        if "atmospheric" in data:
+            # HALLAZGO 1 (fix round): en modo "red" la atmosfera vive DENTRO
+            # de network{} (misma atm para el solver de red y para la curva
+            # del ventilador - operating_point_in_network solo acepta UNA).
+            # Aceptar tambien un atmospheric de nivel superior lo
+            # descartaria en silencio: el usuario obtendria un punto de
+            # operacion calculado con la atmosfera equivocada sin ninguna
+            # senal. Se rechaza explicitamente.
+            raise ValueError(
+                "en modo 'red' la atmosfera va dentro de network{}; "
+                "quita el atmospheric de nivel superior"
+            )
         if "network" not in data:
             raise ValueError("modo 'red' requiere 'network'")
         if "fan_branch_id" not in data:
@@ -577,7 +704,10 @@ def cmd_ventilador(args):
         raise ValueError(
             f"modo desconocido '{mode}' (validas: simple, red)")
 
-    _emit(_fan_operating_report(result), args.json)
+    _emit(
+        _fan_operating_report(result), args.json,
+        text_printer=lambda r: _print_ventilador_table(r, params.stall_margin),
+    )
     return _flags_exit({
         "converged": result.converged,
         "stall_ok": result.stall_ok,
