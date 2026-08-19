@@ -18,6 +18,7 @@
 #include <nanobind/stl/vector.h>
 
 #include "ventpy/governor.hpp"
+#include "ventpy/limites_gases.hpp"
 
 namespace nb = nanobind;
 using namespace ventpy;
@@ -41,7 +42,26 @@ NB_MODULE(_ventpy_core, m) {
     nb::enum_<RegulatoryStandard>(m, "RegulatoryStandard",
         "Estandar normativo aplicable al calculo.")
         .value("DS024_Peru", RegulatoryStandard::DS024_Peru,
-               "DS 024-2016-EM / DS 023-2017-EM (Peru)");
+               "DS 024-2016-EM / DS 023-2017-EM (Peru)")
+        .value("DS132_Chile", RegulatoryStandard::DS132_Chile,
+               "DS 132 Reglamento de Seguridad Minera (Chile)");
+
+    nb::enum_<GasType>(m, "GasType",
+        "Gases regulados en interior mina.")
+        .value("CO", GasType::CO, "Monoxido de carbono")
+        .value("CO2", GasType::CO2, "Dioxido de carbono")
+        .value("NO2", GasType::NO2, "Dioxido de nitrogeno")
+        .value("SO2", GasType::SO2, "Dioxido de azufre")
+        .value("H2S", GasType::H2S, "Acido sulfhidrico")
+        .value("CH4", GasType::CH4, "Metano")
+        .value("NO", GasType::NO, "Monoxido de nitrogeno")
+        .value("O2", GasType::O2, "Oxigeno (limites minimo/maximo)");
+
+    nb::enum_<ConcentrationUnit>(m, "ConcentrationUnit",
+        "Unidad en que la norma expresa un limite de concentracion.")
+        .value("PPM", ConcentrationUnit::PPM, "Partes por millon (volumen)")
+        .value("PercentVolume", ConcentrationUnit::PercentVolume,
+               "Porcentaje en volumen (O2, CH4)");
 
     nb::enum_<ActivityLevel>(m, "ActivityLevel",
         "Nivel de actividad fisica del personal.\n"
@@ -424,11 +444,44 @@ NB_MODULE(_ventpy_core, m) {
              "Limpia la flota.");
 
     // ========================================================================
+    // GasLimit / tablas LMP
+    // ========================================================================
+    nb::class_<GasLimit>(m, "GasLimit",
+        "Limite de exposicion ocupacional de un gas bajo una norma.\n"
+        "Estructura auditable: cada entrada cita su fuente normativa exacta\n"
+        "en regulation_ref. Los campos de valor son opcionales porque cada\n"
+        "norma define combinaciones distintas (TWA+STEL, solo techo, minimo\n"
+        "para O2). Unidad canonica: ppm / % vol.")
+        .def_ro("gas", &GasLimit::gas)
+        .def_ro("unit", &GasLimit::unit)
+        .def_ro("twa_8h", &GasLimit::twa_8h,
+                "Promedio ponderado 8 h (TWA / LPP)")
+        .def_ro("stel", &GasLimit::stel,
+                "Corta duracion (STEL / LPT)")
+        .def_ro("ceiling", &GasLimit::ceiling,
+                "Techo absoluto (C) - o maximo para O2")
+        .def_ro("floor_min", &GasLimit::floor_min,
+                "Minimo permitido (solo O2)")
+        .def_ro("regulation_ref", &GasLimit::regulation_ref,
+                "Cita normativa exacta");
+
+    m.def("gas_limits", &gas_limits, nb::arg("standard"),
+          nb::rv_policy::reference,
+          "Tabla LMP completa de la norma indicada.\n"
+          "Lanza ValueError si la norma no tiene tabla implementada.");
+
+    m.def("lmp_for", &lmp_for, nb::arg("standard"), nb::arg("gas"),
+          nb::rv_policy::reference,
+          "LMP de un gas bajo una norma.\n"
+          "Lanza ValueError si el gas no esta regulado en esa norma\n"
+          "(nunca se retorna un valor por defecto silencioso).");
+
+    // ========================================================================
     // RegulatoryConfig
     // ========================================================================
     nb::class_<RegulatoryConfig>(m, "RegulatoryConfig",
         "Configuracion normativa inmutable para calculo de ventilacion.\n"
-        "DS 024-2016-EM / DS 023-2017-EM (Peru).")
+        "DS 024-2016-EM / DS 023-2017-EM (Peru) o DS 132 (Chile).")
         .def(nb::init<
                 RegulatoryStandard, double, double, double,
                 double, double, double, double, double, double,
@@ -445,6 +498,17 @@ NB_MODULE(_ventpy_core, m) {
              nb::arg("max_dilution_time_min") = 30.0,
              nb::arg("default_gas_volume_per_kg_m3") = 0.04,
              nb::arg("default_leakage_factor") = 0.15)
+        .def_static("peru", &RegulatoryConfig::peru,
+             "Preset oficial peruano - DS 024-2016-EM / DS 023-2017-EM.\n"
+             "Equivale exactamente a los defaults del constructor (Art. 247).")
+        .def_static("chile", &RegulatoryConfig::chile,
+             "Preset oficial chileno - DS 132, Reglamento de Seguridad Minera.\n"
+             "3.0 m3/min por persona (Art. 138, sin escalon por altitud) y\n"
+             "2.83 m3/min por HP efectivo al freno (Art. 132).")
+        .def_static("for_standard", &RegulatoryConfig::for_standard,
+             nb::arg("standard"),
+             "Construye el preset oficial de la norma indicada.\n"
+             "Lanza ValueError si la norma no tiene preset implementado.")
         .def_prop_ro("standard", &RegulatoryConfig::standard)
         .def_prop_ro("min_flow_per_person", &RegulatoryConfig::min_flow_per_person)
         .def_prop_ro("altitude_threshold_1", &RegulatoryConfig::altitude_threshold_1)
