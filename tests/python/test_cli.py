@@ -67,6 +67,30 @@ class TestCmdDemanda:
         stderr = capsys.readouterr().err
         assert "trabajadores" in stderr
 
+    def test_archivo_inexistente_exit1(self, tmp_path, capsys):
+        archivo = str(tmp_path / "no_existe.json")
+
+        exit_code = cli.main(["demanda", archivo])
+
+        assert exit_code == 1
+        stderr = capsys.readouterr().err
+        assert "error:" in stderr
+        assert "no_existe.json" in stderr
+
+    def test_modo_texto_advertencias_visibles(self, tmp_path, capsys):
+        # 4800 msnm > 4500: dispara la advertencia "ALTITUD EXTREMA" del
+        # Governor (governor.hpp::generate_warnings). Caso simple (solo
+        # personal) para no acoplar el test a ningun otro factor.
+        archivo = _write_json(
+            tmp_path, "input.json", {"num_workers": 5, "altitude_masl": 4800.0}
+        )
+
+        exit_code = cli.main(["demanda", archivo])
+
+        assert exit_code == 0
+        stdout = capsys.readouterr().out
+        assert "ALTITUD" in stdout
+
 
 class TestCmdLmp:
     def test_lmp_chile_co(self, capsys):

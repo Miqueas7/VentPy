@@ -292,7 +292,11 @@ def main(argv=None):
 
     try:
         return args.func(args)
-    except ValueError as exc:
+    except (ValueError, OSError) as exc:
+        # ValueError: whitelist/enum invalidos o excepciones del nucleo C++
+        # (nanobind traduce std::invalid_argument -> ValueError).
+        # OSError: archivo de entrada inexistente/sin permisos/ruta invalida
+        # (FileNotFoundError, PermissionError, etc. heredan de OSError).
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
