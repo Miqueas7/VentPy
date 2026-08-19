@@ -56,8 +56,26 @@ assert result.governing_factor == "diesel (Q_Eq)"
 # Tier3 por defecto: EngineEmissionTier.Tier3), no el factor HP normativo
 # ni la dilucion de CO. Ver DOMAIN/README de este ejemplo para el detalle. ---
 diesel = result.diesel
+
+# Formula EXACTA de "1. Q por factor HP normativo (Art. 246)" tal como la
+# calcula el nucleo (include/ventpy/caudal_equipo.hpp,
+# DieselFlowCalculator::calculate_full):
+#   q_hp_method = total_effective_hp * hp_factor_corrected * simultaneity_factor
+# OJO: usa `total_effective_hp` (HP con disponibilidad/utilizacion, SIN
+# de-rating por altitud) - NO `total_derated_hp` (que SI trae el de-rate
+# aplicado, mas el factor de simultaneidad ya multiplicado adentro). Usar
+# `total_derated_hp * hp_factor_corrected` aplicaria el de-rate DOS veces
+# (una vez para obtener total_derated_hp, otra al multiplicar de nuevo por
+# hp_factor_corrected, que ya trae su propia correccion volumetrica) y da
+# un numero que el nucleo nunca calcula. `simultaneity_factor` no viaja en
+# el resultado (es un parametro de entrada, no un campo de
+# DieselFlowResult) asi que se toma del propio `inp` que armamos arriba.
+q_hp = diesel.total_effective_hp * diesel.hp_factor_corrected * inp.simultaneity_factor
+print(f"q_hp (factor HP, Art. 246) = {q_hp}")
+
 assert diesel.q_for_nox_dilution > diesel.q_for_co_dilution
-assert diesel.q_for_nox_dilution > diesel.total_derated_hp * diesel.hp_factor_corrected
+assert diesel.q_for_nox_dilution > q_hp
+assert abs(q_hp - 384.08) < 0.05
 assert "dilucion NOx" in diesel.regulation_ref
 
 # --- El piso de velocidad del frente (Art. 236, 0.25 m/s) esta cubierto:
