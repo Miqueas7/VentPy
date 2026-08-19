@@ -51,7 +51,9 @@ from ventpy._ventpy_core import (
     DuctType,
     InstallationQuality,
     EngineEmissionTier,
-    
+    GasType,
+    ConcentrationUnit,
+
     # Input structs
     AtmosphericParams,
     PersonnelParams,
@@ -60,7 +62,7 @@ from ventpy._ventpy_core import (
     DuctParams,
     DustParams,
     ThermalParams,
-    
+
     # Result structs
     AtmosphericCorrections,
     PersonnelFlowResult,
@@ -70,18 +72,19 @@ from ventpy._ventpy_core import (
     DustFlowResult,
     ThermalFlowResult,
     VentilationDemandResult,
-    
+    GasLimit,
+
     # Main classes
     DieselFleet,
     RegulatoryConfig,
     VentilationInput,
     VentilationGovernor,
-    
+
     # Individual calculators (simple API)
     calculate_personnel_flow,
     calculate_diesel_flow,
     calculate_blasting_flow,
-    
+
     # Atmospheric calculations
     calculate_pressure_kpa,
     calculate_density_kg_m3,
@@ -90,16 +93,20 @@ from ventpy._ventpy_core import (
     calculate_o2_partial_pressure_kpa,
     calculate_diesel_derate_factor,
     calculate_atmospheric_corrections,
-    
+
+    # LMP (limites maximos permisibles) por norma
+    gas_limits,
+    lmp_for,
+
     # Utility functions
     safety_ceil,
     safety_ceil_decimals,
     get_o2_consumption,
     get_min_velocity,
-    
+
     # Constants (main module)
     M3MIN_TO_CFM,
-    
+
     # Constants submodule
     constants,
 )
@@ -112,12 +119,12 @@ def __getattr__(name):
     raise AttributeError(f"module 'ventpy' has no attribute '{name}'")
 
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     # Version
     "__version__",
-    
+
     # Enums
     "ZoneType",
     "RegulatoryStandard",
@@ -126,7 +133,9 @@ __all__ = [
     "DuctType",
     "InstallationQuality",
     "EngineEmissionTier",
-    
+    "GasType",
+    "ConcentrationUnit",
+
     # Input structs
     "AtmosphericParams",
     "PersonnelParams",
@@ -135,7 +144,7 @@ __all__ = [
     "DuctParams",
     "DustParams",
     "ThermalParams",
-    
+
     # Result structs
     "AtmosphericCorrections",
     "PersonnelFlowResult",
@@ -145,18 +154,19 @@ __all__ = [
     "DustFlowResult",
     "ThermalFlowResult",
     "VentilationDemandResult",
-    
+    "GasLimit",
+
     # Main classes
     "DieselFleet",
     "RegulatoryConfig",
     "VentilationInput",
     "VentilationGovernor",
-    
+
     # Individual calculators
     "calculate_personnel_flow",
     "calculate_diesel_flow",
     "calculate_blasting_flow",
-    
+
     # Atmospheric calculations
     "calculate_pressure_kpa",
     "calculate_density_kg_m3",
@@ -165,17 +175,21 @@ __all__ = [
     "calculate_o2_partial_pressure_kpa",
     "calculate_diesel_derate_factor",
     "calculate_atmospheric_corrections",
-    
+
+    # LMP (limites maximos permisibles) por norma
+    "gas_limits",
+    "lmp_for",
+
     # Utility functions
     "safety_ceil",
     "safety_ceil_decimals",
     "get_o2_consumption",
     "get_min_velocity",
-    
+
     # Constants
     "M3MIN_TO_CFM",
     "constants",
-    
+
     # Submodules
     "visualization",
 ]
