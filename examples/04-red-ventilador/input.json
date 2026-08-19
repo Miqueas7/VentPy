@@ -1,0 +1,23 @@
+{
+  "curve": {
+    "fan_id": "AX-RED",
+    "points": [
+      [1200.0, 900.0],
+      [1800.0, 800.0],
+      [2400.0, 650.0],
+      [3000.0, 450.0],
+      [3600.0, 200.0]
+    ]
+  },
+  "mode": "red",
+  "fan_branch_id": "F",
+  "network": {
+    "branches": [
+      {"branch_id": "F", "from_node": "S", "to_node": "A", "r_manual": 0.05},
+      {"branch_id": "P1", "from_node": "A", "to_node": "B", "r_manual": 0.2},
+      {"branch_id": "P2", "from_node": "A", "to_node": "B", "r_manual": 0.8},
+      {"branch_id": "R", "from_node": "B", "to_node": "S", "r_manual": 0.1}
+    ],
+    "solver": {"tolerance_m3min": 0.006, "max_iterations": 1000}
+  }
+}

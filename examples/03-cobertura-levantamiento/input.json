@@ -1,0 +1,26 @@
+{
+  "zones": [
+    {
+      "zone_name": "Rampa 4200",
+      "input": {
+        "zone_type": "DevelopmentFace",
+        "num_workers": 10,
+        "altitude_masl": 4200.0
+      },
+      "measurement": {
+        "q_measured_m3min": 270.0
+      }
+    },
+    {
+      "zone_name": "Frente N-02",
+      "input": {
+        "zone_type": "DevelopmentFace",
+        "num_workers": 10,
+        "altitude_masl": 2500.0
+      },
+      "measurement": {
+        "q_measured_m3min": 150.0
+      }
+    }
+  ]
+}
