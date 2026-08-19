@@ -244,11 +244,29 @@ TEST(FanEnRed, OmegaExtremoNoConvergeEspurio) {
     // impedir esta convergencia espuria.
     AtmosphericParams atm;
     SolverParams sp;   // default: tolerance_m3min=0.6, max_iterations=100
-    FanOperatingParams p; p.under_relaxation = 0.001; p.max_iterations = 25;
+    FanOperatingParams params_usados;
+    params_usados.under_relaxation = 0.001;
+    params_usados.max_iterations = 25;
     auto r = FanCalculator::operating_point_in_network(
-        red_a_sin_fan(), "F", curva_red(), atm, sp, p);
+        red_a_sin_fan(), "F", curva_red(), atm, sp, params_usados);
 
     EXPECT_FALSE(r.converged);
+    // Camino esperado: en it=19 el |Δq| cae bajo tolerancia (convergencia
+    // espuria del criterio VIEJO), pero el residual |p_fan_usado -
+    // p_target(q_raw)| (~248 Pa) lo RECHAZA -> el loop NO rompe ahi y sigue
+    // hasta agotar max_iterations (25). Si en el futuro cambia la dinamica
+    // del solver y el punto fijo SI llega a converger de verdad antes de
+    // agotar el presupuesto, EXPECT_FALSE(converged) de arriba ya fallaria;
+    // este assert adicional distingue explicitamente "rechazado por
+    // residual, agota iteraciones" de cualquier otro camino de no-
+    // convergencia (red interna no balancea, flujo invertido, etc.), que
+    // NO llegarian a agotar r.iterations == max_iterations ni dejarian el
+    // warning "NO CONVERGIO" generico de agotamiento del punto fijo.
+    EXPECT_EQ(r.iterations, params_usados.max_iterations);
+    bool no_convergio = false;
+    for (const auto& w : r.warnings)
+        if (w.find("NO CONVERGIO") != std::string::npos) no_convergio = true;
+    EXPECT_TRUE(no_convergio);
 }
 
 TEST(FanEnRed, FlujoInvertidoAdvierteYNoConverge) {
