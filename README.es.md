@@ -78,6 +78,34 @@ Para desarrollo:
 pip install -e .[test,viz]
 ```
 
+## CLI Y Ejemplos
+
+Instalar VentPy tambien instala el comando `ventpy`, una capa de
+presentacion delgada sobre la misma API publica (sin logica de calculo
+propia) con 5 subcomandos:
+
+- `ventpy demanda <archivo.json> [--norma peru|chile] [--json]` — demanda total de ventilacion de una zona/frente
+- `ventpy lmp [--norma peru|chile] [--gas GAS] [--json]` — limites maximos permisibles (LMP) de gases regulados
+- `ventpy cobertura <archivo.json> [--norma peru|chile] [--json]` — analisis de deficit/cobertura de un levantamiento de zonas
+- `ventpy red <archivo.json> [--json]` — balance de una red de ventilacion (Hardy Cross)
+- `ventpy ventilador <archivo.json> [--json]` — punto de operacion de un ventilador (independiente o acoplado a una red)
+
+Los exit codes son significativos: `0` exito, `1` entrada invalida, `2` un
+resultado calculado pero no confiable (ej. una red que no convergio, una
+zona en deficit, o un punto de operacion de ventilador fuera de su curva
+de catalogo) — ver la ayuda de cada subcomando (`ventpy <subcomando> -h`).
+
+Cinco ejemplos resueltos y auto-verificables (cada `run.py` afirma sus
+propios numeros documentados) viven en [`examples/`](examples/), uno por
+esquema de entrada JSON mas un caso de dimensionamiento de ductos que solo
+usa la API (sin subcomando CLI todavia):
+
+- [`examples/01-demanda-peru`](examples/01-demanda-peru/) — demanda limitada por diesel, preset Peru
+- [`examples/02-preset-chile`](examples/02-preset-chile/) — mismo caso con `--norma chile`
+- [`examples/03-cobertura-levantamiento`](examples/03-cobertura-levantamiento/) — levantamiento de 2 zonas, una en deficit (`exit 2`)
+- [`examples/04-red-ventilador`](examples/04-red-ventilador/) — ventilador acoplado a una red de malla paralela
+- [`examples/05-ducto-seleccion`](examples/05-ducto-seleccion/) — dimensionamiento de ducto, criterio tecnico vs. economico (solo API)
+
 ## Inicio Rapido
 
 ```python

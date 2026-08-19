@@ -91,6 +91,49 @@ class TestCmdDemanda:
         stdout = capsys.readouterr().out
         assert "ALTITUD" in stdout
 
+    def test_valor_tipo_equivocado_exit1(self, tmp_path, capsys):
+        # Revision final SP-5 (F-1): un tipo equivocado en un campo escalar
+        # (num_workers espera int, no str) debe dar ValueError limpio con la
+        # clave senalada, NUNCA un traceback crudo del binding nanobind.
+        archivo = _write_json(tmp_path, "input.json", {"num_workers": "quince"})
+
+        exit_code = cli.main(["demanda", archivo, "--json"])
+
+        assert exit_code == 1
+        stderr = capsys.readouterr().err
+        assert "num_workers" in stderr
+        assert "Traceback" not in stderr
+
+    def test_struct_como_lista_exit1(self, tmp_path, capsys):
+        # Revision final SP-5 (F-1): un sub-struct (blasting_params) recibido
+        # como lista en vez de dict debe dar ValueError nombrando la clave
+        # contenedora, no un AttributeError crudo ('list' no tiene .items()).
+        archivo = _write_json(tmp_path, "input.json", {"blasting_params": [1, 2]})
+
+        exit_code = cli.main(["demanda", archivo, "--json"])
+
+        assert exit_code == 1
+        stderr = capsys.readouterr().err
+        assert "blasting_params" in stderr
+        assert "Traceback" not in stderr
+
+    def test_punto_de_curva_escalar_exit1(self, tmp_path, capsys):
+        # Revision final SP-5 (F-1): un punto de curva escalar (int en vez de
+        # [q, p]) no debe tumbar el CLI con un TypeError crudo (len() sobre
+        # int) - main() lo captura como red de seguridad -> exit 1.
+        payload = {
+            "curve": {"fan_id": "LIN", "points": [600]},
+            "mode": "simple",
+            "r_system_ns2m8": 0.5,
+        }
+        archivo = _write_json(tmp_path, "ventilador.json", payload)
+
+        exit_code = cli.main(["ventilador", archivo, "--json"])
+
+        assert exit_code == 1
+        stderr = capsys.readouterr().err
+        assert "Traceback" not in stderr
+
 
 class TestCmdLmp:
     def test_lmp_chile_co(self, capsys):
@@ -368,6 +411,57 @@ class TestCmdVentilador:
         assert exit_code == 1
         stderr = capsys.readouterr().err
         assert "network" in stderr
+
+    def test_ventilador_modo_red_con_r_system_exit1(self, tmp_path, capsys):
+        # Revision final SP-5 (F-2): en modo "red" el sistema resistivo lo
+        # define la red (network{}); un r_system_ns2m8 de nivel superior es
+        # ambiguo/sobrante y hoy se ignora en silencio (exit 0). Debe
+        # rechazarse explicitamente, como ya se hace con "atmospheric".
+        payload = {
+            "curve": {
+                "fan_id": "AX-RED",
+                "points": [
+                    [1200.0, 900.0], [1800.0, 800.0], [2400.0, 650.0],
+                    [3000.0, 450.0], [3600.0, 200.0],
+                ],
+            },
+            "mode": "red",
+            "fan_branch_id": "F",
+            "r_system_ns2m8": 0.5,
+            "network": {
+                "branches": _RED_A_SIN_FAN_BRANCHES,
+                "solver": {"tolerance_m3min": 0.006, "max_iterations": 1000},
+            },
+        }
+        archivo = _write_json(tmp_path, "ventilador.json", payload)
+
+        exit_code = cli.main(["ventilador", archivo, "--json"])
+
+        assert exit_code == 1
+        stderr = capsys.readouterr().err
+        assert "r_system_ns2m8" in stderr
+
+    def test_ventilador_modo_simple_con_network_exit1(self, tmp_path, capsys):
+        # Revision final SP-5 (F-2): espejo del caso anterior - en modo
+        # "simple" no hay red, "network"/"fan_branch_id" sobran y hoy se
+        # ignoran en silencio (exit 0). Debe rechazarse explicitamente.
+        payload = {
+            "curve": {
+                "fan_id": "LIN",
+                "points": [[600.0, 3000.0], [3000.0, 600.0]],
+            },
+            "mode": "simple",
+            "r_system_ns2m8": 0.5,
+            "fan_branch_id": "F",
+            "network": {"branches": _RED_A_SIN_FAN_BRANCHES},
+        }
+        archivo = _write_json(tmp_path, "ventilador.json", payload)
+
+        exit_code = cli.main(["ventilador", archivo, "--json"])
+
+        assert exit_code == 1
+        stderr = capsys.readouterr().err
+        assert "network" in stderr or "fan_branch_id" in stderr
 
     def test_ventilador_modo_texto_bloques(self, tmp_path, capsys):
         # Fix round (hallazgo 2): bloque Q/P de operacion, pico y margen de
