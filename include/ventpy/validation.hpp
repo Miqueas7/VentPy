@@ -11,9 +11,11 @@
 
 #pragma once
 
+#include <cmath>
 #include <concepts>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 
 namespace ventpy::validation {
 
@@ -38,6 +40,25 @@ concept Numeric = std::integral<T> || std::floating_point<T>;
 // ============================================================================
 
 /**
+ * @brief Frontera dura (SP-2): rechaza NaN/±infinito ANTES de cualquier otra
+ * regla de dominio. Solo aplica a variantes de punto flotante (los enteros no
+ * pueden ser NaN/infinito).
+ *
+ * @throws std::invalid_argument si value no es finito
+ */
+template <Numeric T>
+constexpr void require_finite(T value, const std::string& param_name) {
+    if constexpr (std::is_floating_point_v<T>) {
+        if (!std::isfinite(value)) {
+            throw std::invalid_argument(
+                "Error de dominio [VentPy]: El parametro '" + param_name +
+                "' debe ser un numero finito (recibido NaN o infinito)."
+            );
+        }
+    }
+}
+
+/**
  * @brief Valida que un valor sea estrictamente positivo (> 0).
  *
  * Uso: denominadores, potencia HP, cantidades de explosivo, etc.
@@ -45,10 +66,11 @@ concept Numeric = std::integral<T> || std::floating_point<T>;
  * @tparam T Tipo numérico
  * @param value Valor a validar
  * @param param_name Nombre del parámetro (para mensaje de error claro)
- * @throws std::invalid_argument si value <= 0
+ * @throws std::invalid_argument si value no es finito o value <= 0
  */
 template <Numeric T>
 constexpr void require_positive(T value, const std::string& param_name) {
+    require_finite(value, param_name);
     if (value <= static_cast<T>(0)) {
         throw std::invalid_argument(
             "Error de dominio [VentPy]: El parametro '" + param_name +
@@ -67,10 +89,11 @@ constexpr void require_positive(T value, const std::string& param_name) {
  * @tparam T Tipo numérico
  * @param value Valor a validar
  * @param param_name Nombre del parámetro
- * @throws std::invalid_argument si value < 0
+ * @throws std::invalid_argument si value no es finito o value < 0
  */
 template <Numeric T>
 constexpr void require_non_negative(T value, const std::string& param_name) {
+    require_finite(value, param_name);
     if (value < static_cast<T>(0)) {
         throw std::invalid_argument(
             "Error de dominio [VentPy]: El parametro '" + param_name +
@@ -90,11 +113,12 @@ constexpr void require_non_negative(T value, const std::string& param_name) {
  * @param min_val Límite inferior (inclusivo)
  * @param max_val Límite superior (inclusivo)
  * @param param_name Nombre del parámetro
- * @throws std::invalid_argument si value fuera de rango
+ * @throws std::invalid_argument si value no es finito o esta fuera de rango
  */
 template <Numeric T>
 constexpr void require_in_range(T value, T min_val, T max_val,
                                 const std::string& param_name) {
+    require_finite(value, param_name);
     if (value < min_val || value > max_val) {
         throw std::invalid_argument(
             "Error de dominio [VentPy]: El parametro '" + param_name +

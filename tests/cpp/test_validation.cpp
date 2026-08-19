@@ -4,6 +4,8 @@
  */
 
 #include <gtest/gtest.h>
+#include <cmath>
+#include <limits>
 #include <stdexcept>
 
 #include "ventpy/validation.hpp"
@@ -38,6 +40,21 @@ TEST(Validation, RequirePositive_ErrorMessageContainsParamName) {
         EXPECT_NE(msg.find("horsepower_HP"), std::string::npos);
         EXPECT_NE(msg.find("VentPy"), std::string::npos);
     }
+}
+
+// ============================================================================
+// isfinite en la frontera (FIX 1 — Task 1 pre-bindings, condicion dura SP-2)
+// ============================================================================
+
+TEST(Validation, RechazaNaN) {
+    EXPECT_THROW(v::require_positive(std::nan(""), "test_param"),
+                 std::invalid_argument);
+}
+
+TEST(Validation, RechazaInfinito) {
+    EXPECT_THROW(
+        v::require_positive(std::numeric_limits<double>::infinity(), "test_param"),
+        std::invalid_argument);
 }
 
 // ============================================================================

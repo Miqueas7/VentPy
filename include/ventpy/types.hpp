@@ -474,6 +474,7 @@ struct DustFlowResult {
 struct ThermalFlowResult {
     double heat_from_rock_kw = 0.0;           ///< Calor de la roca [kW]
     double heat_from_equipment_kw = 0.0;      ///< Calor de equipos [kW]
+    double heat_from_oxidation_kw = 0.0;      ///< Calor de oxidación mineral [kW]
     double heat_from_autocompression_kw = 0.0;///< Calor por autocompresión [kW]
     double heat_from_other_kw = 0.0;          ///< Otras fuentes [kW]
     double total_heat_load_kw = 0.0;          ///< Carga térmica total [kW]

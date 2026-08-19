@@ -89,6 +89,7 @@ public:
         r.heat_from_rock_kw = 0.0;             // v1: sin modelo roca-aire
         r.heat_from_other_kw = 0.0;
         r.heat_from_equipment_kw = p.heat_from_equipment_kw;
+        r.heat_from_oxidation_kw = p.heat_from_oxidation_kw;
         r.total_heat_load_kw = p.heat_from_equipment_kw + p.heat_from_oxidation_kw +
             r.heat_from_rock_kw;
 
