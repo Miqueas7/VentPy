@@ -230,6 +230,27 @@ TEST(FanEnRed, PresionReportadaCoincideConElSolveEmbebido) {
     EXPECT_DOUBLE_EQ(r.pressure_pa, r.network->branches[0].fan_pressure_pa);
 }
 
+TEST(FanEnRed, OmegaExtremoNoConvergeEspurio) {
+    // FIX 2 (Task 1 pre-bindings): con under_relaxation extrema (0.001), p_fan
+    // se mueve muy poco por iteracion, pero el sistema es lo bastante sensible
+    // en este punto de la curva para que |Δq| entre iteraciones sucesivas caiga
+    // por debajo de la tolerancia DEFAULT (0.6 m3/min de SolverParams) alrededor
+    // de la iteracion 19 (verificado por barrido exhaustivo, no supuesto) --
+    // MUY lejos del equilibrio real de la Red A (Q≈2797.44, P≈519.30 Pa):
+    // ANTES del fix, con max_iterations=25 el codigo actual converge de forma
+    // ESPURIA en Q≈3124.17, P≈647.68 Pa (residual ≈248 Pa frente al target de
+    // la curva en ese Q). El criterio residual
+    // |p_fan_usado - p_target(q_raw)| <= FAN_RESIDUAL_TOL_PA (1 Pa) debe
+    // impedir esta convergencia espuria.
+    AtmosphericParams atm;
+    SolverParams sp;   // default: tolerance_m3min=0.6, max_iterations=100
+    FanOperatingParams p; p.under_relaxation = 0.001; p.max_iterations = 25;
+    auto r = FanCalculator::operating_point_in_network(
+        red_a_sin_fan(), "F", curva_red(), atm, sp, p);
+
+    EXPECT_FALSE(r.converged);
+}
+
 TEST(FanEnRed, FlujoInvertidoAdvierteYNoConverge) {
     // Red de 1 malla (S<->A) con 2 ramales paralelos: BIG impone 5000 Pa
     // S->A (dominante frente a la curva, max ~900 Pa) forzando la circulacion
