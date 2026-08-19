@@ -896,37 +896,51 @@ NB_MODULE(_ventpy_core, m) {
     // ========================================================================
     nb::class_<FrictionFactorEntry>(m, "FrictionFactorEntry",
         "Entrada de la tabla de friccion de Atkinson (auditable, con cita).")
-        .def_ro("lining", &FrictionFactorEntry::lining)
+        .def_ro("lining", &FrictionFactorEntry::lining,
+                "Tipo de labor/revestimiento (AirwayLining)")
         .def_ro("k", &FrictionFactorEntry::k,
                 "[kg/m3] a rho = 1.2")
-        .def_ro("biblio_ref", &FrictionFactorEntry::biblio_ref);
+        .def_ro("biblio_ref", &FrictionFactorEntry::biblio_ref,
+                "Cita bibliografica exacta de la entrada");
 
     nb::class_<ShockFactorEntry>(m, "ShockFactorEntry",
         "Entrada informativa de la tabla de factores de choque.")
-        .def_ro("type", &ShockFactorEntry::type)
+        .def_ro("type", &ShockFactorEntry::type,
+                "Tipo de singularidad (SingularityType)")
         .def_ro("x", &ShockFactorEntry::x,
                 "0 si es formula/manual (ver note)")
-        .def_ro("biblio_ref", &ShockFactorEntry::biblio_ref)
-        .def_ro("note", &ShockFactorEntry::note);
+        .def_ro("biblio_ref", &ShockFactorEntry::biblio_ref,
+                "Cita bibliografica exacta de la entrada")
+        .def_ro("note", &ShockFactorEntry::note,
+                "Nota: formula aplicable o manual-only");
 
     nb::class_<AirwayResistanceResult>(m, "AirwayResistanceResult",
         "Resultado auditable de resistencia de ramal (Atkinson + choque).\n"
         "SIN safety_ceil: R y deltaP crudos (redondearlos falsearia el balance).")
-        .def_ro("airway_id", &AirwayResistanceResult::airway_id)
+        .def_ro("airway_id", &AirwayResistanceResult::airway_id,
+                "Identificador del ramal")
         .def_ro("k_used", &AirwayResistanceResult::k_used,
                 "k a densidad estandar 1.2 kg/m3")
         .def_ro("k_corrected", &AirwayResistanceResult::k_corrected,
                 "k x rho/1.2")
-        .def_ro("air_density_kg_m3", &AirwayResistanceResult::air_density_kg_m3)
+        .def_ro("air_density_kg_m3", &AirwayResistanceResult::air_density_kg_m3,
+                "Densidad del aire de sitio usada [kg/m3]")
         .def_ro("r_friction", &AirwayResistanceResult::r_friction,
                 "[Ns2/m8]")
-        .def_ro("r_shock", &AirwayResistanceResult::r_shock)
-        .def_ro("r_total", &AirwayResistanceResult::r_total)
-        .def_ro("q_m3min", &AirwayResistanceResult::q_m3min)
-        .def_ro("velocity_mps", &AirwayResistanceResult::velocity_mps)
-        .def_ro("pressure_drop_pa", &AirwayResistanceResult::pressure_drop_pa)
-        .def_ro("pressure_drop_mmh2o", &AirwayResistanceResult::pressure_drop_mmh2o)
-        .def_ro("biblio_ref", &AirwayResistanceResult::biblio_ref)
+        .def_ro("r_shock", &AirwayResistanceResult::r_shock,
+                "Resistencia por choque (singularidades) [Ns2/m8]")
+        .def_ro("r_total", &AirwayResistanceResult::r_total,
+                "Resistencia total = r_friction + r_shock [Ns2/m8]")
+        .def_ro("q_m3min", &AirwayResistanceResult::q_m3min,
+                "Caudal del ramal [m3/min]")
+        .def_ro("velocity_mps", &AirwayResistanceResult::velocity_mps,
+                "Velocidad resultante [m/s]")
+        .def_ro("pressure_drop_pa", &AirwayResistanceResult::pressure_drop_pa,
+                "Caida de presion [Pa]")
+        .def_ro("pressure_drop_mmh2o", &AirwayResistanceResult::pressure_drop_mmh2o,
+                "Caida de presion [mm H2O] (1 mmH2O = 9.80665 Pa)")
+        .def_ro("biblio_ref", &AirwayResistanceResult::biblio_ref,
+                "Cita bibliografica de la fuente de k (Tabla 5.1 o manual)")
         .def_ro("warnings", &AirwayResistanceResult::warnings,
                 "Ej. velocidad fuera de rango, DS 024-2016-EM Art. 248");
 
@@ -965,21 +979,27 @@ NB_MODULE(_ventpy_core, m) {
                 "Existe opcion viable?")
         .def_ro("selection_criterion", &DuctSizingResult::selection_criterion,
                 "Criterio de seleccion aplicado")
-        .def_ro("biblio_ref", &DuctSizingResult::biblio_ref)
+        .def_ro("biblio_ref", &DuctSizingResult::biblio_ref,
+                "Referencia bibliografica (fisica Atkinson + defaults ingenieriles)")
         .def_ro("warnings", &DuctSizingResult::warnings,
                 "Ej. ninguna opcion viable");
 
     nb::class_<BranchFlowResult>(m, "BranchFlowResult",
         "Resultado de balance de un ramal de red (auditable, crudo).")
-        .def_ro("branch_id", &BranchFlowResult::branch_id)
-        .def_ro("from_node", &BranchFlowResult::from_node)
-        .def_ro("to_node", &BranchFlowResult::to_node)
-        .def_ro("r_ns2m8", &BranchFlowResult::r_ns2m8)
+        .def_ro("branch_id", &BranchFlowResult::branch_id,
+                "Identificador del ramal")
+        .def_ro("from_node", &BranchFlowResult::from_node,
+                "Nodo de origen")
+        .def_ro("to_node", &BranchFlowResult::to_node,
+                "Nodo de destino")
+        .def_ro("r_ns2m8", &BranchFlowResult::r_ns2m8,
+                "Resistencia del ramal [Ns2/m8]")
         .def_ro("q_m3min", &BranchFlowResult::q_m3min,
                 "Signo: + = from->to")
         .def_ro("pressure_drop_pa", &BranchFlowResult::pressure_drop_pa,
                 "R*Q*|Q| (con signo, crudo)")
-        .def_ro("fan_pressure_pa", &BranchFlowResult::fan_pressure_pa)
+        .def_ro("fan_pressure_pa", &BranchFlowResult::fan_pressure_pa,
+                "Presion de ventilador declarada en el ramal [Pa]")
         .def_ro("velocity_mps", &BranchFlowResult::velocity_mps,
                 "Solo si el ramal tiene airway con area")
         .def_ro("warnings", &BranchFlowResult::warnings,
@@ -988,19 +1008,28 @@ NB_MODULE(_ventpy_core, m) {
     nb::class_<NetworkSolveResult>(m, "NetworkSolveResult",
         "Resultado del balance Hardy Cross de la red completa.\n"
         "McPherson (2009), Cap. 7, sec. 7.3.2.")
-        .def_ro("branches", &NetworkSolveResult::branches)
-        .def_ro("converged", &NetworkSolveResult::converged)
-        .def_ro("iterations", &NetworkSolveResult::iterations)
-        .def_ro("max_residual_m3min", &NetworkSolveResult::max_residual_m3min)
-        .def_ro("mesh_count", &NetworkSolveResult::mesh_count)
-        .def_ro("node_count", &NetworkSolveResult::node_count)
-        .def_ro("warnings", &NetworkSolveResult::warnings)
-        .def_ro("biblio_ref", &NetworkSolveResult::biblio_ref);
+        .def_ro("branches", &NetworkSolveResult::branches,
+                "Balance por ramal (BranchFlowResult)")
+        .def_ro("converged", &NetworkSolveResult::converged,
+                "Convergencia de Hardy Cross")
+        .def_ro("iterations", &NetworkSolveResult::iterations,
+                "Iteraciones ejecutadas")
+        .def_ro("max_residual_m3min", &NetworkSolveResult::max_residual_m3min,
+                "Maximo |deltaQ| de malla en la ultima iteracion [m3/min]")
+        .def_ro("mesh_count", &NetworkSolveResult::mesh_count,
+                "Numero de mallas (B - N + 1)")
+        .def_ro("node_count", &NetworkSolveResult::node_count,
+                "Numero de nodos")
+        .def_ro("warnings", &NetworkSolveResult::warnings,
+                "Advertencias (no convergencia, Art. 248 por ramal, etc.)")
+        .def_ro("biblio_ref", &NetworkSolveResult::biblio_ref,
+                "McPherson Cap. 7, sec. 7.3.2");
 
     nb::class_<FanOperatingResult>(m, "FanOperatingResult",
         "Resultado del punto de operacion del ventilador (simple o en red).\n"
         "McPherson (2009), Cap. 10 'Fans'.")
-        .def_ro("fan_id", &FanOperatingResult::fan_id)
+        .def_ro("fan_id", &FanOperatingResult::fan_id,
+                "Identificador del ventilador")
         .def_ro("q_m3min", &FanOperatingResult::q_m3min,
                 "Caudal de operacion")
         .def_ro("pressure_pa", &FanOperatingResult::pressure_pa,
@@ -1021,11 +1050,14 @@ NB_MODULE(_ventpy_core, m) {
                 "(Q_op - Q_pico)/Q_pico (crudo, con signo)")
         .def_ro("converged", &FanOperatingResult::converged,
                 "Punto fijo convergio (red); true en modo simple si hay solucion")
-        .def_ro("iterations", &FanOperatingResult::iterations)
+        .def_ro("iterations", &FanOperatingResult::iterations,
+                "Iteraciones del punto fijo (solo modo red)")
         .def_ro("network", &FanOperatingResult::network,
                 "Desglose de red en el punto de operacion (solo modo red, opcional)")
-        .def_ro("warnings", &FanOperatingResult::warnings)
-        .def_ro("biblio_ref", &FanOperatingResult::biblio_ref);
+        .def_ro("warnings", &FanOperatingResult::warnings,
+                "Advertencias (stall, fuera de catalogo, no convergencia, etc.)")
+        .def_ro("biblio_ref", &FanOperatingResult::biblio_ref,
+                "McPherson Cap. 10 'Fans', ec. 10.28");
 
     // ========================================================================
     // AtkinsonCalculator: tablas y calculador de resistencia de ramal
@@ -1046,6 +1078,8 @@ NB_MODULE(_ventpy_core, m) {
           "Lanza ValueError si lining=Manual (el usuario debe proveer k).");
 
     m.def("resolve_shock_factor", &resolve_shock_factor,
+          // "singularity" es mas descriptivo que el "s" interno de
+          // atkinson.hpp - decision de API Python.
           nb::arg("singularity"),
           "Resuelve el factor de choque X de una singularidad.\n"
           "Lanza ValueError si falta el dato requerido (area_ratio o\n"
@@ -1076,7 +1110,10 @@ NB_MODULE(_ventpy_core, m) {
              "Tecnico: menor diametro comercial con v <= vmax y\n"
              "deltaP <= presion disponible.")
         .def_static("calculate_full", &DuctSizingCalculator::calculate_full,
-             nb::arg("params"), nb::arg("atm"), nb::arg("economics"),
+             nb::arg("params"), nb::arg("atm"),
+             // "economics" es mas descriptivo que el "eco" interno de
+             // ducto.hpp - decision de API Python.
+             nb::arg("economics"),
              "Economico: entre los diametros viables, costo total\n"
              "(energia + capital) minimo.");
 
