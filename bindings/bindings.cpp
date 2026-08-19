@@ -293,76 +293,134 @@ NB_MODULE(_ventpy_core, m) {
     // ========================================================================
     nb::class_<AtmosphericCorrections>(m, "AtmosphericCorrections",
         "Correcciones atmosfericas calculadas.")
-        .def_ro("altitude_masl", &AtmosphericCorrections::altitude_masl)
-        .def_ro("pressure_kpa", &AtmosphericCorrections::pressure_kpa)
-        .def_ro("density_ratio", &AtmosphericCorrections::density_ratio)
-        .def_ro("oxygen_partial_pressure_kpa", &AtmosphericCorrections::oxygen_partial_pressure_kpa)
-        .def_ro("air_density_kg_m3", &AtmosphericCorrections::air_density_kg_m3)
-        .def_ro("volume_correction_factor", &AtmosphericCorrections::volume_correction_factor)
-        .def_ro("notes", &AtmosphericCorrections::notes);
+        .def_ro("altitude_masl", &AtmosphericCorrections::altitude_masl,
+                "Altitud usada [msnm]")
+        .def_ro("pressure_kpa", &AtmosphericCorrections::pressure_kpa,
+                "Presion atmosferica [kPa]")
+        .def_ro("density_ratio", &AtmosphericCorrections::density_ratio,
+                "Densidad relativa vs nivel del mar (rho/rho0)")
+        .def_ro("oxygen_partial_pressure_kpa", &AtmosphericCorrections::oxygen_partial_pressure_kpa,
+                "Presion parcial de O2 [kPa]")
+        .def_ro("air_density_kg_m3", &AtmosphericCorrections::air_density_kg_m3,
+                "Densidad del aire [kg/m3]")
+        .def_ro("volume_correction_factor", &AtmosphericCorrections::volume_correction_factor,
+                "Factor de correccion volumetrico")
+        .def_ro("notes", &AtmosphericCorrections::notes,
+                "Notas adicionales del calculo");
 
     nb::class_<PersonnelFlowResult>(m, "PersonnelFlowResult",
         "Resultado detallado del calculo de caudal por personal.")
-        .def_ro("num_workers", &PersonnelFlowResult::num_workers)
-        .def_ro("activity_level", &PersonnelFlowResult::activity_level)
-        .def_ro("altitude_masl", &PersonnelFlowResult::altitude_masl)
-        .def_ro("density_correction", &PersonnelFlowResult::density_correction)
-        .def_ro("o2_consumption_lpm", &PersonnelFlowResult::o2_consumption_lpm)
-        .def_ro("flow_per_person_base", &PersonnelFlowResult::flow_per_person_base)
-        .def_ro("flow_per_person_corrected", &PersonnelFlowResult::flow_per_person_corrected)
-        .def_ro("q_personnel", &PersonnelFlowResult::q_personnel)
-        .def_ro("min_velocity_check_mps", &PersonnelFlowResult::min_velocity_check_mps)
-        .def_ro("regulation_ref", &PersonnelFlowResult::regulation_ref);
+        .def_ro("num_workers", &PersonnelFlowResult::num_workers,
+                "Cantidad de personas")
+        .def_ro("activity_level", &PersonnelFlowResult::activity_level,
+                "Nivel de actividad")
+        .def_ro("altitude_masl", &PersonnelFlowResult::altitude_masl,
+                "Altitud [msnm]")
+        .def_ro("density_correction", &PersonnelFlowResult::density_correction,
+                "Factor de correccion por densidad")
+        .def_ro("o2_consumption_lpm", &PersonnelFlowResult::o2_consumption_lpm,
+                "Consumo de O2 por persona [L/min]")
+        .def_ro("flow_per_person_base", &PersonnelFlowResult::flow_per_person_base,
+                "Caudal base por persona [m3/min]")
+        .def_ro("flow_per_person_corrected", &PersonnelFlowResult::flow_per_person_corrected,
+                "Caudal corregido por persona [m3/min]")
+        .def_ro("q_personnel", &PersonnelFlowResult::q_personnel,
+                "Caudal total por personal [m3/min]")
+        .def_ro("min_velocity_check_mps", &PersonnelFlowResult::min_velocity_check_mps,
+                "Velocidad resultante [m/s]")
+        .def_ro("regulation_ref", &PersonnelFlowResult::regulation_ref,
+                "Referencia normativa aplicada");
 
     nb::class_<DieselFlowResult>(m, "DieselFlowResult",
         "Resultado detallado del calculo de caudal por equipo diesel.")
-        .def_ro("equipment_names", &DieselFlowResult::equipment_names)
-        .def_ro("hp_factor_base", &DieselFlowResult::hp_factor_base)
-        .def_ro("hp_factor_corrected", &DieselFlowResult::hp_factor_corrected)
-        .def_ro("altitude_derate_factor", &DieselFlowResult::altitude_derate_factor)
-        .def_ro("total_rated_hp", &DieselFlowResult::total_rated_hp)
-        .def_ro("total_effective_hp", &DieselFlowResult::total_effective_hp)
-        .def_ro("total_derated_hp", &DieselFlowResult::total_derated_hp)
-        .def_ro("q_for_co_dilution", &DieselFlowResult::q_for_co_dilution)
-        .def_ro("q_for_nox_dilution", &DieselFlowResult::q_for_nox_dilution)
-        .def_ro("q_for_pm_dilution", &DieselFlowResult::q_for_pm_dilution)
-        .def_ro("q_diesel", &DieselFlowResult::q_diesel)
-        .def_ro("co_emission_total_g_min", &DieselFlowResult::co_emission_total_g_min)
-        .def_ro("nox_emission_total_g_min", &DieselFlowResult::nox_emission_total_g_min)
-        .def_ro("regulation_ref", &DieselFlowResult::regulation_ref);
+        .def_ro("equipment_names", &DieselFlowResult::equipment_names,
+                "Nombres de los equipos considerados")
+        .def_ro("hp_factor_base", &DieselFlowResult::hp_factor_base,
+                "Factor base [m3/min/HP]")
+        .def_ro("hp_factor_corrected", &DieselFlowResult::hp_factor_corrected,
+                "Factor corregido por altitud [m3/min/HP]")
+        .def_ro("altitude_derate_factor", &DieselFlowResult::altitude_derate_factor,
+                "Factor de de-rate por altitud")
+        .def_ro("total_rated_hp", &DieselFlowResult::total_rated_hp,
+                "Sumatoria de HP nominal")
+        .def_ro("total_effective_hp", &DieselFlowResult::total_effective_hp,
+                "Sumatoria de HP x disponibilidad x utilizacion")
+        .def_ro("total_derated_hp", &DieselFlowResult::total_derated_hp,
+                "HP efectivo con de-rate por altitud")
+        .def_ro("q_for_co_dilution", &DieselFlowResult::q_for_co_dilution,
+                "Caudal para diluir CO [m3/min]")
+        .def_ro("q_for_nox_dilution", &DieselFlowResult::q_for_nox_dilution,
+                "Caudal para diluir NOx [m3/min]")
+        .def_ro("q_for_pm_dilution", &DieselFlowResult::q_for_pm_dilution,
+                "Caudal para diluir material particulado [m3/min]")
+        .def_ro("q_diesel", &DieselFlowResult::q_diesel,
+                "Caudal total requerido [m3/min]")
+        .def_ro("co_emission_total_g_min", &DieselFlowResult::co_emission_total_g_min,
+                "Emision total de CO [g/min]")
+        .def_ro("nox_emission_total_g_min", &DieselFlowResult::nox_emission_total_g_min,
+                "Emision total de NOx [g/min]")
+        .def_ro("regulation_ref", &DieselFlowResult::regulation_ref,
+                "Referencia normativa aplicada");
 
     nb::class_<BlastingFlowResult>(m, "BlastingFlowResult",
         "Resultado detallado del calculo de caudal por explosivos.")
-        .def_ro("explosive_type", &BlastingFlowResult::explosive_type)
-        .def_ro("explosive_kg", &BlastingFlowResult::explosive_kg)
-        .def_ro("co_generated_liters", &BlastingFlowResult::co_generated_liters)
-        .def_ro("nox_generated_liters", &BlastingFlowResult::nox_generated_liters)
-        .def_ro("total_gas_volume_m3", &BlastingFlowResult::total_gas_volume_m3)
-        .def_ro("face_volume_m3", &BlastingFlowResult::face_volume_m3)
-        .def_ro("dilution_time_min", &BlastingFlowResult::dilution_time_min)
-        .def_ro("q_for_co_dilution", &BlastingFlowResult::q_for_co_dilution)
-        .def_ro("q_for_nox_dilution", &BlastingFlowResult::q_for_nox_dilution)
-        .def_ro("q_for_volume_exchange", &BlastingFlowResult::q_for_volume_exchange)
-        .def_ro("q_for_min_velocity", &BlastingFlowResult::q_for_min_velocity)
-        .def_ro("q_blasting", &BlastingFlowResult::q_blasting)
-        .def_ro("governing_criterion", &BlastingFlowResult::governing_criterion)
-        .def_ro("regulation_ref", &BlastingFlowResult::regulation_ref);
+        .def_ro("explosive_type", &BlastingFlowResult::explosive_type,
+                "Tipo de explosivo utilizado")
+        .def_ro("explosive_kg", &BlastingFlowResult::explosive_kg,
+                "Cantidad de explosivo [kg]")
+        .def_ro("co_generated_liters", &BlastingFlowResult::co_generated_liters,
+                "CO total generado [L]")
+        .def_ro("nox_generated_liters", &BlastingFlowResult::nox_generated_liters,
+                "NOx total generado [L]")
+        .def_ro("total_gas_volume_m3", &BlastingFlowResult::total_gas_volume_m3,
+                "Volumen total de gases [m3]")
+        .def_ro("face_volume_m3", &BlastingFlowResult::face_volume_m3,
+                "Volumen de la labor [m3]")
+        .def_ro("dilution_time_min", &BlastingFlowResult::dilution_time_min,
+                "Tiempo de dilucion [min]")
+        .def_ro("q_for_co_dilution", &BlastingFlowResult::q_for_co_dilution,
+                "Caudal para diluir CO [m3/min]")
+        .def_ro("q_for_nox_dilution", &BlastingFlowResult::q_for_nox_dilution,
+                "Caudal para diluir NOx [m3/min]")
+        .def_ro("q_for_volume_exchange", &BlastingFlowResult::q_for_volume_exchange,
+                "Caudal para recambio volumetrico [m3/min]")
+        .def_ro("q_for_min_velocity", &BlastingFlowResult::q_for_min_velocity,
+                "Caudal para velocidad minima [m3/min]")
+        .def_ro("q_blasting", &BlastingFlowResult::q_blasting,
+                "Caudal gobernante [m3/min]")
+        .def_ro("governing_criterion", &BlastingFlowResult::governing_criterion,
+                "Criterio que gobierna el resultado")
+        .def_ro("regulation_ref", &BlastingFlowResult::regulation_ref,
+                "Referencia normativa aplicada");
 
     nb::class_<LeakageFlowResult>(m, "LeakageFlowResult",
         "Resultado detallado del calculo de fugas.")
-        .def_ro("duct_type", &LeakageFlowResult::duct_type)
-        .def_ro("quality", &LeakageFlowResult::quality)
-        .def_ro("duct_length_m", &LeakageFlowResult::duct_length_m)
-        .def_ro("duct_diameter_m", &LeakageFlowResult::duct_diameter_m)
-        .def_ro("num_joints", &LeakageFlowResult::num_joints)
-        .def_ro("base_leakage_factor", &LeakageFlowResult::base_leakage_factor)
-        .def_ro("length_leakage_factor", &LeakageFlowResult::length_leakage_factor)
-        .def_ro("joint_leakage_factor", &LeakageFlowResult::joint_leakage_factor)
-        .def_ro("total_leakage_factor", &LeakageFlowResult::total_leakage_factor)
-        .def_ro("base_flow", &LeakageFlowResult::base_flow)
-        .def_ro("q_leakage", &LeakageFlowResult::q_leakage)
-        .def_ro("q_at_fan", &LeakageFlowResult::q_at_fan)
-        .def_ro("notes", &LeakageFlowResult::notes);
+        .def_ro("duct_type", &LeakageFlowResult::duct_type,
+                "Tipo de ducto")
+        .def_ro("quality", &LeakageFlowResult::quality,
+                "Calidad de instalacion del ducto")
+        .def_ro("duct_length_m", &LeakageFlowResult::duct_length_m,
+                "Longitud del ducto [m]")
+        .def_ro("duct_diameter_m", &LeakageFlowResult::duct_diameter_m,
+                "Diametro del ducto [m]")
+        .def_ro("num_joints", &LeakageFlowResult::num_joints,
+                "Numero de juntas")
+        .def_ro("base_leakage_factor", &LeakageFlowResult::base_leakage_factor,
+                "Factor base por tipo y calidad")
+        .def_ro("length_leakage_factor", &LeakageFlowResult::length_leakage_factor,
+                "Factor adicional por longitud")
+        .def_ro("joint_leakage_factor", &LeakageFlowResult::joint_leakage_factor,
+                "Factor adicional por juntas")
+        .def_ro("total_leakage_factor", &LeakageFlowResult::total_leakage_factor,
+                "Factor de fuga total")
+        .def_ro("base_flow", &LeakageFlowResult::base_flow,
+                "Caudal requerido en el frente [m3/min]")
+        .def_ro("q_leakage", &LeakageFlowResult::q_leakage,
+                "Caudal perdido en fugas [m3/min]")
+        .def_ro("q_at_fan", &LeakageFlowResult::q_at_fan,
+                "Caudal requerido en el ventilador [m3/min]")
+        .def_ro("notes", &LeakageFlowResult::notes,
+                "Notas adicionales del calculo");
 
     nb::class_<DustFlowResult>(m, "DustFlowResult",
         "Resultado del calculo de dilucion de polvo.")
@@ -415,38 +473,65 @@ NB_MODULE(_ventpy_core, m) {
     nb::class_<VentilationDemandResult>(m, "VentilationDemandResult",
         "Resultado consolidado de demanda de ventilacion.\n"
         "Estructura de auditoria con desglose completo.")
-        .def_ro("zone_type", &VentilationDemandResult::zone_type)
-        .def_ro("standard", &VentilationDemandResult::standard)
+        .def_ro("zone_type", &VentilationDemandResult::zone_type,
+                "Tipo de zona de la mina")
+        .def_ro("standard", &VentilationDemandResult::standard,
+                "Norma regulatoria aplicada")
         // Sub-results (optional)
-        .def_ro("atmospheric", &VentilationDemandResult::atmospheric)
-        .def_ro("personnel", &VentilationDemandResult::personnel)
-        .def_ro("diesel", &VentilationDemandResult::diesel)
-        .def_ro("blasting", &VentilationDemandResult::blasting)
-        .def_ro("dust", &VentilationDemandResult::dust)
-        .def_ro("thermal", &VentilationDemandResult::thermal)
-        .def_ro("leakage", &VentilationDemandResult::leakage)
+        .def_ro("atmospheric", &VentilationDemandResult::atmospheric,
+                "Correcciones atmosfericas aplicadas (si corresponde)")
+        .def_ro("personnel", &VentilationDemandResult::personnel,
+                "Resultado del factor de personal (si corresponde)")
+        .def_ro("diesel", &VentilationDemandResult::diesel,
+                "Resultado del factor de equipo diesel (si corresponde)")
+        .def_ro("blasting", &VentilationDemandResult::blasting,
+                "Resultado del factor de explosivos (si corresponde)")
+        .def_ro("dust", &VentilationDemandResult::dust,
+                "Resultado del factor de polvo (si corresponde)")
+        .def_ro("thermal", &VentilationDemandResult::thermal,
+                "Resultado del factor termico (si corresponde)")
+        .def_ro("leakage", &VentilationDemandResult::leakage,
+                "Resultado del factor de fugas (si corresponde)")
         // Individual flows
-        .def_ro("q_personnel_m3min", &VentilationDemandResult::q_personnel_m3min)
-        .def_ro("q_diesel_m3min", &VentilationDemandResult::q_diesel_m3min)
-        .def_ro("q_blasting_m3min", &VentilationDemandResult::q_blasting_m3min)
-        .def_ro("q_dust_m3min", &VentilationDemandResult::q_dust_m3min)
-        .def_ro("q_thermal_m3min", &VentilationDemandResult::q_thermal_m3min)
-        .def_ro("q_leakage_m3min", &VentilationDemandResult::q_leakage_m3min)
+        .def_ro("q_personnel_m3min", &VentilationDemandResult::q_personnel_m3min,
+                "Caudal por personal [m3/min]")
+        .def_ro("q_diesel_m3min", &VentilationDemandResult::q_diesel_m3min,
+                "Caudal por equipo diesel [m3/min]")
+        .def_ro("q_blasting_m3min", &VentilationDemandResult::q_blasting_m3min,
+                "Caudal por explosivos [m3/min]")
+        .def_ro("q_dust_m3min", &VentilationDemandResult::q_dust_m3min,
+                "Caudal por polvo [m3/min]")
+        .def_ro("q_thermal_m3min", &VentilationDemandResult::q_thermal_m3min,
+                "Caudal por carga termica [m3/min]")
+        .def_ro("q_leakage_m3min", &VentilationDemandResult::q_leakage_m3min,
+                "Caudal por fugas [m3/min]")
         // Final flows
-        .def_ro("q_governing_m3min", &VentilationDemandResult::q_governing_m3min)
-        .def_ro("q_at_fan_m3min", &VentilationDemandResult::q_at_fan_m3min)
-        .def_ro("q_total_m3min", &VentilationDemandResult::q_total_m3min)
-        .def_ro("q_total_m3s", &VentilationDemandResult::q_total_m3s)
-        .def_ro("q_total_cfm", &VentilationDemandResult::q_total_cfm)
+        .def_ro("q_governing_m3min", &VentilationDemandResult::q_governing_m3min,
+                "Caudal gobernante en el frente [m3/min]")
+        .def_ro("q_at_fan_m3min", &VentilationDemandResult::q_at_fan_m3min,
+                "Caudal requerido en el ventilador [m3/min]")
+        .def_ro("q_total_m3min", &VentilationDemandResult::q_total_m3min,
+                "Caudal total, con fugas [m3/min]")
+        .def_ro("q_total_m3s", &VentilationDemandResult::q_total_m3s,
+                "Caudal total [m3/s]")
+        .def_ro("q_total_cfm", &VentilationDemandResult::q_total_cfm,
+                "Caudal total [CFM]")
         // Velocity check
-        .def_ro("face_area_m2", &VentilationDemandResult::face_area_m2)
-        .def_ro("velocity_at_face_mps", &VentilationDemandResult::velocity_at_face_mps)
-        .def_ro("velocity_ok", &VentilationDemandResult::velocity_ok)
+        .def_ro("face_area_m2", &VentilationDemandResult::face_area_m2,
+                "Seccion de la labor [m2]")
+        .def_ro("velocity_at_face_mps", &VentilationDemandResult::velocity_at_face_mps,
+                "Velocidad en el frente [m/s]")
+        .def_ro("velocity_ok", &VentilationDemandResult::velocity_ok,
+                "Indica si cumple la velocidad minima")
         // Metadata
-        .def_ro("safety_factor_applied", &VentilationDemandResult::safety_factor_applied)
-        .def_ro("governing_factor", &VentilationDemandResult::governing_factor)
-        .def_ro("notes", &VentilationDemandResult::notes)
-        .def_ro("warnings", &VentilationDemandResult::warnings);
+        .def_ro("safety_factor_applied", &VentilationDemandResult::safety_factor_applied,
+                "Factor de seguridad aplicado")
+        .def_ro("governing_factor", &VentilationDemandResult::governing_factor,
+                "Nombre del factor que gobierna el resultado")
+        .def_ro("notes", &VentilationDemandResult::notes,
+                "Notas adicionales")
+        .def_ro("warnings", &VentilationDemandResult::warnings,
+                "Advertencias generadas durante el calculo");
 
     // ========================================================================
     // DieselFleet
@@ -682,41 +767,68 @@ NB_MODULE(_ventpy_core, m) {
 
     nb::class_<StationResult>(m, "StationResult",
         "Resultado de una estacion de aforo (auditable).")
-        .def_ro("station_id", &StationResult::station_id)
-        .def_ro("area_m2", &StationResult::area_m2)
-        .def_ro("velocity_mps", &StationResult::velocity_mps)
-        .def_ro("velocity_mpm", &StationResult::velocity_mpm)
-        .def_ro("q_station_m3min", &StationResult::q_station_m3min)
-        .def_ro("velocity_ok", &StationResult::velocity_ok)
-        .def_ro("warning", &StationResult::warning);
+        .def_ro("station_id", &StationResult::station_id,
+                "Identificador de la estacion")
+        .def_ro("area_m2", &StationResult::area_m2,
+                "Area de la seccion medida [m2]")
+        .def_ro("velocity_mps", &StationResult::velocity_mps,
+                "Velocidad medida [m/s]")
+        .def_ro("velocity_mpm", &StationResult::velocity_mpm,
+                "Velocidad medida [m/min] (= velocity_mps x 60, Art. 248)")
+        .def_ro("q_station_m3min", &StationResult::q_station_m3min,
+                "Caudal de la estacion [m3/min] (= area x velocity_mps x 60, crudo)")
+        .def_ro("velocity_ok", &StationResult::velocity_ok,
+                "Indica si esta dentro del rango [minimo efectivo, maximo] del Art. 248")
+        .def_ro("warning", &StationResult::warning,
+                "Advertencia de la estacion (vacia si velocity_ok)");
 
     nb::class_<ZoneCoverageResult>(m, "ZoneCoverageResult",
         "Cobertura de una zona: requerido vs medido (auditable).")
-        .def_ro("zone_name", &ZoneCoverageResult::zone_name)
-        .def_ro("q_required_m3min", &ZoneCoverageResult::q_required_m3min)
-        .def_ro("q_measured_m3min", &ZoneCoverageResult::q_measured_m3min)
-        .def_ro("coverage_ratio", &ZoneCoverageResult::coverage_ratio)
-        .def_ro("deficit_m3min", &ZoneCoverageResult::deficit_m3min)
-        .def_ro("compliant", &ZoneCoverageResult::compliant)
-        .def_ro("near_deficit_warning", &ZoneCoverageResult::near_deficit_warning)
-        .def_ro("overventilated", &ZoneCoverageResult::overventilated)
-        .def_ro("stations", &ZoneCoverageResult::stations)
+        .def_ro("zone_name", &ZoneCoverageResult::zone_name,
+                "Nombre de la zona")
+        .def_ro("q_required_m3min", &ZoneCoverageResult::q_required_m3min,
+                "Caudal requerido [m3/min] (del Governor, ya con fugas y FS)")
+        .def_ro("q_measured_m3min", &ZoneCoverageResult::q_measured_m3min,
+                "Caudal medido [m3/min] (directo o suma de estaciones, crudo)")
+        .def_ro("coverage_ratio", &ZoneCoverageResult::coverage_ratio,
+                "Razon medido/requerido, cruda (diagnostico)")
+        .def_ro("deficit_m3min", &ZoneCoverageResult::deficit_m3min,
+                "safety_ceil(requerido - medido) si hay deficit; 0 si no")
+        .def_ro("compliant", &ZoneCoverageResult::compliant,
+                "Indica si el caudal medido >= requerido")
+        .def_ro("near_deficit_warning", &ZoneCoverageResult::near_deficit_warning,
+                "Indica si cumple pero la cobertura esta bajo el margen")
+        .def_ro("overventilated", &ZoneCoverageResult::overventilated,
+                "Indica si la cobertura supera el factor de sobreventilacion")
+        .def_ro("stations", &ZoneCoverageResult::stations,
+                "Desglose por estacion (vacio si la medicion fue directa)")
         .def_ro("demand", &ZoneCoverageResult::demand,
                 "Desglose completo del Governor (solo via analyze_survey)")
-        .def_ro("regulation_ref", &ZoneCoverageResult::regulation_ref);
+        .def_ro("regulation_ref", &ZoneCoverageResult::regulation_ref,
+                "Referencia normativa aplicada");
 
     nb::class_<MineCoverageResult>(m, "MineCoverageResult",
         "Balance de cobertura de la mina completa (auditable).")
-        .def_ro("zones", &MineCoverageResult::zones)
-        .def_ro("q_required_total_m3min", &MineCoverageResult::q_required_total_m3min)
-        .def_ro("q_measured_total_m3min", &MineCoverageResult::q_measured_total_m3min)
-        .def_ro("coverage_ratio", &MineCoverageResult::coverage_ratio)
-        .def_ro("deficit_total_m3min", &MineCoverageResult::deficit_total_m3min)
-        .def_ro("global_compliant", &MineCoverageResult::global_compliant)
-        .def_ro("all_zones_compliant", &MineCoverageResult::all_zones_compliant)
-        .def_ro("compliant", &MineCoverageResult::compliant)
-        .def_ro("warnings", &MineCoverageResult::warnings)
-        .def_ro("regulation_ref", &MineCoverageResult::regulation_ref);
+        .def_ro("zones", &MineCoverageResult::zones,
+                "Desglose de cobertura por zona")
+        .def_ro("q_required_total_m3min", &MineCoverageResult::q_required_total_m3min,
+                "Caudal total requerido [m3/min]")
+        .def_ro("q_measured_total_m3min", &MineCoverageResult::q_measured_total_m3min,
+                "Caudal total medido [m3/min]")
+        .def_ro("coverage_ratio", &MineCoverageResult::coverage_ratio,
+                "Razon global medido/requerido, cruda")
+        .def_ro("deficit_total_m3min", &MineCoverageResult::deficit_total_m3min,
+                "safety_ceil(suma requerido - suma medido) si es positivo")
+        .def_ro("global_compliant", &MineCoverageResult::global_compliant,
+                "Indica si la suma medida >= la suma requerida (Art. 252.f)")
+        .def_ro("all_zones_compliant", &MineCoverageResult::all_zones_compliant,
+                "Indica si ninguna zona esta en deficit (Art. 252.g)")
+        .def_ro("compliant", &MineCoverageResult::compliant,
+                "Indica si se cumplen ambos criterios (estricto)")
+        .def_ro("warnings", &MineCoverageResult::warnings,
+                "Advertencias generadas durante el balance")
+        .def_ro("regulation_ref", &MineCoverageResult::regulation_ref,
+                "Referencia normativa aplicada");
 
     nb::class_<CoverageCalculator>(m, "CoverageCalculator",
         "Calculador de deficit/cobertura: caudal medido vs requerido.\n"
