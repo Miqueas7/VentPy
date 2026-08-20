@@ -26,6 +26,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/Miqueas7/VentPy"
+Documentation = "https://miqueas.dev/ventpy"
 Repository = "https://github.com/Miqueas7/VentPy"
 Issues = "https://github.com/Miqueas7/VentPy/issues"
 

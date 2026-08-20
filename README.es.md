@@ -1,120 +1,95 @@
 # VentPy
 
-[English](README.md) | [Español](README.es.md)
+[English](https://github.com/Miqueas7/VentPy/blob/master/README.md) | [Español](https://github.com/Miqueas7/VentPy/blob/master/README.es.md)
+
+[![PyPI version](https://img.shields.io/pypi/v/ventpy)](https://pypi.org/project/ventpy/)
+[![Python versions](https://img.shields.io/pypi/pyversions/ventpy)](https://pypi.org/project/ventpy/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Miqueas7/VentPy/blob/master/LICENSE)
+[![Tests](https://img.shields.io/github/actions/workflow/status/Miqueas7/VentPy/tests.yml?branch=master&label=tests)](https://github.com/Miqueas7/VentPy/actions/workflows/tests.yml)
+
+> **Documentación:** https://miqueas.dev/ventpy
 
 Calculos de ventilacion subterranea de alto rendimiento para Python, respaldados por un nucleo en C++20.
 
-VentPy ayuda a ingenieros de minas a estimar la demanda de ventilacion en operaciones subterraneas mediante una API auditable orientada al marco regulatorio peruano `DS 024-2016-EM / DS 023-2017-EM`.
+VentPy ayuda a ingenieros de minas a estimar la demanda de ventilacion en operaciones subterraneas mediante una API auditable que cubre personal, flotas diesel, voladura, polvo, carga termica, correcciones atmosfericas, diseno de ductos/red y seleccion de ventilador, actualmente bajo los marcos regulatorios peruano (`DS 024-2016-EM` / `DS 023-2017-EM`) y chileno (`DS 132` / `DS 594`). Los calculos corren en un nucleo C++ tipado y probado en vez de una hoja de calculo: cada resultado trae su criterio gobernante y su cita normativa, no solo un numero.
 
 ## Que Hace VentPy
 
-VentPy proporciona herramientas de calculo para:
-
-- Demanda de caudal por personal
-- Demanda de caudal por flota diesel
+- Demanda de caudal por personal (escala de `DS 024-2016-EM, Art. 247` por altitud / `DS 132, Art. 138`)
+- Demanda de caudal por flota diesel, incluida la dilucion de CO/NOx segun el tier de emision del motor
 - Dilucion de gases de voladura
-- Correcciones atmosfericas por altitud
+- Caudal por polvo respirable y por carga termica, integrados a la demanda consolidada
 - Ajustes por fugas en ventilacion con ductos
-- Demanda consolidada de ventilacion con seleccion del factor gobernante
-- Ayudas opcionales de visualizacion y reportes HTML en Python
+- Correcciones atmosfericas por altitud (presion, densidad, presion parcial de oxigeno)
+- Demanda consolidada de ventilacion con seleccion del factor gobernante (`VentilationGovernor`)
+- Analisis de cobertura/deficit: caudal medido vs. requerido, por zona y para toda la mina
+- Resistencia de Atkinson en labores y dimensionamiento de ducto (criterio tecnico y economico)
+- Balance de red de ventilacion por el metodo de Hardy Cross, con deteccion automatica de mallas
+- Curva de ventilador, punto de operacion y margen de stall, independiente o acoplado a una red
+- Limites maximos permisibles (LMP) de gases regulados, por norma
+- Una interfaz de linea de comandos `ventpy` y ayudas opcionales de visualizacion y reportes HTML
 
-La libreria esta orientada a flujos de trabajo de ingenieria donde importan el rendimiento, la reproducibilidad y la trazabilidad.
+## Soporte Multi-Norma
 
-## Por Que Existe Esta Libreria
+VentPy trae preajustes oficiales para dos marcos regulatorios, cada constante citando su articulo:
 
-Los calculos de ventilacion de mina suelen implementarse en hojas de calculo que se vuelven dificiles de validar, reutilizar o integrar en flujos de trabajo mayores. VentPy traslada esos calculos a una libreria tipada y testeable con:
+```python
+import ventpy
 
-- Un nucleo en C++ para rendimiento predecible
-- Bindings de Python para scripting, analisis e integracion
-- Objetos de resultado explicitos en lugar de formulas opacas en hojas de calculo
-- Entradas orientadas al dominio para personal, equipos diesel, voladura, atmosfera y fugas
+peru = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.peru())
+chile = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.chile())
 
-## Alcance Regulatorio
+print(f"Peru:  {peru.q_personnel} m3/min ({peru.flow_per_person_base} m3/min/person)")
+print(f"Chile: {chile.q_personnel} m3/min ({chile.flow_per_person_base} m3/min/person)")
+```
 
-Los valores por defecto actuales se basan en:
+Salida:
 
-- `DS 024-2016-EM`
-- `DS 023-2017-EM`
+```
+Peru:  90.0 m3/min (6.0 m3/min/person)
+Chile: 45.0 m3/min (3.0 m3/min/person)
+```
 
-La `RegulatoryConfig` por defecto refleja este marco peruano, pero permite inyectar parametros corporativos mas exigentes cuando sea necesario.
+- `RegulatoryConfig.peru()` — `DS 024-2016-EM` / `DS 023-2017-EM`.
+- `RegulatoryConfig.chile()` — `DS 132`, Reglamento de Seguridad Minera (los limites de gases tambien usan el `DS 594`).
+- `RegulatoryConfig.for_standard(standard)` — construye cualquiera de los dos preajustes a partir de un miembro del enum `RegulatoryStandard`; es lo que usa internamente el flag `--norma peru|chile` de la CLI.
+
+Agregar la norma de otro pais es la contribucion que mas necesita VentPy — ver [Contribuir](#contribuir).
 
 ## Estado Del Proyecto
 
-VentPy se encuentra actualmente en estado `alpha`.
+VentPy se encuentra en **beta**. Los calculos de personal, diesel, voladura, polvo, termico, cobertura, red, ventilador y atmosfera estan implementados, probados (197 pruebas en C++ y 151 en Python, incluidas pruebas basadas en propiedades y de escala hasta 500 ramales) y expuestos a Python para ambos preajustes.
 
-Implementado y expuesto hoy:
-
-- Calculos de caudal por personal
-- Calculos de caudal por equipos diesel
-- Calculos de caudal por explosivos
-- Utilidades de correccion atmosferica
-- Governor integrado de demanda de ventilacion
-- Ayudas de visualizacion en Python
-
-Los tipos de resultado para polvo, termica y fugas ya forman parte del modelo publico, pero la madurez practica de cada flujo debe validarse frente a tu caso de uso de ingenieria antes de una adopcion operativa.
+> **Los resultados cambian entre 0.1.0 y 0.2.0.** La version 0.2.0 corrige tres citas normativas del nucleo. Si calculaste algo con 0.1.0, conviene rehacerlo, especialmente por encima de 1.500 msnm.
+>
+> - **Escala de caudal por persona** (`DS 024-2016-EM, Art. 247`): ahora es 3/4/5/6 m³/min por persona con umbrales en 1.500 / 3.000 / 4.000 msnm, que es el texto vigente del articulo. La 0.1.0 usaba una escala 3/4/5 con umbrales solo en 3.000 y 4.000 msnm, y calculaba de menos para toda mina por encima de 1.500 msnm.
+> - **Polvo respirable**: la cita correcta es el `Art. 111` (limite de 3 mg/m³ para jornada de 8 h, con paralizacion obligatoria de la labor si se supera), no "Art. 103-107" como se citaba antes.
+> - **Temperatura efectiva maxima**: la cita "Art. 240: 30 °C" no existe en la norma vigente, proviene del derogado `DS 055-2010-EM`. El criterio aplicable es el `Art. 252 lit. d` (velocidad minima de 30 m/min con temperatura seca entre 24 y 29 °C) mas el `Art. 104` / Anexo 13 para estres termico.
 
 ## Instalacion
 
-VentPy se construye actualmente desde codigo fuente.
-
-### Requisitos
-
-- Python `3.9+`
-- CMake `3.20+`
-- Un compilador con soporte `C++20`
-
-### Instalacion En Un Entorno Virtual
-
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-python -m pip install --upgrade pip
-pip install .
+pip install ventpy
 ```
 
-Para desarrollo:
+Hay ruedas precompiladas para Python 3.9 a 3.13 en Linux, macOS y Windows, asi que no se necesita compilador ni CMake.
+
+Para renderizado de graficos y generacion de reportes HTML, instala el extra de visualizacion:
 
 ```bash
-pip install -e .[test,viz]
+pip install ventpy[viz]
 ```
-
-## CLI Y Ejemplos
-
-Instalar VentPy tambien instala el comando `ventpy`, una capa de
-presentacion delgada sobre la misma API publica (sin logica de calculo
-propia) con 5 subcomandos:
-
-- `ventpy demanda <archivo.json> [--norma peru|chile] [--json]` — demanda total de ventilacion de una zona/frente
-- `ventpy lmp [--norma peru|chile] [--gas GAS] [--json]` — limites maximos permisibles (LMP) de gases regulados
-- `ventpy cobertura <archivo.json> [--norma peru|chile] [--json]` — analisis de deficit/cobertura de un levantamiento de zonas
-- `ventpy red <archivo.json> [--json]` — balance de una red de ventilacion (Hardy Cross)
-- `ventpy ventilador <archivo.json> [--json]` — punto de operacion de un ventilador (independiente o acoplado a una red)
-
-Los exit codes son significativos: `0` exito, `1` entrada invalida, `2` un
-resultado calculado pero no confiable (ej. una red que no convergio, una
-zona en deficit, o un punto de operacion de ventilador fuera de su curva
-de catalogo) — ver la ayuda de cada subcomando (`ventpy <subcomando> -h`).
-
-Cinco ejemplos resueltos y auto-verificables (cada `run.py` afirma sus
-propios numeros documentados) viven en [`examples/`](examples/), uno por
-esquema de entrada JSON mas un caso de dimensionamiento de ductos que solo
-usa la API (sin subcomando CLI todavia):
-
-- [`examples/01-demanda-peru`](examples/01-demanda-peru/) — demanda limitada por diesel, preset Peru
-- [`examples/02-preset-chile`](examples/02-preset-chile/) — mismo caso con `--norma chile`
-- [`examples/03-cobertura-levantamiento`](examples/03-cobertura-levantamiento/) — levantamiento de 2 zonas, una en deficit (`exit 2`)
-- [`examples/04-red-ventilador`](examples/04-red-ventilador/) — ventilador acoplado a una red de malla paralela
-- [`examples/05-ducto-seleccion`](examples/05-ducto-seleccion/) — dimensionamiento de ducto, criterio tecnico vs. economico (solo API)
 
 ## Inicio Rapido
 
 ```python
 import ventpy
 
-config = ventpy.RegulatoryConfig()
+config = ventpy.RegulatoryConfig.peru()
 governor = ventpy.VentilationGovernor(config)
 
 inp = ventpy.VentilationInput()
+inp.zone_type = ventpy.ZoneType.DevelopmentFace
 inp.num_workers = 15
 inp.altitude_masl = 4200.0
 
@@ -122,94 +97,70 @@ result = governor.calculate_total_demand(inp)
 
 print(f"Q_total = {result.q_total_m3min} m3/min")
 print(f"Q_total = {result.q_total_cfm:.1f} cfm")
-print(f"Factor gobernante = {result.governing_factor}")
+print(f"Governing factor = {result.governing_factor}")
 ```
 
-## Ejemplo Con Flota Diesel Y Voladura
+Salida:
 
-```python
-import ventpy
+```
+Q_total = 207.0 m3/min
+Q_total = 7310.1 cfm
+Governing factor = personnel (Q_Per)
+```
 
-config = ventpy.RegulatoryConfig()
-governor = ventpy.VentilationGovernor(config)
+Cinco ejemplos resueltos y auto-verificables (cada `run.py` afirma sus propios numeros documentados) viven en [`examples/`](https://github.com/Miqueas7/VentPy/tree/master/examples/), cubriendo demanda limitada por diesel, el preajuste chileno, cobertura/deficit, un ventilador acoplado a una red, y dimensionamiento de ducto.
 
-inp = ventpy.VentilationInput()
-inp.zone_type = ventpy.ZoneType.DevelopmentFace
-inp.face_area_m2 = 15.0
-inp.face_length_m = 120.0
-inp.safety_factor = 1.10
-inp.simultaneity_factor = 0.85
+## Interfaz De Linea De Comandos
 
-inp.atmospheric = ventpy.AtmosphericParams()
-inp.atmospheric.altitude_masl = 4200.0
-inp.atmospheric.dry_bulb_temp_c = 22.0
+Instalar VentPy tambien instala el comando `ventpy`, una capa de presentacion delgada sobre la misma API publica (sin logica de calculo propia) con 5 subcomandos:
 
-inp.personnel = ventpy.PersonnelParams()
-inp.personnel.num_workers = 12
-inp.personnel.activity = ventpy.ActivityLevel.Moderate
+- `ventpy demanda <archivo.json> [--norma peru|chile] [--json]` — demanda total de ventilacion de una zona/frente
+- `ventpy lmp [--norma peru|chile] [--gas GAS] [--json]` — limites maximos permisibles (LMP) de gases regulados
+- `ventpy cobertura <archivo.json> [--norma peru|chile] [--json]` — analisis de deficit/cobertura de un levantamiento de zonas
+- `ventpy red <archivo.json> [--json]` — balance de una red de ventilacion (Hardy Cross)
+- `ventpy ventilador <archivo.json> [--json]` — punto de operacion de un ventilador (independiente o acoplado a una red)
 
-fleet = ventpy.DieselFleet()
-fleet.add_equipment("Scooptram ST1030", 180.0, 0.88, 0.75)
-inp.diesel_fleet = fleet
+Los codigos de salida son significativos: `0` exito, `1` entrada invalida, `2` un resultado calculado pero no confiable (una red que no convergio, una zona en deficit, un punto de operacion de ventilador fuera de su curva de catalogo). Ver la ayuda de cada subcomando (`ventpy <subcomando> -h`).
 
-blast = ventpy.BlastingParams()
-blast.explosive_kg = 50.0
-blast.explosive_type = ventpy.ExplosiveType.ANFO
-blast.dilution_time_min = 30.0
-blast.face_area_m2 = 15.0
-blast.face_length_m = 120.0
-inp.blasting_params = blast
-
-result = governor.calculate_total_demand(inp)
-
-print(result.q_personnel_m3min)
-print(result.q_diesel_m3min)
-print(result.q_blasting_m3min)
-print(result.q_total_m3min)
-print(result.velocity_at_face_mps)
-print(result.warnings)
+```
+$ ventpy lmp --norma peru --gas CO
+standard: DS024_Peru
+gas: CO
+unit: PPM
+twa_8h: 25.0
+stel: None
+ceiling: None
+floor_min: None
+regulation_ref: DS 024-2016-EM, Anexo 15, fila 33 (via Art. 246)
 ```
 
 ## API Principal
 
-Puntos de entrada principales:
+VentPy expone 87 nombres publicos (`ventpy.__all__`). Puntos de entrada principales:
 
-- `RegulatoryConfig`
-- `VentilationGovernor`
-- `VentilationInput`
-- `DieselFleet`
-- `AtmosphericParams`
-- `PersonnelParams`
-- `BlastingParams`
+- `RegulatoryConfig` (`.peru()`, `.chile()`, `.for_standard(...)`)
+- `VentilationGovernor`, `VentilationInput`
+- `DieselFleet`, `AtmosphericParams`, `PersonnelParams`, `BlastingParams`, `DustParams`, `ThermalParams`
 
 Calculadores directos:
 
-- `calculate_personnel_flow(...)`
-- `calculate_diesel_flow(...)`
-- `calculate_blasting_flow(...)`
-- `calculate_atmospheric_corrections(...)`
+- `calculate_personnel_flow`, `calculate_diesel_flow`, `calculate_blasting_flow`, `calculate_dust_flow`, `calculate_thermal_flow`, `calculate_atmospheric_corrections`
 
-Utilidades relevantes:
+Red, ducto y ventilador:
 
-- `calculate_pressure_kpa(...)`
-- `calculate_density_kg_m3(...)`
-- `calculate_volume_correction_factor(...)`
-- `calculate_diesel_derate_factor(...)`
-- `get_min_velocity(...)`
-- `safety_ceil(...)`
+- `AtkinsonCalculator`, `DuctSizingCalculator`, `NetworkSolver`, `FanCalculator`
+
+Cobertura y limites de gases:
+
+- `CoverageCalculator`, `gas_limits(standard)`, `lmp_for(standard, gas)`
+
+Utilidades:
+
+- `calculate_pressure_kpa`, `calculate_density_kg_m3`, `calculate_volume_correction_factor`, `calculate_diesel_derate_factor`, `get_min_velocity`, `safety_ceil`, `safety_ceil_decimals`
 
 ## Visualizacion
 
-VentPy incluye un modulo de visualizacion en Python orientado a comunicacion tecnica y reporte rapido.
-
-Entre las ayudas disponibles se incluyen:
-
-- `plot_flow_comparison(...)`
-- `plot_flow_breakdown(...)`
-- `create_dashboard(...)`
-- `generate_html_report(...)`
-
-Ejemplo:
+VentPy incluye un modulo de visualizacion en Python para comunicacion tecnica y reporte rapido: `plot_flow_comparison`, `plot_flow_breakdown`, `create_dashboard`, `generate_html_report`.
 
 ```python
 from ventpy import visualization as viz
@@ -229,27 +180,11 @@ html = viz.generate_html_report(
 )
 ```
 
-Si necesitas renderizado de graficos, instala `matplotlib` en tu entorno.
-El conjunto opcional de dependencias de visualizacion puede instalarse con `pip install -e .[viz]`.
+El renderizado de graficos requiere `matplotlib`, incluido en el extra `viz` (`pip install ventpy[viz]`).
 
-## Desarrollo
+## Contribuir
 
-Ejecuta las pruebas de Python con:
-
-```bash
-pytest
-```
-
-El proyecto tambien contiene pruebas C++ que pueden habilitarse mediante CMake cuando sea necesario.
-
-## Estructura Del Repositorio
-
-```text
-include/          Cabeceras C++ del nucleo de calculo
-bindings/         Bindings de Python con nanobind
-python/ventpy/    Paquete Python y ayudas de visualizacion
-tests/            Pruebas Python y C++
-```
+Ver [`CONTRIBUTING.md`](https://github.com/Miqueas7/VentPy/blob/master/CONTRIBUTING.md). La contribucion mas buscada es agregar la norma de otro pais, siguiendo el patron del preajuste chileno (`RegulatoryConfig::chile()`): ubicar los valores en el reglamento, citar cada articulo, agregar un preajuste y agregar un test con un caso conocido. Ver [`CHANGELOG.md`](https://github.com/Miqueas7/VentPy/blob/master/CHANGELOG.md) para el historial completo de versiones.
 
 ## Descargo De Ingenieria
 
@@ -259,4 +194,4 @@ Usalo como apoyo computacional. Las decisiones finales de diseno de ventilacion 
 
 ## Licencia
 
-MIT
+MIT — ver [`LICENSE`](https://github.com/Miqueas7/VentPy/blob/master/LICENSE).

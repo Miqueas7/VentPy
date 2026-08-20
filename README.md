@@ -1,120 +1,95 @@
 # VentPy
 
-[English](README.md) | [Español](README.es.md)
+[English](https://github.com/Miqueas7/VentPy/blob/master/README.md) | [Español](https://github.com/Miqueas7/VentPy/blob/master/README.es.md)
+
+[![PyPI version](https://img.shields.io/pypi/v/ventpy)](https://pypi.org/project/ventpy/)
+[![Python versions](https://img.shields.io/pypi/pyversions/ventpy)](https://pypi.org/project/ventpy/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Miqueas7/VentPy/blob/master/LICENSE)
+[![Tests](https://img.shields.io/github/actions/workflow/status/Miqueas7/VentPy/tests.yml?branch=master&label=tests)](https://github.com/Miqueas7/VentPy/actions/workflows/tests.yml)
+
+> **Documentation:** https://miqueas.dev/ventpy
 
 High-performance underground mine ventilation calculations for Python, backed by a C++20 core.
 
-VentPy helps mining engineers estimate ventilation demand for underground operations using an auditable API oriented around the Peruvian regulatory framework `DS 024-2016-EM / DS 023-2017-EM`.
+VentPy helps mining engineers estimate ventilation demand for underground operations through an auditable API covering personnel, diesel fleets, blasting, dust, thermal load, atmospheric corrections, duct/network design and fan selection, currently under the Peruvian (`DS 024-2016-EM` / `DS 023-2017-EM`) and Chilean (`DS 132` / `DS 594`) regulatory frameworks. Calculations run in a typed, tested C++ core instead of a spreadsheet: every result carries its governing criterion and its regulatory citation, not just a number.
 
 ## What VentPy Does
 
-VentPy provides calculation tools for:
-
-- Personnel-based airflow demand
-- Diesel fleet airflow demand
+- Personnel-based airflow demand (`DS 024-2016-EM, Art. 247` altitude scale / `DS 132, Art. 138`)
+- Diesel fleet airflow demand, including CO/NOx dilution by engine emission tier
 - Blasting gas dilution airflow
-- Atmospheric corrections at altitude
+- Respirable dust and thermal-load airflow, integrated into the consolidated demand
 - Leakage adjustments for ducted ventilation
-- Consolidated ventilation demand with governing-factor selection
-- Optional visualization and HTML reporting helpers in Python
+- Atmospheric corrections at altitude (pressure, density, oxygen partial pressure)
+- Consolidated ventilation demand with governing-factor selection (`VentilationGovernor`)
+- Coverage/deficit analysis: measured airflow vs. required, by zone and for the whole mine
+- Atkinson airway resistance and duct sizing (technical and economic criteria)
+- Ventilation network balance by the Hardy Cross method, with automatic mesh detection
+- Fan curve, operating point and stall margin, standalone or coupled to a network
+- Permissible exposure limits (LMP) for regulated gases, by standard
+- A `ventpy` command-line interface and optional visualization/HTML reporting helpers
 
-The library is designed for engineering workflows where performance, reproducibility, and traceability matter.
+## Multi-Standard Support
 
-## Why This Library Exists
+VentPy ships official presets for two regulatory frameworks, each constant citing its article:
 
-Mine ventilation calculations are often implemented in spreadsheets that become difficult to validate, reuse, or integrate into larger workflows. VentPy moves those calculations into a typed, testable library with:
+```python
+import ventpy
 
-- A C++ core for predictable performance
-- Python bindings for scripting, analysis, and integration
-- Explicit result objects instead of opaque spreadsheet formulas
-- Domain-oriented inputs for personnel, diesel equipment, blasting, atmosphere, and leakage
+peru = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.peru())
+chile = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.chile())
 
-## Regulatory Scope
+print(f"Peru:  {peru.q_personnel} m3/min ({peru.flow_per_person_base} m3/min/person)")
+print(f"Chile: {chile.q_personnel} m3/min ({chile.flow_per_person_base} m3/min/person)")
+```
 
-Current defaults are based on:
+Output:
 
-- `DS 024-2016-EM`
-- `DS 023-2017-EM`
+```
+Peru:  90.0 m3/min (6.0 m3/min/person)
+Chile: 45.0 m3/min (3.0 m3/min/person)
+```
 
-The default `RegulatoryConfig` reflects this Peruvian framework, while still allowing stricter corporate parameters to be injected when needed.
+- `RegulatoryConfig.peru()` — `DS 024-2016-EM` / `DS 023-2017-EM`.
+- `RegulatoryConfig.chile()` — `DS 132`, Reglamento de Seguridad Minera (gas limits also draw on `DS 594`).
+- `RegulatoryConfig.for_standard(standard)` — builds either preset from a `RegulatoryStandard` enum member; used internally by the CLI's `--norma peru|chile` flag.
+
+Adding another country's standard is the contribution VentPy needs most — see [Contributing](#contributing).
 
 ## Project Status
 
-VentPy is currently in `alpha`.
+VentPy is in **beta**. Personnel, diesel, blasting, dust, thermal, coverage, network, fan and atmospheric calculations are implemented, tested (197 C++ tests and 151 Python tests, including property-based and 500-branch scale tests) and exposed to Python for both presets.
 
-Implemented and exposed today:
-
-- Personnel flow calculations
-- Diesel flow calculations
-- Blasting flow calculations
-- Atmospheric correction utilities
-- Integrated ventilation governor
-- Python visualization helpers
-
-Additional result types for dust, thermal, and leakage are already part of the public model, but the practical maturity of each workflow should be validated against your engineering use case before operational adoption.
+> **Results changed between 0.1.0 and 0.2.0.** Version 0.2.0 corrects three normative citations in the core. If you calculated anything with 0.1.0, recompute it, especially above 1,500 masl.
+>
+> - **Personnel airflow scale** (`DS 024-2016-EM, Art. 247`): now 3/4/5/6 m³/min per person with thresholds at 1,500 / 3,000 / 4,000 masl, matching the article's actual text. 0.1.0 used a 3/4/5 scale with thresholds at 3,000 and 4,000 masl only, and under-counted every mine above 1,500 masl.
+> - **Respirable dust**: the correct citation is `Art. 111` (3 mg/m³ limit for an 8-hour shift, with mandatory work stoppage above it), not "Art. 103-107" as previously cited.
+> - **Maximum effective temperature**: the "Art. 240: 30°C" citation does not exist in the current regulation, it came from the repealed `DS 055-2010-EM`. The applicable rule is `Art. 252.d` (30 m/min minimum velocity between 24-29°C dry bulb) plus `Art. 104` / Annex 13 for heat stress.
 
 ## Installation
 
-VentPy currently builds from source.
-
-### Requirements
-
-- Python `3.9+`
-- CMake `3.20+`
-- A compiler with `C++20` support
-
-### Install in a Virtual Environment
-
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-python -m pip install --upgrade pip
-pip install .
+pip install ventpy
 ```
 
-For development:
+Prebuilt wheels are published for Python 3.9 to 3.13 on Linux, macOS and Windows, so no compiler or CMake is required.
+
+For chart rendering and HTML report generation, install the visualization extra:
 
 ```bash
-pip install -e .[test,viz]
+pip install ventpy[viz]
 ```
-
-## CLI and Examples
-
-Installing VentPy also installs the `ventpy` command, a thin presentation
-layer over the same public API (no calculation logic of its own) with 5
-subcommands:
-
-- `ventpy demanda <archivo.json> [--norma peru|chile] [--json]` — total ventilation demand for a zone/face
-- `ventpy lmp [--norma peru|chile] [--gas GAS] [--json]` — permissible exposure limits (LMP) for regulated gases
-- `ventpy cobertura <archivo.json> [--norma peru|chile] [--json]` — coverage/deficit analysis of a zone survey
-- `ventpy red <archivo.json> [--json]` — ventilation network balance (Hardy Cross)
-- `ventpy ventilador <archivo.json> [--json]` — fan operating point (standalone or coupled to a network)
-
-Exit codes are meaningful: `0` success, `1` invalid input, `2` a
-calculated-but-unreliable result (e.g. a network that did not converge, a
-zone in deficit, or a fan operating point outside its catalog curve) — see
-each subcommand's help (`ventpy <subcommand> -h`).
-
-Five worked, self-verifying examples (each `run.py` asserts its own
-documented numbers) live under [`examples/`](examples/), one per JSON input
-schema plus a duct-sizing case that only uses the API (no CLI subcommand
-for it yet):
-
-- [`examples/01-demanda-peru`](examples/01-demanda-peru/) — diesel-limited demand, Peru preset
-- [`examples/02-preset-chile`](examples/02-preset-chile/) — same case with `--norma chile`
-- [`examples/03-cobertura-levantamiento`](examples/03-cobertura-levantamiento/) — 2-zone survey, one zone in deficit (`exit 2`)
-- [`examples/04-red-ventilador`](examples/04-red-ventilador/) — fan coupled to a parallel-mesh network
-- [`examples/05-ducto-seleccion`](examples/05-ducto-seleccion/) — duct sizing, technical vs. economic criterion (API only)
 
 ## Quick Start
 
 ```python
 import ventpy
 
-config = ventpy.RegulatoryConfig()
+config = ventpy.RegulatoryConfig.peru()
 governor = ventpy.VentilationGovernor(config)
 
 inp = ventpy.VentilationInput()
+inp.zone_type = ventpy.ZoneType.DevelopmentFace
 inp.num_workers = 15
 inp.altitude_masl = 4200.0
 
@@ -125,91 +100,67 @@ print(f"Q_total = {result.q_total_cfm:.1f} cfm")
 print(f"Governing factor = {result.governing_factor}")
 ```
 
-## Example With Diesel Fleet and Blasting
+Output:
 
-```python
-import ventpy
+```
+Q_total = 207.0 m3/min
+Q_total = 7310.1 cfm
+Governing factor = personnel (Q_Per)
+```
 
-config = ventpy.RegulatoryConfig()
-governor = ventpy.VentilationGovernor(config)
+Five worked, self-verifying examples (each `run.py` asserts its own documented numbers) live under [`examples/`](https://github.com/Miqueas7/VentPy/tree/master/examples/), covering diesel-limited demand, the Chilean preset, coverage/deficit, a fan coupled to a network, and duct sizing.
 
-inp = ventpy.VentilationInput()
-inp.zone_type = ventpy.ZoneType.DevelopmentFace
-inp.face_area_m2 = 15.0
-inp.face_length_m = 120.0
-inp.safety_factor = 1.10
-inp.simultaneity_factor = 0.85
+## Command Line Interface
 
-inp.atmospheric = ventpy.AtmosphericParams()
-inp.atmospheric.altitude_masl = 4200.0
-inp.atmospheric.dry_bulb_temp_c = 22.0
+Installing VentPy also installs the `ventpy` command, a thin presentation layer over the same public API (no calculation logic of its own) with 5 subcommands:
 
-inp.personnel = ventpy.PersonnelParams()
-inp.personnel.num_workers = 12
-inp.personnel.activity = ventpy.ActivityLevel.Moderate
+- `ventpy demanda <file.json> [--norma peru|chile] [--json]` — total ventilation demand for a zone/face
+- `ventpy lmp [--norma peru|chile] [--gas GAS] [--json]` — permissible exposure limits (LMP) for regulated gases
+- `ventpy cobertura <file.json> [--norma peru|chile] [--json]` — coverage/deficit analysis of a zone survey
+- `ventpy red <file.json> [--json]` — ventilation network balance (Hardy Cross)
+- `ventpy ventilador <file.json> [--json]` — fan operating point (standalone or coupled to a network)
 
-fleet = ventpy.DieselFleet()
-fleet.add_equipment("Scooptram ST1030", 180.0, 0.88, 0.75)
-inp.diesel_fleet = fleet
+Exit codes are meaningful: `0` success, `1` invalid input, `2` a calculated-but-unreliable result (a network that did not converge, a zone in deficit, a fan operating point outside its catalog curve). See each subcommand's help (`ventpy <subcommand> -h`).
 
-blast = ventpy.BlastingParams()
-blast.explosive_kg = 50.0
-blast.explosive_type = ventpy.ExplosiveType.ANFO
-blast.dilution_time_min = 30.0
-blast.face_area_m2 = 15.0
-blast.face_length_m = 120.0
-inp.blasting_params = blast
-
-result = governor.calculate_total_demand(inp)
-
-print(result.q_personnel_m3min)
-print(result.q_diesel_m3min)
-print(result.q_blasting_m3min)
-print(result.q_total_m3min)
-print(result.velocity_at_face_mps)
-print(result.warnings)
+```
+$ ventpy lmp --norma peru --gas CO
+standard: DS024_Peru
+gas: CO
+unit: PPM
+twa_8h: 25.0
+stel: None
+ceiling: None
+floor_min: None
+regulation_ref: DS 024-2016-EM, Anexo 15, fila 33 (via Art. 246)
 ```
 
 ## Core API
 
-Main entry points:
+VentPy exposes 87 public names (`ventpy.__all__`). Main entry points:
 
-- `RegulatoryConfig`
-- `VentilationGovernor`
-- `VentilationInput`
-- `DieselFleet`
-- `AtmosphericParams`
-- `PersonnelParams`
-- `BlastingParams`
+- `RegulatoryConfig` (`.peru()`, `.chile()`, `.for_standard(...)`)
+- `VentilationGovernor`, `VentilationInput`
+- `DieselFleet`, `AtmosphericParams`, `PersonnelParams`, `BlastingParams`, `DustParams`, `ThermalParams`
 
 Direct calculators:
 
-- `calculate_personnel_flow(...)`
-- `calculate_diesel_flow(...)`
-- `calculate_blasting_flow(...)`
-- `calculate_atmospheric_corrections(...)`
+- `calculate_personnel_flow`, `calculate_diesel_flow`, `calculate_blasting_flow`, `calculate_dust_flow`, `calculate_thermal_flow`, `calculate_atmospheric_corrections`
 
-Useful utilities:
+Network, duct and fan:
 
-- `calculate_pressure_kpa(...)`
-- `calculate_density_kg_m3(...)`
-- `calculate_volume_correction_factor(...)`
-- `calculate_diesel_derate_factor(...)`
-- `get_min_velocity(...)`
-- `safety_ceil(...)`
+- `AtkinsonCalculator`, `DuctSizingCalculator`, `NetworkSolver`, `FanCalculator`
+
+Coverage and gas limits:
+
+- `CoverageCalculator`, `gas_limits(standard)`, `lmp_for(standard, gas)`
+
+Utilities:
+
+- `calculate_pressure_kpa`, `calculate_density_kg_m3`, `calculate_volume_correction_factor`, `calculate_diesel_derate_factor`, `get_min_velocity`, `safety_ceil`, `safety_ceil_decimals`
 
 ## Visualization
 
-VentPy includes a Python visualization module intended for quick engineering communication and reporting.
-
-Available helpers include:
-
-- `plot_flow_comparison(...)`
-- `plot_flow_breakdown(...)`
-- `create_dashboard(...)`
-- `generate_html_report(...)`
-
-Example:
+VentPy includes a Python visualization module for quick engineering communication and reporting: `plot_flow_comparison`, `plot_flow_breakdown`, `create_dashboard`, `generate_html_report`.
 
 ```python
 from ventpy import visualization as viz
@@ -229,27 +180,11 @@ html = viz.generate_html_report(
 )
 ```
 
-If you want chart rendering, install `matplotlib` in your environment.
-The optional visualization dependency set can be installed with `pip install -e .[viz]`.
+Chart rendering requires `matplotlib`, included in the `viz` extra (`pip install ventpy[viz]`).
 
-## Development
+## Contributing
 
-Run Python tests with:
-
-```bash
-pytest
-```
-
-The project also contains C++ tests that can be enabled through CMake when needed.
-
-## Repository Layout
-
-```text
-include/          C++ headers for the calculation core
-bindings/         nanobind Python bindings
-python/ventpy/    Python package and visualization helpers
-tests/            Python and C++ tests
-```
+See [`CONTRIBUTING.md`](https://github.com/Miqueas7/VentPy/blob/master/CONTRIBUTING.md). The most-requested contribution is adding another country's regulatory standard, following the Chilean preset pattern (`RegulatoryConfig::chile()`): locate the values in the regulation, cite each article, add a preset, and add a test with a known case. See [`CHANGELOG.md`](https://github.com/Miqueas7/VentPy/blob/master/CHANGELOG.md) for the full version history.
 
 ## Engineering Disclaimer
 
@@ -259,4 +194,4 @@ Use it as a computational aid. Final ventilation design decisions remain the res
 
 ## License
 
-MIT
+MIT — see [`LICENSE`](https://github.com/Miqueas7/VentPy/blob/master/LICENSE).
