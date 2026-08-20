@@ -7,7 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Miqueas7/VentPy/blob/master/LICENSE)
 [![Tests](https://img.shields.io/github/actions/workflow/status/Miqueas7/VentPy/tests.yml?branch=master&label=tests)](https://github.com/Miqueas7/VentPy/actions/workflows/tests.yml)
 
-> **Documentación:** https://miqueas.dev/ventpy
+> **Documentación:** **https://miqueas.dev/ventpy** — bilingüe, con casos resueltos, las tablas normativas generadas desde la propia librería y la matriz de trazabilidad que cruza cada artículo con su código y su prueba.
+>
+> Por dónde empezar: [Instalación](https://miqueas.dev/ventpy/guia/instalacion/) · [Primer cálculo](https://miqueas.dev/ventpy/guia/primer-calculo/) · [El resultado auditable](https://miqueas.dev/ventpy/guia/resultado-auditable/) · [Casos resueltos](https://miqueas.dev/ventpy/casos/demanda/) · [Criterios de ingeniería](https://miqueas.dev/ventpy/fundamento/criterios/)
 
 Cálculos de ventilación subterránea de alto rendimiento para Python, respaldados por un núcleo en C++20.
 

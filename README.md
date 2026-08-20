@@ -7,7 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Miqueas7/VentPy/blob/master/LICENSE)
 [![Tests](https://img.shields.io/github/actions/workflow/status/Miqueas7/VentPy/tests.yml?branch=master&label=tests)](https://github.com/Miqueas7/VentPy/actions/workflows/tests.yml)
 
-> **Documentation:** https://miqueas.dev/ventpy
+> **Documentation:** **https://miqueas.dev/ventpy** — bilingual, with worked examples, the regulatory tables generated from the library itself, and the article-to-code-to-test traceability matrix.
+>
+> Start here: [Installation](https://miqueas.dev/ventpy/en/guia/instalacion/) · [First calculation](https://miqueas.dev/ventpy/en/guia/primer-calculo/) · [The auditable result](https://miqueas.dev/ventpy/en/guia/resultado-auditable/) · [Worked examples](https://miqueas.dev/ventpy/en/casos/demanda/) · [Engineering criteria](https://miqueas.dev/ventpy/en/fundamento/criterios/)
 
 High-performance underground mine ventilation calculations for Python, backed by a C++20 core.
 
