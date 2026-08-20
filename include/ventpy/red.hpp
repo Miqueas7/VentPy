@@ -182,6 +182,7 @@ public:
         constexpr double DEN_FLOOR = 1e-12;   // piso anti división-por-cero
         double max_dq = 0.0;
         int iter = 0;
+        bool nan_detected = false;
         for (; iter < params.max_iterations; ) {
             ++iter;
             max_dq = 0.0;
@@ -194,14 +195,28 @@ public:
                     den += 2.0 * result.branches[ei].r_ns2m8 * std::abs(qm);
                 }
                 const double dq = -num / std::max(den, DEN_FLOOR);
+                // Defensa en profundidad: std::max(0.0, NaN) devuelve 0.0, de
+                // modo que un NaN en la correccion se leeria como "residual
+                // nulo" y el balance se declararia convergido con caudales
+                // invalidos. Se corta de inmediato y se reporta.
+                if (!std::isfinite(dq)) {
+                    nan_detected = true;
+                    break;
+                }
                 max_dq = std::max(max_dq, std::abs(dq));
                 for (const auto& [ei, sign] : mesh) q[ei] += sign * dq;
             }
+            if (nan_detected) break;
             if (max_dq <= tol_m3s) { result.converged = true; break; }
         }
         result.iterations = iter;
         result.max_residual_m3min = max_dq * 60.0;
-        if (!result.converged) {
+        if (nan_detected) {
+            result.warnings.push_back(
+                "NO CONVERGIO: la iteracion produjo un valor no finito "
+                "(revisar resistencias y presiones de la red). Resultados NO "
+                "confiables.");
+        } else if (!result.converged) {
             std::ostringstream oss;
             oss << "NO CONVERGIO en " << iter << " iteraciones (residual "
                 << result.max_residual_m3min << " m3/min > tolerancia "
@@ -264,6 +279,16 @@ private:
                 throw std::invalid_argument(
                     "Error de dominio [VentPy]: self-loop no soportado (ramal '" +
                     b.branch_id + "').");
+            }
+            // La finitud se comprueba ANTES del XOR: un infinito satisface
+            // "r_manual > 0" y se colaria como fuente valida, envenenando el
+            // balance con NaN (los caudales saldrian NaN y el criterio de
+            // convergencia los daria por buenos).
+            if (!std::isfinite(b.r_manual)) {
+                throw std::invalid_argument(
+                    "Error de dominio [VentPy]: ramal '" + b.branch_id +
+                    "': r_manual debe ser un numero finito (recibido NaN o "
+                    "infinito).");
             }
             const bool has_airway = b.airway.has_value();
             const bool has_manual = b.r_manual > 0.0;
