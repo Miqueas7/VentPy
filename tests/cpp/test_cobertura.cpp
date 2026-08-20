@@ -137,7 +137,7 @@ TEST(CoverageZone, MedidoNegativoLanza) {
 }
 
 TEST(CoverageZone, MedidoInfinitoLanza) {
-    // FIX 1 (Task 1 pre-bindings): ANTES de isfinite en la frontera, un
+    // Regresion: ANTES de isfinite en la frontera, un
     // q_measured_m3min = inf pasaba require_non_negative (inf >= 0) y
     // reportaba compliant=true de forma espuria. Debe lanzar.
     ZoneMeasurement m;
@@ -321,7 +321,7 @@ TEST(CoverageStations, VelocidadNegativaLanza) {
 
 // ============================================================================
 // analyze_survey — balance de mina vía Governor (E2E)
-// Números derivados a mano (ver plan SP-2): zona tipo = 10 trabajadores,
+// Números derivados a mano: zona tipo = 10 trabajadores,
 // DevelopmentFace, sin flota → Q_Per = 180 (piso de velocidad) → req = 207.
 // ============================================================================
 

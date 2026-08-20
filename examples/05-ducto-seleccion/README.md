@@ -24,8 +24,8 @@ El CLI de este repo (`python/ventpy/cli.py`) expone 5 subcomandos:
 `DuctSizingCalculator`: agregar un subcomando `ducto` requeriria decidir su
 esquema de entrada/salida (¿un solo ducto o una comparacion tecnico/
 economico como este ejemplo? ¿como se expone `EconomicParams`, que es
-opcional?) — una decision de diseño de CLI que el brief de SP-5 dejo
-explicitamente fuera de v1. Este ejemplo documenta el caso via API
+opcional?): una decision de alcance de la CLI que quedo explicitamente
+fuera de v1. Este ejemplo documenta el caso via API
 directa hasta que ese subcomando exista.
 
 ## Salida esperada
@@ -49,8 +49,8 @@ McPherson (2009), Cap. 5 (via `AtkinsonCalculator`, reusado internamente
 por `DuctSizingCalculator`). La lista de diametros comerciales
 (`{0.30, 0.40, 0.50, 0.60, 0.76, 0.91, 1.07, 1.22}` m) y la velocidad
 maxima por defecto son **parametros ingenieriles del proyecto, NO
-normativos** — documentados como tales en
-`include/ventpy/ducto.hpp` (gate 2026-08-17).
+normativos**: documentados como tales en
+`include/ventpy/ducto.hpp`.
 
 ## Ejecutar
 

@@ -77,8 +77,8 @@ desarrollo, `get_min_velocity(ZoneType.DevelopmentFace)`). En este caso
 el piso de velocidad esta cubierto de sobra por el caudal que ya exige el
 diesel — no es un criterio adicional que aumente `Q_total` en este
 ejemplo, pero forma parte de la auditoria obligatoria de todo resultado
-(regla 4 de `CLAUDE.md`: estructura de auditoria completa, sin `double`
-suelto).
+(criterio de auditoria del proyecto: estructura de auditoria completa,
+sin `double` suelto).
 
 ## Ejecutar
 

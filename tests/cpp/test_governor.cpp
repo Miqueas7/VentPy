@@ -189,14 +189,11 @@ TEST_F(GovernorTest, ConfigIsPreserved) {
 }
 
 // ============================================================================
-// SP-4 Task 3: cableo de dust_params/thermal_params al Governor.
+// Cableo de dust_params/thermal_params al Governor.
 //
-// Valores derivados con replica Python EXACTA ANTES de escribir estos tests
-// (regla de oro del anexo del controlador; script guardado en el workspace
-// SDD: .superpowers/sdd/2026-08-18-sp4-polvo-termico/probe-governor-sp4.py,
-// salida completa en probe-governor-sp4-output.txt). Reutiliza resultados ya
-// testeados y GREEN de Task 1 (test_caudal_polvo.cpp) y Task 2
-// (test_caudal_termico.cpp) -- no se rederivan distinto.
+// Valores verificados con un cálculo independiente EXACTO ANTES de escribir
+// estos tests. Reutiliza resultados ya testeados y en verde de
+// test_caudal_polvo.cpp y test_caudal_termico.cpp: no se rederivan distinto.
 // ============================================================================
 
 class GovernorPolvoTermico : public ::testing::Test {
@@ -208,7 +205,7 @@ protected:
 // DevelopmentFace, 1 trabajador, altitude 0, face_area_m2 = 0.1 (neutraliza
 // el piso de velocidad de personal: 0.1 x 0.25 x 60 = 1.5 < normativo 3 =>
 // Q_per = 3, igual que GovernorTest.SafetyCeil_NeverRoundsDown).
-// dust_params = caso "SinSupresionYSafetyCeil" de Task 1 (test_caudal_polvo.cpp):
+// dust_params = caso "SinSupresionYSafetyCeil" de test_caudal_polvo.cpp:
 // 50 mg/s SIN supresion, target 2.9 => q_dust = 1035 (NO se fija face_area
 // propio: hereda 0.1 del input, mismo patron que blasting_params).
 // q_governing = max(3, 1035) = 1035 (domina polvo).
@@ -238,7 +235,7 @@ TEST_F(GovernorPolvoTermico, PolvoGobiernaConPisoNeutralizado) {
     EXPECT_NEAR(result.dust->resulting_velocity_mps, 1035.0 / 60.0 / 0.1, 1e-9);
 }
 
-// FIX 6 (revision final SP-4): las advertencias de los sub-calculadores deben
+// Regresion: las advertencias de los sub-calculadores deben
 // subir al Governor con el prefijo del factor que las origino ("Q_polvo: ",
 // "Q_termico: "; ver governor.hpp lineas 171-188). Caso base de polvo
 // (DilucionConSupresionExacta de test_caudal_polvo.cpp) + silica 12% => el
@@ -273,8 +270,8 @@ TEST_F(GovernorPolvoTermico, WarningsPrefijadasSubenAlGovernor) {
 // DevelopmentFace, 10 trabajadores, atmospheric.altitude_masl=2500,
 // atmospheric.dry_bulb_temp_c=16, face_area_m2 default (12): Q_per = 180
 // (piso de velocidad; igual que GovernorTest.PersonnelOnly a altitude=2500).
-// thermal_params = caso 4 de Task 2 (test_caudal_termico.cpp,
-// BalanceDominaSobre252d): equipos 400 kW + oxidacion 50 kW, depth 900 m,
+// thermal_params = caso 4 de test_caudal_termico.cpp
+// (BalanceDominaSobre252d): equipos 400 kW + oxidacion 50 kW, depth 900 m,
 // autocompresion 0.98, target 28 C, face_area 12 => q_thermal = 9391
 // (REUTILIZADO, no rederivado distinto).
 // q_governing = max(180, 9391) = 9391 (domina termico).
@@ -317,16 +314,17 @@ TEST_F(GovernorPolvoTermico, TermicoGobiernaE2E) {
 // GeneralMine: sumatoria de los factores. 10 trabajadores, atmospheric
 // altitude=2500/dry_bulb=16, face_area_m2 default (12) para TODO el input
 // (piso de velocidad de personal Y criterio 252.d termico).
-// SIMPLIFICACION documentada (permitida por el anexo del controlador): SIN
+// SIMPLIFICACION documentada: SIN
 // flota diesel (q_eq = 0) -- suma de 4 factores en vez de 5, para no
 // rederivar aqui el modelo Tier3 de dilucion NOx del diesel.
 //   q_per     = 180   (piso velocidad; igual que TermicoGobiernaE2E)
 //   q_eq      = 0     (sin flota diesel; simplificacion documentada)
 //   q_exp     = 1     (blasting simple 50 kg, 0.04 m3/kg, 30 min:
 //                       ceil((50*0.04)/30) = ceil(0.0667) = 1)
-//   q_dust    = 300   (caso A de Task 1, DilucionConSupresionExacta: 50 mg/s
-//                       con supresion 0.7, target 3.0 => exacto, sin resto)
-//   q_thermal = 9391  (mismo caso 4 de Task 2 que TermicoGobiernaE2E)
+//   q_dust    = 300   (caso A de DilucionConSupresionExacta en
+//                       test_caudal_polvo.cpp: 50 mg/s con supresion 0.7,
+//                       target 3.0 => exacto, sin resto)
+//   q_thermal = 9391  (mismo caso de test_caudal_termico.cpp que TermicoGobiernaE2E)
 // suma = 180+0+1+300+9391 = 9872.
 // total = ceil(9872 x 1.15) = ceil(11352.8) = 11353.
 TEST_F(GovernorPolvoTermico, GeneralMineSumaSinFlota) {

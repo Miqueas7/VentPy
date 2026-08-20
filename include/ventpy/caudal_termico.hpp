@@ -9,8 +9,9 @@
  * la temperatura del aire lo amerite (> 29°C aquí; v1 NO calcula WBGT).
  *
  * `target_effective_temp_c` (default 28°C) y `constants::MAX_EFFECTIVE_TEMP_C`
- * (30°C) son objetivos INGENIERILES heredados del derogado DS 055-2010-EM —
- * la norma vigente no fija una temperatura efectiva máxima (gate G4, SP-4).
+ * (30°C) son objetivos INGENIERILES heredados del derogado DS 055-2010-EM:
+ * la norma vigente no fija una temperatura efectiva máxima (verificación
+ * negativa: no existe valor normado).
  *
  * Modelo:
  * - Autocompresión: el aire se calienta al descender
@@ -107,10 +108,10 @@ public:
             r.warnings.push_back(oss.str());
         }
 
-        // Tolerancia FP sustractiva antes del ceil (patrón SP-2/Task-1:
-        // absorbe artefactos de punto flotante sin usar round y sin poder
-        // JAMÁS sobre-reportar: ceil(x−eps) ≤ ceil(x); lo máximo que "resta"
-        // es < 1e-9 m³/min, por debajo de precisión instrumental).
+        // Tolerancia FP sustractiva antes del ceil: absorbe artefactos de
+        // punto flotante sin usar round y sin poder JAMÁS sobre-reportar:
+        // ceil(x−eps) ≤ ceil(x); lo máximo que "resta" es < 1e-9 m³/min,
+        // por debajo de precisión instrumental.
         constexpr double FP_TOL = 1e-9;
 
         if (r.delta_t_available <= 0.5) {

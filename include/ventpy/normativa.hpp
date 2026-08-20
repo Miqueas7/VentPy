@@ -43,7 +43,7 @@ public:
      *  de 3,000 a 4,000: 5 (+70%); sobre los 4,000: 6 (+100%)".
      * Semántica de borde: '>' estricto — en el umbral exacto rige la banda
      * inferior (lectura "hasta X" inclusiva del texto normativo).
-     * (Corrección normativa 2026-08-17: versiones previas usaban 3/4/5 con
+     * (Corrección normativa: versiones previas usaban 3/4/5 con
      * umbrales 3000/4000, una banda corrida respecto del Art. 247.)
      */
     explicit RegulatoryConfig(
@@ -88,7 +88,7 @@ public:
      * @brief Preset oficial chileno — DS 132, Reglamento de Seguridad Minera.
      *
      * Valores validados contra el texto vigente (LeyChile idNorma=221064,
-     * versión 09-abr-2024) el 2026-08-17:
+     * versión 09-abr-2024):
      * - 3,0 m³/min por persona: Art. 138. El DS 132 NO escala este caudal por
      *   altitud (a diferencia del DS 024 peruano), por lo que los escalones se
      *   neutralizan (mismo caudal en todos los tramos).

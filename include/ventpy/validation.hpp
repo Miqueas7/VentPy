@@ -40,7 +40,7 @@ concept Numeric = std::integral<T> || std::floating_point<T>;
 // ============================================================================
 
 /**
- * @brief Frontera dura (SP-2): rechaza NaN/±infinito ANTES de cualquier otra
+ * @brief Frontera dura: rechaza NaN/±infinito ANTES de cualquier otra
  * regla de dominio. Solo aplica a variantes de punto flotante (los enteros no
  * pueden ser NaN/infinito).
  *

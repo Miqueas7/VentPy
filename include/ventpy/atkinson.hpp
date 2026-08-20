@@ -2,8 +2,8 @@
  * @file atkinson.hpp
  * @brief Resistencia de ramal: ecuación de Atkinson + pérdidas por choque.
  *
- * Fuente de las tablas (NO NORMATIVA — bibliografía de ingeniería, gate
- * 2026-08-17): McPherson, M.J., "Subsurface Ventilation Engineering",
+ * Fuente de las tablas (NO NORMATIVA: bibliografía de ingeniería):
+ * McPherson, M.J., "Subsurface Ventilation Engineering",
  * ed. 2009 (SRK): Cap. 5, Tabla 5.1 (p. 5-6) para k; Apéndice A5 (p. 5-26
  * a 5-38) para choque. k tabulado a densidad estándar 1.2 kg/m³
  * (corrección ρ/1.2, ec. 5.9). Conversión imperial: k[kg/m³] × 5.39e-7 =
@@ -45,7 +45,7 @@ inline const std::vector<FrictionFactorEntry>& atkinson_friction_factors() {
          "McPherson (2009), Cap. 5, Tabla 5.1, p. 5-6: Metal mines 'Arch-shaped ramps, rock bolts and mesh'"},
         {AirwayLining::TimberedCribbed, 0.14,
          "McPherson (2009), Cap. 5, Tabla 5.1, p. 5-6: Coal mines 'Cribbed entries 0.05 to 0.14' - "
-         "extremo conservador del rango (decision de gate 2026-08-17)"},
+         "se adopta el extremo conservador del rango"},
         {AirwayLining::DuctFabricCollapsible, 0.0037,
          "McPherson (2009), Cap. 5, Tabla 5.1, p. 5-6: 'Collapsible fabric ducting (forcing systems only)' - "
          "ducto nuevo; anadir ~20% por desgaste (nota 3 de la tabla)"},
@@ -79,13 +79,13 @@ inline const std::vector<ShockFactorEntry>& shock_factors() {
          "Por formula: X = 0.5*(1 - area_ratio)^2 con area_ratio = A2/A1 en (0,1)"},
         {SingularityType::Bend90, 0.0,
          "McPherson (2009), Figs. A5.1-A5.2, p. 5-27",
-         "Manual-only v1 (gate 2026-08-17): la fuente publica graficos, no constantes"},
+         "Manual-only v1: la fuente publica graficos, no constantes"},
         {SingularityType::Bend45, 0.0,
          "McPherson (2009), Fig. A5.3, p. 5-28",
          "Manual-only v1: correccion por angulo X_theta = X90 * k (grafico)"},
         {SingularityType::Junction, 0.0,
          "McPherson (2009), Ap. A5.3, p. 5-28",
-         "Manual-only en SP-3a: la formula exige velocidades de ramales (red, SP-3b)"},
+         "Manual-only: la formula exige velocidades de ramales de la red"},
     };
     return table;
 }
@@ -111,10 +111,10 @@ inline double friction_factor_for(AirwayLining lining) {
  *   expansión/contracción brusca (McPherson A5.2, p. 5-28) con A→∞.
  * - Expansion: X = (1 − area_ratio)² con area_ratio = A1/A2 (A5.2.a).
  * - Contraction: X = 0.5·(1 − area_ratio)² con area_ratio = A2/A1 (A5.2.b).
- * - Bend90/Bend45/Junction: MANUAL-ONLY v1 (gate 2026-08-17): McPherson solo
+ * - Bend90/Bend45/Junction: MANUAL-ONLY v1: McPherson solo
  *   publica gráficos (Figs. A5.1–A5.3; corrección por ángulo Xθ = X90·k en
  *   A5.3) y la fórmula de junction (A5.3) exige velocidades de ramales que
- *   solo existirán con la red (SP-3b). Requieren shock_factor_x > 0.
+ *   solo existen en el contexto de la red. Requieren shock_factor_x > 0.
  * @throws std::invalid_argument si falta el dato requerido.
  */
 inline double resolve_shock_factor(const AirwaySingularity& s) {

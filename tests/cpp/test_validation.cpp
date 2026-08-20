@@ -43,7 +43,7 @@ TEST(Validation, RequirePositive_ErrorMessageContainsParamName) {
 }
 
 // ============================================================================
-// isfinite en la frontera (FIX 1 — Task 1 pre-bindings, condicion dura SP-2)
+// isfinite en la frontera (condicion dura)
 // ============================================================================
 
 TEST(Validation, RechazaNaN) {
@@ -95,10 +95,10 @@ TEST(Validation, RequireInRange_RejectsAboveMax) {
 }
 
 TEST(Validation, RechazaBoundsNoFinitos) {
-    // Hallazgo de revision: require_in_range validaba isfinite de `value` pero
+    // Regresion: require_in_range validaba isfinite de `value` pero
     // NO de min_val/max_val. Con un bound NaN, value < NaN y value > NaN son
-    // SIEMPRE false -> el chequeo queda INERTE (acepta cualquier value) —
-    // justo lo opuesto al endurecimiento del FIX 1.
+    // SIEMPRE false -> el chequeo queda INERTE (acepta cualquier value):
+    // justo lo opuesto al endurecimiento de la validacion de frontera.
     EXPECT_THROW(v::require_in_range(0.5, std::nan(""), 1.0, "x"),
                  std::invalid_argument);
     EXPECT_THROW(

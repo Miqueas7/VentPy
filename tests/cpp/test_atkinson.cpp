@@ -69,8 +69,8 @@ TEST(TablaChoque, ExpansionSinRatioLanza) {
 }
 
 TEST(TablaChoque, BendsYJunctionSonManualOnly) {
-    // Gate 2026-08-17: McPherson solo trae gráficos (Figs. A5.1-A5.3) para codos
-    // y la fórmula de junction requiere velocidades de red (SP-3b) → manual.
+    // McPherson solo trae gráficos (Figs. A5.1-A5.3) para codos
+    // y la fórmula de junction requiere velocidades de red: manual.
     for (auto t : {SingularityType::Bend90, SingularityType::Bend45,
                    SingularityType::Junction}) {
         AirwaySingularity sin_x{t};
@@ -111,7 +111,7 @@ TEST(TablaChoque, TablaInformativa7EntradasTodasConCita) {
 }
 
 // ============================================================================
-// AtkinsonCalculator — esperados derivados con probe_sp3a.py (2026-08-17)
+// AtkinsonCalculator — esperados verificados con un cálculo independiente
 // Galería: L=500 m, per=15 m, A=14 m², k manual 0.012, T bulbo seco 20 °C.
 // ============================================================================
 

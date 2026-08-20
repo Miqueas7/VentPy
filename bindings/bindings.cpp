@@ -865,7 +865,7 @@ NB_MODULE(_ventpy_core, m) {
              "zona duplicados o alguna zona es GeneralMine.");
 
     // ========================================================================
-    // Red de ventilacion (SP-3): enums de Atkinson
+    // Red de ventilacion: enums de Atkinson
     // ========================================================================
     nb::enum_<AirwayLining>(m, "AirwayLining",
         "Tipo de labor/revestimiento para el factor de friccion de Atkinson.\n"
@@ -913,12 +913,12 @@ NB_MODULE(_ventpy_core, m) {
         .value("Contraction", SingularityType::Contraction,
                "Contraccion brusca - X por formula (Ap. A5.2(b))")
         .value("Junction", SingularityType::Junction,
-               "Union - manual-only en SP-3a (la formula exige velocidades de red)")
+               "Union: manual-only (la formula exige velocidades de red)")
         .value("Manual", SingularityType::Manual,
                "X provisto por el usuario (shock_factor_x obligatorio > 0)");
 
     // ========================================================================
-    // Red de ventilacion (SP-3): structs de entrada
+    // Red de ventilacion: structs de entrada
     // ========================================================================
     nb::class_<AirwaySingularity>(m, "AirwaySingularity",
         "Singularidad de choque de un ramal (McPherson Apendice A5).")
@@ -1047,7 +1047,7 @@ NB_MODULE(_ventpy_core, m) {
                 "Iteraciones del punto fijo (modo red)");
 
     // ========================================================================
-    // Red de ventilacion (SP-3): structs de resultado (auditables)
+    // Red de ventilacion: structs de resultado (auditables)
     // ========================================================================
     nb::class_<FrictionFactorEntry>(m, "FrictionFactorEntry",
         "Entrada de la tabla de friccion de Atkinson (auditable, con cita).")
@@ -1258,7 +1258,7 @@ NB_MODULE(_ventpy_core, m) {
     // ========================================================================
     nb::class_<DuctSizingCalculator>(m, "DuctSizingCalculator",
         "Dimensionamiento de ducto de ventilacion auxiliar.\n"
-        "Diametros comerciales default (gate 2026-08-17, NO normativos):\n"
+        "Diametros comerciales default (valores ingenieriles, NO normativos):\n"
         "{0.30, 0.40, 0.50, 0.60, 0.76, 0.91, 1.07, 1.22} m.")
         .def_static("calculate", &DuctSizingCalculator::calculate,
              nb::arg("params"), nb::arg("atm"),
