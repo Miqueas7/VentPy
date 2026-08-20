@@ -58,7 +58,9 @@ Adding another country's standard is the contribution VentPy needs most — see 
 
 ## Project Status
 
-VentPy is in **beta**. Personnel, diesel, blasting, dust, thermal, coverage, network, fan and atmospheric calculations are implemented, tested (197 C++ tests and 151 Python tests, including property-based and 500-branch scale tests) and exposed to Python for both presets.
+VentPy is in **beta**. Personnel, diesel, blasting, dust, thermal, coverage, network, fan and atmospheric calculations are implemented, tested (219 C++ tests and 176 Python tests, including property-based and 500-branch scale tests) and exposed to Python for both presets.
+
+> **Citations changed in 0.2.1 — the numbers did not.** Until 0.2.0, every result cited the Peruvian framework even when built with `RegulatoryConfig.chile()`: the airflow was correct, the legal reference printed next to it was not. From 0.2.1 the citation follows the configured standard, and where `DS 132` does not regulate a concept the citation says so explicitly instead of borrowing a Peruvian article. If you issued reports using the Chilean preset, reissue them.
 
 > **Results changed between 0.1.0 and 0.2.0.** Version 0.2.0 corrects three normative citations in the core. If you calculated anything with 0.1.0, recompute it, especially above 1,500 masl.
 >
