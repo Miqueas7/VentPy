@@ -32,7 +32,7 @@ TEST(DuctoTecnico, EligeMenorDiametroQueCumpleVelocidad) {
     AtmosphericParams atm;
     auto r = DuctSizingCalculator::calculate(base_params(), atm);
 
-    // probe_sp3a.py: solo 1.22 baja de 20 m/s (1.07 da 22.24)
+    // Verificado con un cálculo independiente: solo 1.22 baja de 20 m/s (1.07 da 22.24)
     EXPECT_TRUE(r.feasible);
     EXPECT_DOUBLE_EQ(r.selected_diameter_m, 1.22);
     EXPECT_EQ(r.options.size(), 8u);         // evaluó toda la lista default
@@ -91,7 +91,7 @@ TEST(DuctoTecnico, Validaciones) {
 
 TEST(DuctoTecnico, PresionDisponibleExactaEsViable) {
     auto p = base_params();
-    p.available_pressure_pa = 4237.2263042954680;   // DeltaP exacto de D=1.22 (probe_sp3a.py)
+    p.available_pressure_pa = 4237.2263042954680;   // DeltaP exacto de D=1.22 (verificado con calculo independiente)
     AtmosphericParams atm;
     auto r = DuctSizingCalculator::calculate(p, atm);
     EXPECT_TRUE(r.feasible);
@@ -107,7 +107,7 @@ TEST(DuctoTecnico, NegativosLanzanNoCoercionan) {
 }
 
 // ============================================================================
-// Económico — probe_sp3a.py: vmax=25 ⇒ viables 1.07 y 1.22; la energía domina
+// Económico: vmax=25 ⇒ viables 1.07 y 1.22; la energía domina
 // y el óptimo económico es el diámetro MAYOR que el técnico.
 // ============================================================================
 
@@ -124,7 +124,7 @@ TEST(DuctoEconomico, EligeCostoTotalMinimoNoElMenorDiametro) {
     EXPECT_DOUBLE_EQ(eco.selected_diameter_m, 1.22);   // costo total mínimo
     EXPECT_NE(eco.selection_criterion.find("economico"), std::string::npos);
 
-    // Desglose auditable (probe_sp3a.py)
+    // Desglose auditable (verificado con calculo independiente)
     const auto& o107 = eco.options[6];
     const auto& o122 = eco.options[7];
     EXPECT_NEAR(o107.energy_cost, 120592.36, 0.01);

@@ -131,11 +131,11 @@ def _build(struct_cls, data, allowed, builders=None):
     para la clave (construccion de sub-struct/enum anidado) se usa antes
     de asignar; si no, setattr directo.
 
-    Revision final SP-5 (hallazgo F-1): `data` puede venir con forma
-    equivocada desde JSON de usuario (struct esperado pero llega una lista,
-    tipo escalar equivocado para un campo). Sin estas dos guardas, nanobind
-    deja pasar un TypeError/AttributeError crudo hasta consola (traceback
-    completo) en vez del ValueError limpio que `main()` sabe presentar.
+    Regresion: `data` puede venir con forma equivocada desde JSON de usuario
+    (struct esperado pero llega una lista, tipo escalar equivocado para un
+    campo). Sin estas dos guardas, nanobind deja pasar un
+    TypeError/AttributeError crudo hasta consola (traceback completo) en
+    vez del ValueError limpio que `main()` sabe presentar.
     """
     builders = builders or {}
     if not isinstance(data, dict):
@@ -698,7 +698,7 @@ def cmd_ventilador(args):
     if mode == "simple":
         if "r_system_ns2m8" not in data:
             raise ValueError("modo 'simple' requiere 'r_system_ns2m8'")
-        # HALLAZGO F-2 (revision final SP-5, gemelo de HALLAZGO 1): "network"
+        # Regresion (gemela de la de abajo en modo "red"): "network"
         # y "fan_branch_id" son exclusivos del modo "red". Aceptarlos en
         # modo "simple" los descartaria en silencio (exit 0) dejando creer
         # al usuario que la red que escribio se tuvo en cuenta. Se rechaza
@@ -712,7 +712,7 @@ def cmd_ventilador(args):
             curve, data["r_system_ns2m8"], atm, params)
     elif mode == "red":
         if "atmospheric" in data:
-            # HALLAZGO 1 (fix round): en modo "red" la atmosfera vive DENTRO
+            # Regresion: en modo "red" la atmosfera vive DENTRO
             # de network{} (misma atm para el solver de red y para la curva
             # del ventilador - operating_point_in_network solo acepta UNA).
             # Aceptar tambien un atmospheric de nivel superior lo
@@ -723,7 +723,7 @@ def cmd_ventilador(args):
                 "en modo 'red' la atmosfera va dentro de network{}; "
                 "quita el atmospheric de nivel superior"
             )
-        # HALLAZGO F-2 (revision final SP-5): "r_system_ns2m8" es exclusivo
+        # Regresion: "r_system_ns2m8" es exclusivo
         # del modo "simple" - en modo "red" la resistencia la define la red
         # (network{}). Aceptarlo en modo "red" lo descartaria en silencio
         # (exit 0), igual riesgo que el atmospheric de nivel superior arriba.
@@ -844,8 +844,8 @@ def main(argv=None):
         # (nanobind traduce std::invalid_argument -> ValueError).
         # OSError: archivo de entrada inexistente/sin permisos/ruta invalida
         # (FileNotFoundError, PermissionError, etc. heredan de OSError).
-        # TypeError: red de seguridad (revision final SP-5, hallazgo F-1)
-        # para formas de JSON que ni `_build` ni un builder a medida
+        # TypeError: red de seguridad para formas de JSON que ni
+        # `_build` ni un builder a medida
         # alcanzan a traducir a ValueError (ej. un punto de curva escalar
         # donde se esperaba [q, p]: falla en un len() interno con
         # TypeError). Mejor un "error:" limpio que un traceback crudo.

@@ -83,11 +83,11 @@ from ventpy._ventpy_core import (
     ZoneCoverageResult,
     MineCoverageResult,
 
-    # Red de ventilacion (SP-3): enums
+    # Red de ventilacion: enums
     AirwayLining,
     SingularityType,
 
-    # Red de ventilacion (SP-3): structs de entrada
+    # Red de ventilacion: structs de entrada
     AirwaySingularity,
     AirwayParams,
     DuctSizingParams,
@@ -99,7 +99,7 @@ from ventpy._ventpy_core import (
     FanCurve,
     FanOperatingParams,
 
-    # Red de ventilacion (SP-3): structs de resultado
+    # Red de ventilacion: structs de resultado
     FrictionFactorEntry,
     ShockFactorEntry,
     AirwayResistanceResult,
@@ -213,11 +213,11 @@ __all__ = [
     "ZoneCoverageResult",
     "MineCoverageResult",
 
-    # Red de ventilacion (SP-3): enums
+    # Red de ventilacion: enums
     "AirwayLining",
     "SingularityType",
 
-    # Red de ventilacion (SP-3): structs de entrada
+    # Red de ventilacion: structs de entrada
     "AirwaySingularity",
     "AirwayParams",
     "DuctSizingParams",
@@ -229,7 +229,7 @@ __all__ = [
     "FanCurve",
     "FanOperatingParams",
 
-    # Red de ventilacion (SP-3): structs de resultado
+    # Red de ventilacion: structs de resultado
     "FrictionFactorEntry",
     "ShockFactorEntry",
     "AirwayResistanceResult",

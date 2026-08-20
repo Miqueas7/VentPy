@@ -2,7 +2,7 @@
  * @file ventilador.hpp
  * @brief Curva de ventilador, punto de operación y margen de stall.
  *
- * Fuente (NO NORMATIVA, gate 2026-08-18): McPherson (2009), Cap. 10 "Fans" —
+ * Fuente (NO NORMATIVA): McPherson (2009), Cap. 10 "Fans":
  * ec. (10.28) sec. 10.4.1: la presión del ventilador escala con la densidad a
  * igual caudal volumétrico (curvas de catálogo referidas a rated_density,
  * default 1.2 kg/m³); característica de stall de axiales sec. 10.1 (zona
@@ -114,8 +114,8 @@ public:
 
     /**
      * @brief Punto de operación del ventilador DENTRO de una red: punto fijo
-     * con sub-relajación sobre NetworkSolver::solve (iteración externa —
-     * viable porque cada solve usa presión fija; ver spec SP-3c).
+     * con sub-relajación sobre NetworkSolver::solve (iteración externa:
+     * viable porque cada solve usa presión fija).
      *
      * El fan_pressure_pa declarado en el ramal se IGNORA (lo gobierna la
      * curva); se advierte si venía > 0. El clamp del caudal al rango del

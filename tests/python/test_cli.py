@@ -92,9 +92,10 @@ class TestCmdDemanda:
         assert "ALTITUD" in stdout
 
     def test_valor_tipo_equivocado_exit1(self, tmp_path, capsys):
-        # Revision final SP-5 (F-1): un tipo equivocado en un campo escalar
-        # (num_workers espera int, no str) debe dar ValueError limpio con la
-        # clave senalada, NUNCA un traceback crudo del binding nanobind.
+        # Regresion: un tipo equivocado en un campo escalar debe dar error
+        # de entrada limpio, no un traceback (num_workers espera int, no
+        # str) - ValueError con la clave senalada, NUNCA un traceback
+        # crudo del binding nanobind.
         archivo = _write_json(tmp_path, "input.json", {"num_workers": "quince"})
 
         exit_code = cli.main(["demanda", archivo, "--json"])
@@ -105,9 +106,9 @@ class TestCmdDemanda:
         assert "Traceback" not in stderr
 
     def test_struct_como_lista_exit1(self, tmp_path, capsys):
-        # Revision final SP-5 (F-1): un sub-struct (blasting_params) recibido
-        # como lista en vez de dict debe dar ValueError nombrando la clave
-        # contenedora, no un AttributeError crudo ('list' no tiene .items()).
+        # Regresion: un sub-struct (blasting_params) recibido como lista en
+        # vez de dict debe dar ValueError nombrando la clave contenedora,
+        # no un AttributeError crudo ('list' no tiene .items()).
         archivo = _write_json(tmp_path, "input.json", {"blasting_params": [1, 2]})
 
         exit_code = cli.main(["demanda", archivo, "--json"])
@@ -118,9 +119,9 @@ class TestCmdDemanda:
         assert "Traceback" not in stderr
 
     def test_punto_de_curva_escalar_exit1(self, tmp_path, capsys):
-        # Revision final SP-5 (F-1): un punto de curva escalar (int en vez de
-        # [q, p]) no debe tumbar el CLI con un TypeError crudo (len() sobre
-        # int) - main() lo captura como red de seguridad -> exit 1.
+        # Regresion: un punto de curva escalar (int en vez de [q, p]) no
+        # debe tumbar el CLI con un TypeError crudo (len() sobre int) -
+        # main() lo captura como red de seguridad -> exit 1.
         payload = {
             "curve": {"fan_id": "LIN", "points": [600]},
             "mode": "simple",
@@ -208,9 +209,9 @@ class TestCmdCobertura:
         assert "zonas" in stderr
 
     def test_cobertura_modo_texto_tabla(self, tmp_path, capsys):
-        # Fix round (hallazgo 2): modo texto debe ser tabla, no el dump
-        # generico. La cabecera lleva las columnas del brief y la zona en
-        # deficit debe aparecer marcada como tal.
+        # Regresion: modo texto debe ser tabla, no el dump generico. La
+        # cabecera lleva las columnas esperadas y la zona en deficit debe
+        # aparecer marcada como tal.
         payload = {
             "zones": [
                 {
@@ -413,8 +414,8 @@ class TestCmdVentilador:
         assert "network" in stderr
 
     def test_ventilador_modo_red_con_r_system_exit1(self, tmp_path, capsys):
-        # Revision final SP-5 (F-2): en modo "red" el sistema resistivo lo
-        # define la red (network{}); un r_system_ns2m8 de nivel superior es
+        # Regresion: en modo "red" el sistema resistivo lo define la red
+        # (network{}); un r_system_ns2m8 de nivel superior es
         # ambiguo/sobrante y hoy se ignora en silencio (exit 0). Debe
         # rechazarse explicitamente, como ya se hace con "atmospheric".
         payload = {
@@ -442,9 +443,9 @@ class TestCmdVentilador:
         assert "r_system_ns2m8" in stderr
 
     def test_ventilador_modo_simple_con_network_exit1(self, tmp_path, capsys):
-        # Revision final SP-5 (F-2): espejo del caso anterior - en modo
-        # "simple" no hay red, "network"/"fan_branch_id" sobran y hoy se
-        # ignoran en silencio (exit 0). Debe rechazarse explicitamente.
+        # Regresion: espejo del caso anterior - en modo "simple" no hay red,
+        # "network"/"fan_branch_id" sobran y hoy se ignoran en silencio
+        # (exit 0). Debe rechazarse explicitamente.
         payload = {
             "curve": {
                 "fan_id": "LIN",
