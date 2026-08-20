@@ -7,7 +7,7 @@
  *  - compare_zone: puro — requerido ya calculado + medición de campo.
  *  - analyze_survey: orquestador — corre el Governor por zona y agrega.
  *
- * Sustento normativo (gate validado 2026-08-17):
+ * Sustento normativo:
  *  - DS 024-2016-EM (mod. DS 023-2017-EM), Art. 252: evaluaciones integrales
  *    semestrales; lit. f) cobertura de la demanda de la mina; lit. g)
  *    cobertura de las demandas por labor.

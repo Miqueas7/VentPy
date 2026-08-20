@@ -5,7 +5,7 @@ Verifica que los bindings nanobind exponen correctamente CoverageCalculator
 (compare_zone / analyze_survey) y las structs de entrada/resultado.
 
 Normativa: DS 024-2016-EM (mod. DS 023-2017-EM), Art. 252 lit. f/g.
-Numeros tomados del probe SP-2 / tests/cpp/test_cobertura.cpp (ya validados).
+Numeros tomados de tests/cpp/test_cobertura.cpp (ya validados).
 """
 
 import math
@@ -63,7 +63,7 @@ class TestCompareZoneDirect:
         assert r.coverage_ratio == pytest.approx(0.902)
 
     def test_measured_infinite_raises(self):
-        # FIX 1 (pre-bindings): inf pasaba require_non_negative (inf >= 0)
+        # Regresion: inf pasaba require_non_negative (inf >= 0)
         # y reportaba compliant=True de forma espuria. Debe lanzar.
         m = ventpy.ZoneMeasurement()
         m.zone_name = "Z"

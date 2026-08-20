@@ -57,11 +57,12 @@ public:
         // Calcular caudal
         const double q_m3s = r.effective_generation / p.target_concentration_mg_m3;
 
-        // Tolerancia FP sustractiva antes del ceil (patrón SP-2: V_TOL/P_TOL de
-        // ducto.hpp/cobertura.hpp): absorbe artefactos de punto flotante
-        // (ej. 50×(1−0.7)/3×60 = 300.00000000000006) sin usar round y sin
-        // poder JAMÁS sobre-reportar: ceil(x−eps) ≤ ceil(x); lo máximo que
-        // "resta" es < 1e-9 m³/min, por debajo de precisión instrumental.
+        // Tolerancia FP sustractiva antes del ceil (mismo patron que
+        // V_TOL/P_TOL en ducto.hpp/cobertura.hpp): absorbe artefactos de
+        // punto flotante (ej. 50×(1−0.7)/3×60 = 300.00000000000006) sin
+        // usar round y sin poder JAMÁS sobre-reportar: ceil(x−eps) ≤
+        // ceil(x); lo máximo que "resta" es < 1e-9 m³/min, por debajo de
+        // precisión instrumental.
         constexpr double FP_TOL = 1e-9;
         // Clamp cosmetico: evita -0.0 cuando la generacion es 0 (safety_ceil
         // (-FP_TOL) puede devolver -0.0).

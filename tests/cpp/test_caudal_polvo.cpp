@@ -72,8 +72,8 @@ TEST(CaudalPolvo, GeneracionCeroEsCaudalCero) {
     EXPECT_DOUBLE_EQ(r.q_dust, 0.0);
 }
 
-// FIX 2 (revision final SP-4): resulting_velocity_mps queda sin asignar
-// cuando face_area_m2 <= 0 (la rama "if (p.face_area_m2 > 0.0)" no corre).
+// Regresion: resulting_velocity_mps queda sin asignar cuando
+// face_area_m2 <= 0 (la rama "if (p.face_area_m2 > 0.0)" no corre).
 // Con el inicializador "= 0.0" agregado en types.hpp (DustFlowResult), el
 // valor debe ser 0.0 en vez de UB.
 TEST(CaudalPolvo, AreaCeroVelocidadCero) {

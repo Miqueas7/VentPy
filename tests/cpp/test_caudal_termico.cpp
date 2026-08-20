@@ -2,15 +2,13 @@
  * @file test_caudal_termico.cpp
  * @brief Tests del cálculo de Q_termico (DS 024, Art. 252.d + Art. 104/Anexo 13).
  *
- * Todos los valores esperados se derivaron con una réplica Python EXACTA del
- * modelo (misma fórmula ISA de atmosphere.hpp, mismo ternario de densidad de
- * sitio que atkinson.hpp/ventilador.hpp) ANTES de escribir estos tests —
- * script: .superpowers/sdd/2026-08-18-sp4-polvo-termico/../../../../
- * (guardado en el workspace SDD como probe-termico.py; salida completa en
- * task-2-report.md). Regla de oro del anexo del controlador: si el binario
- * difiere de estos valores, es BLOCKED — nunca se ajustan números aquí.
+ * Todos los valores esperados se verificaron con un cálculo independiente
+ * EXACTO del modelo (misma fórmula ISA de atmosphere.hpp, mismo ternario de
+ * densidad de sitio que atkinson.hpp/ventilador.hpp) ANTES de escribir estos
+ * tests. Si el binario difiere de estos valores, es BLOCKED: nunca se
+ * ajustan números aquí.
  *
- * Derivación (resumen; ver probe-termico.py para el detalle):
+ * Derivación (resumen):
  *   pressure_kpa(2500)              = 74.6751618663247
  *   rho(2500, dry_bulb=12C)         = 0.912315903449939
  *   rho(2500, dry_bulb=16C)         = 0.8996952442287743
@@ -54,7 +52,7 @@ TEST(CaudalTermico, BalanceSensibleFactible) {
     EXPECT_DOUBLE_EQ(r.q_thermal, 3609.0);
     EXPECT_EQ(r.regulation_ref.find("252"), std::string::npos);
     EXPECT_GT(r.resulting_velocity_mps, 0.0);
-    // FIX 3 (Task 1 pre-bindings): la oxidacion debe aparecer en el desglose
+    // Regresion: la oxidacion debe aparecer en el desglose
     // de auditoria (antes se sumaba a total_heat_load_kw pero no se exponia).
     EXPECT_DOUBLE_EQ(r.heat_from_oxidation_kw, 50.0);
     EXPECT_DOUBLE_EQ(
@@ -67,9 +65,9 @@ TEST(CaudalTermico, BalanceSensibleFactible) {
 // Caso 2: depth=1000, atm dry_bulb=18 (alt 2500). inlet = 18+0.98*1000/100 = 27.8.
 // delta_t = 28-27.8 = 0.2 (artefacto FP: 0.1999999999999993) <= 0.5 => infactible
 // por balance. PERO inlet 27.8 esta en [24,29] y face_area=12 (base_thermal) =>
-// FIX 1 (revision final SP-4): el piso legal Art. 252.d NUNCA se descarta, ni
+// Regresion: el piso legal Art. 252.d NUNCA se descarta, ni
 // siquiera cuando el balance termico es infactible: q_thermal =
-// safety_ceil(12*0.5*60 - FP_TOL) = 360 (derivado en probe-fixwave.py).
+// safety_ceil(12*0.5*60 - FP_TOL) = 360 (verificado con un cálculo independiente).
 TEST(CaudalTermico, InfactiblePorAutocompresion) {
     auto p = base_thermal();
     p.depth_below_surface_m = 1000.0;
@@ -86,13 +84,13 @@ TEST(CaudalTermico, InfactiblePorAutocompresion) {
     EXPECT_TRUE(aviso);
 }
 
-// FIX 1 (I2 - revision final SP-4): superficie 25, depth 1000 => inlet =
+// Regresion: superficie 25, depth 1000 => inlet =
 // 25+0.98*1000/100 = 34.8 (> 29, fuera de [24,29]) => delta_t = 28-34.8 =
 // -6.8 (infactible). face_area=0 => el piso 252.d NO aplica (requiere
 // face_area>0) => q_thermal = 0. El chequeo "inlet>29 => advertencia 104"
 // debe ejecutarse TAMBIEN en la rama infactible: advertencias deben contener
 // tanto "refrigeracion" (piso 252.d/infactibilidad) como "104" (Art. 104 +
-// Anexo 13). Derivado en probe-fixwave.py.
+// Anexo 13), verificado con un cálculo independiente.
 TEST(CaudalTermico, InfactibleCalienteAdvierte104) {
     auto p = base_thermal();
     p.face_area_m2 = 0.0;
@@ -214,9 +212,9 @@ TEST(CaudalTermico, Validaciones) {
 }
 
 // ============================================================================
-// FIX 4 (revision final SP-4): fronteras exactas del rango [24,29] del
-// Art. 252.d. Derivado en probe-fixwave.py (regla de oro: replica Python
-// EXACTA antes de escribir el test).
+// Regresion: fronteras exactas del rango [24,29] del
+// Art. 252.d, verificadas con un cálculo independiente EXACTO antes de
+// escribir el test.
 // ============================================================================
 
 // superficie=16.16, depth=800, autoc=0.98 => inlet = 16.16+7.84 = 24.0 EXACTO
@@ -257,7 +255,7 @@ TEST(CaudalTermico, Frontera29Activa252d) {
 }
 
 // target = inlet + 0.5 EXACTO => delta_t_available == 0.5 exacto, que cae en
-// la frontera inclusiva "<= 0.5" del gate de infactibilidad. atm_2500_12C() +
+// la frontera inclusiva "<= 0.5" del criterio de infactibilidad. atm_2500_12C() +
 // depth=800 (default) => inlet = 12+0.98*800/100 = 19.84; target = 20.34 =>
 // delta_t = 0.5 EXACTO => infactible (q_thermal=0, advertencia refrigeracion).
 // inlet 19.84 no esta en [24,29] => el piso 252.d no aplica (independiente de

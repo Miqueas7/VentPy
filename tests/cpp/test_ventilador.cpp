@@ -23,7 +23,7 @@ FanCurve curva_tipica() {
 // ============================================================================
 
 TEST(FanCurva, InterpolaYCorrigeDensidad) {
-    // probe_sp3c.py: P_cat(1500)=1600; ρ(0,20°C)=1.20412 → factor 1.00343
+    // Verificado con calculo independiente: P_cat(1500)=1600; ρ(0,20°C)=1.20412 → factor 1.00343
     const double p0 = FanCalculator::pressure_at(curva_tipica(), 1500.0,
                                                  1.2041183163746156);
     EXPECT_NEAR(p0, 1605.4910884994874, 1e-9);
@@ -73,7 +73,7 @@ TEST(FanCurva, RatedDensityDistintaEscalaCorrecto) {
 }
 
 // ============================================================================
-// operating_point — probe_sp3c.py (analítico y stall)
+// operating_point (analítico y stall)
 // ============================================================================
 
 namespace {
@@ -152,7 +152,7 @@ TEST(FanOperacion, Validaciones) {
 }
 
 // ============================================================================
-// operating_point_in_network — Red A de SP-3b + curva (probe_sp3c.py):
+// operating_point_in_network — Red A + curva (verificado con calculo independiente):
 // equilibrio Q_F = 2797.4401 m³/min, P = 519.2961 Pa; Q_P1 = 1864.96, Q_P2 = 932.48
 // ============================================================================
 
@@ -231,7 +231,7 @@ TEST(FanEnRed, PresionReportadaCoincideConElSolveEmbebido) {
 }
 
 TEST(FanEnRed, OmegaExtremoNoConvergeEspurio) {
-    // FIX 2 (Task 1 pre-bindings): con under_relaxation extrema (0.001), p_fan
+    // Regresion: con under_relaxation extrema (0.001), p_fan
     // se mueve muy poco por iteracion, pero el sistema es lo bastante sensible
     // en este punto de la curva para que |Δq| entre iteraciones sucesivas caiga
     // por debajo de la tolerancia DEFAULT (0.6 m3/min de SolverParams) alrededor

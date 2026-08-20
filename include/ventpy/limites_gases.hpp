@@ -2,7 +2,7 @@
  * @file limites_gases.hpp
  * @brief Tablas de Límites Máximos Permisibles (LMP) de gases por norma.
  *
- * Fuentes (validadas 2026-08-17 contra textos oficiales):
+ * Fuentes (validadas contra los textos oficiales):
  * - Perú: DS 024-2016-EM, Anexo 15 (obligatorio vía Art. 246, mod. DS 023-2017-EM).
  * - Chile: DS 594 Art. 66 (vía remisión del DS 132 Arts. 135/144) y DS 132.
  *
@@ -63,7 +63,7 @@ inline const std::vector<GasLimit>& gas_limits_peru() {
  *
  * Los límites en ppm NO se corrigen por altitud: el factor Fa = P/760 del
  * DS 594 Art. 63 (> 1.000 msnm) aplica SOLO a límites expresados en mg/m³;
- * la unidad canónica de esta tabla es ppm / % vol (decisión 2026-08-17).
+ * la unidad canónica de esta tabla es ppm / % vol (decisión de diseño).
  * Jornadas > 8 h requieren además el factor Fj (DS 594, Art. 62) — fuera del
  * alcance de esta tabla.
  */

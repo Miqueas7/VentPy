@@ -1,5 +1,5 @@
 """
-Tests de integracion Python de la red de ventilacion (SP-3): Atkinson,
+Tests de integracion Python de la red de ventilacion: Atkinson,
 dimensionamiento de ducto, solver de red (Hardy Cross) y ventilador.
 
 Verifica que los bindings nanobind exponen correctamente AtkinsonCalculator,
@@ -9,7 +9,7 @@ entrada/resultado y los enums AirwayLining / SingularityType.
 Fuente NO NORMATIVA (bibliografia de ingenieria): McPherson, M.J.,
 "Subsurface Ventilation Engineering", ed. 2009 (SRK) - Cap. 5 (Atkinson),
 Cap. 7 (red, Hardy Cross), Cap. 10 (ventiladores).
-Numeros tomados de los probes SP-3 / tests/cpp/{test_atkinson,test_ducto,
+Numeros tomados de tests/cpp/{test_atkinson,test_ducto,
 test_red,test_ventilador}.cpp (ya validados).
 """
 
@@ -189,7 +189,7 @@ class TestDuctoEconomico:
 
 
 # ============================================================================
-# NetworkSolver - Hardy Cross (Red A: paralelo analitico, probe_sp3b.py)
+# NetworkSolver - Hardy Cross (Red A: paralelo analitico)
 # ============================================================================
 
 
@@ -239,8 +239,9 @@ class TestNetworkSolver:
 class TestValidacionVisibleEnFrontera:
     def test_airway_params_length_cero_lanza(self):
         # Validacion visible desde Python de una entrada cruda invalida
-        # en frontera: AirwayParams con length 0 lanza ValueError (regla
-        # #2 del CLAUDE.md: valida en frontera, no en interior).
+        # en frontera: AirwayParams con length 0 lanza ValueError (la
+        # convencion de validacion en frontera del proyecto: valida en
+        # frontera, no en interior).
         p = ventpy.AirwayParams()
         p.airway_id = "x"
         p.length_m = 0.0

@@ -38,6 +38,10 @@ CLAUDE.md
 docs/
 AGENT_NOTES.md
 
+# Local agent tooling state (not part of the published package)
+.claude/
+.superpowers/
+
 # OS files
 .DS_Store
 Thumbs.db

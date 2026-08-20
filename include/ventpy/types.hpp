@@ -70,7 +70,7 @@ enum class ConcentrationUnit {
  * `regulation_ref`. Los campos de valor son opcionales porque cada norma
  * define combinaciones distintas (TWA+STEL, solo techo, mínimo para O2);
  * toda entrada publicada garantiza al menos un valor presente.
- * Unidad canónica: ppm / % vol (decisión de diseño 2026-08-17 — comparar en
+ * Unidad canónica: ppm / % vol (decisión de diseño: comparar en
  * la unidad en que se mide; los pares en mg/m³ quedan en la cita).
  */
 struct GasLimit {
@@ -299,8 +299,8 @@ struct ZoneMeasurement {
  * @brief Umbrales del análisis de cobertura.
  *
  * `warning_margin` y `overventilation_factor` son criterios INGENIERILES
- * (no normados — verificación negativa del gate 2026-08-17). Los límites de
- * velocidad provienen del DS 024-2016-EM, Art. 248 (texto original vigente).
+ * (no normados: verificación negativa, no existe valor normado). Los límites
+ * de velocidad provienen del DS 024-2016-EM, Art. 248 (texto original vigente).
  */
 struct CoverageParams {
     double warning_margin = 0.10;         ///< Advertir si cobertura < 1+margen (ingenieril)
@@ -310,7 +310,7 @@ struct CoverageParams {
     bool anfo_or_blasting_agents = false; ///< Art. 248: con ANFO el mínimo es 25 m/min
 };
 
-/// Tipo de labor/revestimiento — mapeo 1:1 a McPherson (2009) Tabla 5.1 (gate 2026-08-17).
+/// Tipo de labor/revestimiento: mapeo 1:1 a McPherson (2009) Tabla 5.1.
 enum class AirwayLining {
     SmoothLined, Shotcrete, UnlinedMinorIrreg, UnlinedTypical, UnlinedRough,
     ArchedDriftBolted, ArchedRampBolted, TimberedCribbed,
@@ -582,8 +582,8 @@ struct MineCoverageResult {
     std::string regulation_ref;
 };
 
-/// Resultado auditable de resistencia de ramal (SIN safety_ceil: R y ΔP crudos —
-/// redondearlos falsearía el balance de red; ver spec SP-3a).
+/// Resultado auditable de resistencia de ramal (SIN safety_ceil: R y ΔP crudos:
+/// redondearlos falsearía el balance de red).
 struct AirwayResistanceResult {
     std::string airway_id;
     double k_used = 0.0;              ///< k a ρ estándar 1.2
@@ -601,7 +601,7 @@ struct AirwayResistanceResult {
 };
 
 // ============================================================================
-// Structs para dimensionamiento de ducto (Task 3, SP-3a)
+// Structs para dimensionamiento de ducto
 // ============================================================================
 
 /**
@@ -619,7 +619,7 @@ struct DuctSizingParams {
 };
 
 /**
- * @brief Parámetros económicos para optimización de ducto (Task 4).
+ * @brief Parámetros económicos para optimización de ducto.
  */
 struct EconomicParams {
     double energy_cost_per_kwh = 0.0;                               ///< Costo energía [USD/kWh]
@@ -639,9 +639,9 @@ struct DuctOptionResult {
     double pressure_drop_pa = 0.0;      ///< Caída de presión [Pa]
     bool velocity_ok = false;           ///< Cumple v ≤ vmax
     bool pressure_ok = false;           ///< Cumple ΔP ≤ disponible (si aplica)
-    double energy_cost = 0.0;           ///< Costo energético anual [USD] (Task 4)
-    double capital_cost = 0.0;          ///< Costo capital [USD] (Task 4)
-    double total_cost = 0.0;            ///< Costo total [USD] (Task 4)
+    double energy_cost = 0.0;           ///< Costo energético anual [USD] (solo en el nivel economico)
+    double capital_cost = 0.0;          ///< Costo capital [USD] (solo en el nivel economico)
+    double total_cost = 0.0;            ///< Costo total [USD] (solo en el nivel economico)
     std::string rejection_reason;       ///< Razón de rechazo; vacío si viable
 };
 
@@ -658,7 +658,7 @@ struct DuctSizingResult {
 };
 
 // ============================================================================
-// Structs para solver de red de ventilación (SP-3b Hardy Cross)
+// Structs para solver de red de ventilación (Hardy Cross)
 // ============================================================================
 
 /// Ramal de la red. Resistencia: exactamente UNA fuente (XOR):
@@ -707,7 +707,7 @@ struct NetworkSolveResult {
 };
 
 // ============================================================================
-// Structs para ventilador (SP-3c)
+// Structs para ventilador
 // ============================================================================
 
 struct FanCurvePoint {

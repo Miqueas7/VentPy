@@ -12,7 +12,7 @@ using namespace ventpy;
 
 // ============================================================================
 // Perú — DS 024-2016-EM, Anexo 15 (obligatorio vía Art. 246)
-// Valores validados en anexo de investigación 2026-08-17
+// Valores validados contra el texto normativo
 // ============================================================================
 
 TEST(LimitesGasesPeru, CO_Twa25ppm_SinStelNiTecho) {
@@ -82,7 +82,7 @@ TEST(LimitesGasesPeru, TablaCompleta_8Gases_TodasConRef) {
 
 // ============================================================================
 // Chile — DS 594 Art. 66 (vía remisión del DS 132) y DS 132
-// Decisiones del gate 2026-08-17: CO lleva el LPP 44 ppm del DS 594 (el umbral
+// Criterio adoptado: CO lleva el LPP 44 ppm del DS 594 (el umbral
 // de paralización diésel de 40 ppm del DS 132 Art. 135 queda en la cita);
 // NO2 2,6 ppm del DS 594 gobierna (NOx 20 ppm queda en la cita).
 // Los ppm chilenos NO se corrigen por altitud (Fa aplica solo a mg/m³, Art. 63).

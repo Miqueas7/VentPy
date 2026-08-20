@@ -17,7 +17,7 @@ NetworkBranch mk(const std::string& id, const std::string& f, const std::string&
     b.r_manual = r; b.fan_pressure_pa = fan;
     return b;
 }
-NetworkDefinition red_a() {   // paralelo analítico (probe_sp3b.py)
+NetworkDefinition red_a() {   // paralelo analítico (verificado con calculo independiente)
     NetworkDefinition d;
     d.branches = { mk("F","S","A",0.05,500.0), mk("P1","A","B",0.2),
                    mk("P2","A","B",0.8),       mk("R","B","S",0.1) };
@@ -26,7 +26,7 @@ NetworkDefinition red_a() {   // paralelo analítico (probe_sp3b.py)
 } // namespace
 
 // ============================================================================
-// Topología y validaciones (Task 1)
+// Topología y validaciones
 // ============================================================================
 
 TEST(RedTopologia, CuentaNodosYMallas) {
@@ -99,7 +99,7 @@ TEST(RedValidacion, ParamsInvalidosLanzan) {
 }
 
 // ============================================================================
-// Hardy Cross — Red A: solución ANALÍTICA (ley cuadrática, probe_sp3b.py):
+// Hardy Cross — Red A: solución ANALÍTICA (ley cuadrática):
 //   R_eq paralelo = 1/(1/√0.2 + 1/√0.8)² = 0.088889; R_serie = 0.238889
 //   Q_total = √(500/0.238889) = 45.74957 m³/s = 2744.9743 m³/min
 //   Q_P1 = 2/3·Q_total = 1829.9828 ; Q_P2 = 1/3·Q_total = 914.9914
@@ -148,7 +148,7 @@ TEST(RedHardyCross, ConservacionEnNodos) {
 }
 
 TEST(RedHardyCross, RedDosMallasCoincideConProbe) {
-    // probe_sp3b.py Red B: F S→A r0.03 fan800 | B1 A→B r0.5 | B2 A→C r0.9
+    // Red B: F S→A r0.03 fan800 | B1 A→B r0.5 | B2 A→C r0.9
     //                      | B3 B→C r0.6 | B5 C→S r0.25
     NetworkDefinition d;
     d.branches = { mk("F","S","A",0.03,800.0), mk("B1","A","B",0.5),
@@ -197,7 +197,7 @@ TEST(RedHardyCross, QInicialCustomRespetado) {
 // ============================================================================
 
 TEST(RedIntegracion, RamalPorAirwayUsaRTotalDeAtkinson) {
-    // Galería del caso SP-3a: L=500, per=15, A=14, k=0.012 manual
+    // Galería del caso de la red: L=500, per=15, A=14, k=0.012 manual
     AirwayParams gal;
     gal.airway_id = "GAL"; gal.length_m = 500.0; gal.perimeter_m = 15.0;
     gal.area_m2 = 14.0; gal.lining = AirwayLining::Manual; gal.atkinson_k = 0.012;
@@ -209,7 +209,7 @@ TEST(RedIntegracion, RamalPorAirwayUsaRTotalDeAtkinson) {
     SolverParams sp; sp.tolerance_m3min = 0.006; sp.max_iterations = 1000;
     auto r = NetworkSolver::solve(d, atm, sp);
 
-    // R de P1 = la de AtkinsonCalculator (probe SP-3a): 0.0329113971312304
+    // R de P1 = la de AtkinsonCalculator (verificado con calculo independiente): 0.0329113971312304
     EXPECT_NEAR(r.branches[1].r_ns2m8, 0.0329113971312304, 1e-12);
     EXPECT_TRUE(r.converged);
     // velocidad reportada = Q/(60·A)

@@ -2,12 +2,12 @@
  * @file ducto.hpp
  * @brief Dimensionamiento de ducto de ventilación auxiliar.
  *
- * NOTA DE CAPAS (enmienda 2026-08-17, SP-3a): atkinson.hpp es un header de
+ * NOTA DE CAPAS: atkinson.hpp es un header de
  * física base (tablas k/X + resistencia de conducto), no un calculador de
  * caudal de demanda; ducto.hpp lo incluye para no duplicar la física. La
  * cadena sigue siendo acíclica: types → atmosphere → atkinson → ducto.
  *
- * Defaults ingenieriles (gate 2026-08-17, NO normativos): velocidad máxima
+ * Defaults ingenieriles (NO normativos): velocidad máxima
  * de ducto 20 m/s; diámetros comerciales {0.30, 0.40, 0.50, 0.60, 0.76,
  * 0.91, 1.07, 1.22} m (12"–48").
  *
@@ -96,7 +96,7 @@ public:
     }
 
 private:
-    // Task 4 añade calculate_full y el costeo; evaluate_options es compartido.
+    // El costeo economico (calculate_full) reutiliza este evaluador; evaluate_options es compartido.
     [[nodiscard]] static DuctSizingResult evaluate_options(
         const DuctSizingParams& p, const AtmosphericParams& atm,
         const EconomicParams* eco
@@ -107,7 +107,8 @@ private:
             "max_velocity_mps [m/s] - Velocidad maxima de ducto (0 = default)");
         validation::require_non_negative(p.available_pressure_pa,
             "available_pressure_pa [Pa] - Presion disponible (0 = sin restriccion)");
-        // Tolerancia FP absoluta en fronteras (leccion SP-2)
+        // Tolerancia FP absoluta en fronteras: evita falsos rechazos por
+        // artefactos de punto flotante en los limites de velocidad/presion
         constexpr double V_TOL = 1e-9;   // [m/s]
         constexpr double P_TOL = 1e-6;   // [Pa] absorbe artefacto FP; despreciable (~1e-10 de los ΔP típicos)
 
@@ -121,7 +122,7 @@ private:
 
         DuctSizingResult r;
         r.biblio_ref = "Fisica: McPherson (2009) Cap. 5 (Atkinson); defaults "
-                       "ingenieriles de gate 2026-08-17 (NO normativos)";
+                       "ingenieriles del proyecto (NO normativos)";
         const double q_m3s = p.q_m3min / 60.0;
 
         for (double d : diams) {
@@ -154,7 +155,7 @@ private:
                     << p.available_pressure_pa;
                 o.rejection_reason = oss.str();
             }
-            (void)eco;   // Task 4 costea aquí
+            (void)eco;   // usado por el costeo economico
             r.options.push_back(std::move(o));
         }
         return r;

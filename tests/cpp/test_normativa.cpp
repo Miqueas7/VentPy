@@ -37,7 +37,7 @@ TEST(RegulatoryPresets, Peru_MatchesConstructorDefaults) {
 // ============================================================================
 // peru(): escala del Art. 247 (texto original, no modificado por DS 023-2017)
 // "hasta 1,500 msnm: 3 m³/min; de 1,500 a 3,000: 4; de 3,000 a 4,000: 5;
-//  sobre los 4,000: 6" — corrección normativa 2026-08-17 (gate G6)
+//  sobre los 4,000: 6" (corrección normativa)
 // ============================================================================
 
 TEST(RegulatoryPresets, Peru_EscalaPorPersonaArt247) {
@@ -62,7 +62,7 @@ TEST(RegulatoryPresets, ThresholdsNoCrecientes_Lanza) {
 }
 
 // ============================================================================
-// chile(): valores del DS 132 validados (anexo de investigación 2026-08-17)
+// chile(): valores del DS 132 validados contra el texto normativo
 // ============================================================================
 
 TEST(RegulatoryPresets, Chile_ValuesFromDS132) {
@@ -77,7 +77,7 @@ TEST(RegulatoryPresets, Chile_ValuesFromDS132) {
     EXPECT_DOUBLE_EQ(chile.flow_above_threshold_3(), 3.0);
     // DS 132, Art. 132: 2,83 m³/min por HP efectivo al freno
     EXPECT_DOUBLE_EQ(chile.diesel_hp_factor(), 2.83);
-    // No regulados por DS 132 — defaults ingenieriles conservados (gate 2026-08-17)
+    // No regulados por DS 132 — defaults ingenieriles conservados (criterio adoptado)
     EXPECT_DOUBLE_EQ(chile.max_dilution_time(), 30.0);
     EXPECT_DOUBLE_EQ(chile.default_gas_volume_per_kg(), 0.04);
     EXPECT_DOUBLE_EQ(chile.default_leakage_factor(), 0.15);
@@ -116,7 +116,7 @@ TEST(RegulatoryPresets, StandardName_PeruUnchanged) {
 
 // ============================================================================
 // End-to-end: preset chileno a través del Governor (calculate_full)
-// Derivación (governor-investigation.md, 2026-08-17):
+// Derivación:
 //   Desglose normativo chileno:
 //     flow_per_person_base = 3,0 (Art. 138 — SIN escalón a 4.200 msnm)
 //     hp_factor_base = 2,83 (Art. 132)
