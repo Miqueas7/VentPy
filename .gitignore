@@ -1,6 +1,7 @@
 # Build artifacts
 build/
 build-tests/
+build-release/
 _build/
 dist/
 wheelhouse/
