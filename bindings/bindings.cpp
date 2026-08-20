@@ -852,9 +852,11 @@ NB_MODULE(_ventpy_core, m) {
         .def_static("compare_zone", &CoverageCalculator::compare_zone,
              nb::arg("q_required_m3min"), nb::arg("measurement"),
              nb::arg("params") = CoverageParams{},
+             nb::arg("config") = RegulatoryConfig::peru(),
              "Nivel puro: compara un requerido ya calculado contra la medicion.\n"
-             "Lanza ValueError si la medicion no tiene exactamente una fuente,\n"
-             "o ante cualquier dato fuera de dominio.")
+             "config fija la norma de la cita emitida (por defecto, el preset\n"
+             "peruano). Lanza ValueError si la medicion no tiene exactamente\n"
+             "una fuente, o ante cualquier dato fuera de dominio.")
         .def_static("analyze_survey", &CoverageCalculator::analyze_survey,
              nb::arg("zones"), nb::arg("config"),
              nb::arg("params") = CoverageParams{},

@@ -20,10 +20,15 @@
  *    - Verificación de que el caudal genera velocidad ≥ 0.25 m/s
  *    - DS 024-2016-EM, Art. 236
  *
- * Referencias normativas:
+ * Referencias normativas (Perú, preset por defecto):
  * - DS 024-2016-EM, Art. 236: Mínimo 3 m³/min por persona
  * - DS 024-2016-EM, Art. 236: Mínimo 19.5% de O2
  * - DS 024-2016-EM, Art. 236: Velocidad mínima 0.25 m/s
+ * - DS 024-2016-EM, Art. 247: Escala de caudal por altitud
+ *
+ * La cita emitida en `regulation_ref` sigue a `config.standard()` a través de
+ * `regulation_reference` (normativa.hpp): bajo el DS 132 chileno el caudal por
+ * persona es el Art. 138 y no existe escala por altitud que citar.
  *
  * @copyright 2026 VentPy Project
  */
@@ -33,6 +38,7 @@
 #include <algorithm>
 #include <cmath>
 #include <sstream>
+#include <string>
 
 #include "ventpy/atmosphere.hpp"
 #include "ventpy/normativa.hpp"
@@ -168,7 +174,9 @@ public:
         result.flow_per_person_corrected = result.flow_per_person_base;
         result.q_personnel = safety_ceil(num_workers * result.flow_per_person_base);
         result.min_velocity_check_mps = 0.0;
-        result.regulation_ref = "DS 024-2016-EM, Art. 236 [Gobernante: normativo]";
+        result.regulation_ref =
+            regulation_reference(RegulatoryTopic::PersonnelFlow, config) +
+            " [Gobernante: normativo]";
         return result;
     }
 
@@ -262,20 +270,27 @@ private:
         double q_vel
     ) {
         std::ostringstream oss;
-        oss << "DS 024-2016-EM, Art. 236";
+        oss << regulation_reference(RegulatoryTopic::PersonnelFlow, config);
 
-        if (altitude > config.altitude_threshold_3()) {
-            oss << " + Art. 247 escala altitud (>"
-                << static_cast<int>(config.altitude_threshold_3())
-                << " msnm)";
-        } else if (altitude > config.altitude_threshold_2()) {
-            oss << " + Art. 247 escala altitud (>"
-                << static_cast<int>(config.altitude_threshold_2())
-                << " msnm)";
-        } else if (altitude > config.altitude_threshold_1()) {
-            oss << " + Art. 247 escala altitud (>"
-                << static_cast<int>(config.altitude_threshold_1())
-                << " msnm)";
+        // La cláusula de escala por altitud solo existe donde la norma escala
+        // el caudal por persona; si la norma activa no lo hace, la referencia
+        // del concepto viene vacía y no se cita nada.
+        const std::string altitude_scale =
+            regulation_reference(RegulatoryTopic::PersonnelAltitudeScale, config);
+        if (!altitude_scale.empty()) {
+            if (altitude > config.altitude_threshold_3()) {
+                oss << " + " << altitude_scale << " (>"
+                    << static_cast<int>(config.altitude_threshold_3())
+                    << " msnm)";
+            } else if (altitude > config.altitude_threshold_2()) {
+                oss << " + " << altitude_scale << " (>"
+                    << static_cast<int>(config.altitude_threshold_2())
+                    << " msnm)";
+            } else if (altitude > config.altitude_threshold_1()) {
+                oss << " + " << altitude_scale << " (>"
+                    << static_cast<int>(config.altitude_threshold_1())
+                    << " msnm)";
+            }
         }
 
         // Indicar criterio gobernante

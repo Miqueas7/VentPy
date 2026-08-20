@@ -2,11 +2,18 @@
  * @file caudal_termico.hpp
  * @brief Cálculo de caudal por carga térmica (Q_termico).
  *
- * Normativa: DS 024-2016-EM, Art. 252.d (mod. DS 023-2017-EM): velocidad
- * mínima de 30 m/min cuando la temperatura seca de la labor está entre 24 y
- * 29°C — único criterio de ventilación térmica citable de la norma vigente.
- * Art. 104 + Anexo 13: remisión a evaluación de estrés térmico (WBGT) cuando
- * la temperatura del aire lo amerite (> 29°C aquí; v1 NO calcula WBGT).
+ * Normativa (Perú, preset por defecto): DS 024-2016-EM, Art. 252.d (mod.
+ * DS 023-2017-EM): velocidad mínima de 30 m/min cuando la temperatura seca de
+ * la labor está entre 24 y 29°C — único criterio de ventilación térmica
+ * citable de la norma vigente. Art. 104 + Anexo 13: remisión a evaluación de
+ * estrés térmico (WBGT) cuando la temperatura del aire lo amerite (> 29°C
+ * aquí; v1 NO calcula WBGT).
+ *
+ * La cita emitida en `regulation_ref` sigue a `config.standard()` a través de
+ * `regulation_reference` (normativa.hpp). Bajo el DS 132 chileno esta librería
+ * no tiene un criterio de ventilación térmica verificado: el piso de 30 m/min
+ * se sigue exigiendo —es el resultado conservador y el caudal no cambia— pero
+ * la cita lo declara criterio de ingeniería en vez de atribuirlo al DS 132.
  *
  * `target_effective_temp_c` (default 28°C) y `constants::MAX_EFFECTIVE_TEMP_C`
  * (30°C) son objetivos INGENIERILES heredados del derogado DS 055-2010-EM:
@@ -63,7 +70,6 @@ public:
         const ThermalParams& p, const AtmosphericParams& atm,
         const RegulatoryConfig& config
     ) {
-        (void)config;   // reservado para presets con criterio distinto (multi-norma)
         validation::require_non_negative(p.heat_from_equipment_kw,
             "heat_from_equipment_kw [kW] - Calor de equipos");
         validation::require_non_negative(p.heat_from_oxidation_kw,
@@ -125,17 +131,12 @@ public:
             if (in_252d_range_infeasible && p.face_area_m2 > 0.0) {
                 r.q_thermal = std::max(0.0,
                     safety_ceil(p.face_area_m2 * 0.5 * 60.0 - FP_TOL));
-                r.regulation_ref =
-                    "DS 024-2016-EM, Art. 252.d (velocidad minima 30 m/min "
-                    "con temperatura seca 24-29 C) — balance termico "
-                    "sensible INFACTIBLE por autocompresion, se requiere "
-                    "refrigeracion mecanica adicional para alcanzar el "
-                    "objetivo termico";
+                r.regulation_ref = regulation_reference(
+                    RegulatoryTopic::ThermalInfeasibleWithFloor, config);
             } else {
                 r.q_thermal = 0.0;
-                r.regulation_ref =
-                    "DS 024-2016-EM: objetivo de diseño no alcanzable por "
-                    "ventilacion (autocompresion agota el ΔT disponible)";
+                r.regulation_ref = regulation_reference(
+                    RegulatoryTopic::ThermalInfeasibleNoFloor, config);
             }
             std::ostringstream oss;
             oss << "INFACTIBLE por autocompresion: temperatura de entrada ("
@@ -154,8 +155,10 @@ public:
                 std::ostringstream oss2;
                 oss2 << "Temperatura de entrada (" << inlet_temp_bottom
                     << " C) supera 29 C: remitir a evaluacion de estres "
-                       "termico WBGT (Art. 104 + Anexo 13; no calculado por "
-                       "este calculador)";
+                       "termico WBGT ("
+                    << regulation_reference(
+                           RegulatoryTopic::ThermalStressReferral, config)
+                    << "; no calculado por este calculador)";
                 r.warnings.push_back(oss2.str());
             }
             return r;
@@ -180,18 +183,14 @@ public:
 
         double q_thermal = q_balance;
         std::string regulation_ref =
-            "DS 024-2016-EM: balance termico sensible (criterio ingenieril; "
-            "carga = equipos + oxidacion, autocompresion reduce el DT "
-            "disponible)";
+            regulation_reference(RegulatoryTopic::ThermalBalance, config);
 
         if (in_252d_range && p.face_area_m2 > 0.0) {
             const double q_for_velocity_raw = p.face_area_m2 * 0.5 * 60.0;
             const double q_for_velocity = safety_ceil(q_for_velocity_raw - FP_TOL);
             q_thermal = std::max(q_balance, q_for_velocity);
-            regulation_ref =
-                "DS 024-2016-EM, Art. 252.d (velocidad minima 30 m/min con "
-                "temperatura seca 24-29 C) combinado con balance termico "
-                "sensible (criterio ingenieril)";
+            regulation_ref = regulation_reference(
+                RegulatoryTopic::ThermalWithVelocityFloor, config);
         }
 
         // Clamp cosmetico: evita -0.0 cuando la carga/generacion es 0

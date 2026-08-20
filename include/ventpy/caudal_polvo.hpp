@@ -2,11 +2,19 @@
  * @file caudal_polvo.hpp
  * @brief Cálculo de caudal para dilución de polvo respirable (Q_polvo).
  *
- * Normativa: DS 024-2016-EM, Art. 111 (texto original, no modificado por el
- * DS 023-2017-EM): LEO de polvo respirable 3 mg/m³ para jornada de 8 h, con
- * obligación de paralizar la labor si se supera. La sílice NO tiene valor
- * propio en el articulado (remite al Anexo 15 / DS 015-2005-SA): este
- * calculador advierte la remisión, nunca inventa un límite.
+ * Normativa (Perú, preset por defecto): DS 024-2016-EM, Art. 111 (texto
+ * original, no modificado por el DS 023-2017-EM): LEO de polvo respirable
+ * 3 mg/m³ para jornada de 8 h, con obligación de paralizar la labor si se
+ * supera. La sílice NO tiene valor propio en el articulado (remite al Anexo 15
+ * / DS 015-2005-SA): este calculador advierte la remisión, nunca inventa un
+ * límite.
+ *
+ * La cita emitida en `regulation_ref` sigue a `config.standard()` a través de
+ * `regulation_reference` (normativa.hpp). Bajo el DS 132 chileno esta librería
+ * no tiene un límite de polvo respirable verificado: la cita lo declara y
+ * atribuye la concentración objetivo a criterio de ingeniería del usuario, en
+ * vez de trasladar el Art. 111 peruano. El umbral de 3 mg/m³ de las
+ * advertencias es, bajo esa norma, una referencia ingenieril.
  *
  * Modelo: dilución con aire de ingreso limpio (C_in = 0, conservador respecto
  * de aire de ingreso ya cargado NO — documentado: si el ingreso trae polvo,
@@ -34,7 +42,6 @@ public:
     [[nodiscard]] static DustFlowResult calculate(
         const DustParams& p, const RegulatoryConfig& config
     ) {
-        (void)config;   // reservado para presets con LEO distinto (multi-norma)
         validation::require_non_negative(p.dust_generation_rate_mg_s,
             "dust_generation_rate_mg_s [mg/s] - Generacion de polvo");
         validation::require_positive(p.target_concentration_mg_m3,
@@ -71,20 +78,22 @@ public:
             r.resulting_velocity_mps = (r.q_dust / 60.0) / p.face_area_m2;
         }
         r.regulation_ref =
-            "DS 024-2016-EM, Art. 111 (LEO polvo respirable 3 mg/m3, jornada "
-            "8 h; paralizacion si se supera)";
+            regulation_reference(RegulatoryTopic::DustRespirableLimit, config);
 
         if (p.silica_content_percent > 0.0) {
             std::ostringstream oss;
             oss << "Silice presente (" << p.silica_content_percent
-                << "%): el LEO especifico de silice se rige por el Anexo 15 / "
-                << "DS 015-2005-SA (no cuantificado por este calculador)";
+                << "%): el limite especifico de silice se rige por "
+                << regulation_reference(
+                       RegulatoryTopic::DustSilicaReferral, config)
+                << " (no cuantificado por este calculador)";
             r.warnings.push_back(oss.str());
         }
         if (p.target_concentration_mg_m3 > 3.0) {
             std::ostringstream oss;
             oss << "Concentracion objetivo (" << p.target_concentration_mg_m3
-                << " mg/m3) por ENCIMA del LEO del Art. 111 (3 mg/m3)";
+                << " mg/m3) por ENCIMA de 3 mg/m3 - "
+                << regulation_reference(RegulatoryTopic::DustLimitBasis, config);
             r.warnings.push_back(oss.str());
         }
         return r;

@@ -25,10 +25,15 @@
  *    - DS 024: máximo 30 min
  *    - Considera tiempo de medición con detector
  *
- * Referencias normativas:
+ * Referencias normativas (Perú, preset por defecto):
  * - DS 024-2016-EM, Art. 243: 30 min máximo de espera
  * - DS 024-2016-EM, Art. 244: Circuito de ventilación obligatorio
  * - DS 024-2016-EM, Art. 108: TLV CO=25ppm, NO2=5ppm
+ *
+ * La cita emitida en `regulation_ref` sigue a `config.standard()` a través de
+ * `regulation_reference` (normativa.hpp). El DS 132 chileno NO fija tiempo de
+ * dilución ni volumen de gases por kg: el reingreso tras la tronadura lo
+ * gobiernan sus Arts. 156, 571 y 585, y los 30 min son criterio de ingeniería.
  *
  * @copyright 2026 VentPy Project
  */
@@ -284,12 +289,17 @@ private:
         const BlastingFlowResult& result
     ) {
         std::ostringstream oss;
-        oss << "DS 024-2016-EM, Art. 243-244";
+        oss << regulation_reference(RegulatoryTopic::BlastingDilution, config);
 
-        // Advertencia si tiempo excede normativo
+        // Advertencia si el tiempo excede el tope aplicable. El tope es
+        // normativo bajo el DS 024 y meramente configurado bajo el DS 132,
+        // que no fija tiempo de dilución: la etiqueta lo distingue.
         if (params.dilution_time_min > config.max_dilution_time()) {
             oss << " [ADVERTENCIA: t=" << params.dilution_time_min
-                << "min > max normativo " << config.max_dilution_time() << "min]";
+                << "min > " << config.max_dilution_time() << "min ("
+                << regulation_reference(
+                       RegulatoryTopic::BlastingDilutionTimeLimit, config)
+                << ")]";
         }
 
         oss << " [Gobernante: " << result.governing_criterion << "]";

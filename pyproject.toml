@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "ventpy"
-version = "0.2.0"
+version = "0.2.1"
 description = "High-performance mine ventilation library: airflow demand, coverage, network solving and fan selection (Peru DS 024, Chile DS 132)"
 readme = "README.md"
 license = "MIT"

@@ -15,6 +15,7 @@
 #pragma once
 
 #include <stdexcept>
+#include <string>
 
 #include "ventpy/types.hpp"
 #include "ventpy/validation.hpp"
@@ -221,5 +222,188 @@ private:
                             "default_leakage_factor");
     }
 };
+
+/**
+ * @brief Concepto de ventilación cuyo respaldo legal depende de la norma activa.
+ *
+ * Cada calculador cita su fuente a través de `regulation_reference`, de modo que
+ * la referencia sigue a `RegulatoryConfig::standard()` y no a un literal fijo.
+ * Es el único lugar del núcleo donde vive el texto de una cita normativa.
+ */
+enum class RegulatoryTopic {
+    PersonnelFlow,              ///< Caudal mínimo por persona
+    PersonnelAltitudeScale,     ///< Escalón de caudal por altitud (vacío si la norma no escala)
+    DieselHpFactor,             ///< Caudal por HP de equipo diésel
+    BlastingDilution,           ///< Dilución de gases de voladura
+    BlastingDilutionTimeLimit,  ///< Etiqueta del tope de tiempo de dilución
+    DustRespirableLimit,        ///< Límite de polvo respirable
+    DustLimitBasis,             ///< Base del umbral de 3 mg/m³ en advertencias
+    DustSilicaReferral,         ///< Remisión del límite específico de sílice
+    ThermalBalance,             ///< Balance térmico sensible, sin piso de velocidad
+    ThermalWithVelocityFloor,   ///< Balance combinado con el piso de velocidad térmico
+    ThermalInfeasibleWithFloor, ///< Balance infactible, con piso de velocidad exigible
+    ThermalInfeasibleNoFloor,   ///< Balance infactible, sin piso de velocidad aplicable
+    ThermalStressReferral,      ///< Remisión a evaluación de estrés térmico (WBGT)
+    AirVelocityLimits,          ///< Límites de velocidad del aire en labores
+    CoverageZone,               ///< Cobertura de la demanda de aire por labor
+    CoverageMine                ///< Balance de cobertura de la mina completa
+};
+
+/**
+ * @brief Referencia normativa de un concepto bajo la norma indicada.
+ *
+ * Perú (DS 024-2016-EM / DS 023-2017-EM) y Chile (DS 132, Reglamento de
+ * Seguridad Minera, texto vigente LeyChile idNorma=221064, versión
+ * 09-abr-2024) regulan conjuntos distintos de conceptos. Donde el DS 132 NO
+ * fija un valor —tiempo de dilución tras tronadura, volumen de gases por kg de
+ * explosivo, factor de fugas de ducto— o donde esta librería no tiene una
+ * referencia chilena verificada —polvo respirable, carga térmica, límites de
+ * velocidad del aire, régimen de cobertura— la cita declara ese vacío y
+ * atribuye el valor a criterio de ingeniería. Nunca se traslada un artículo
+ * peruano a un cálculo chileno ni se cita un artículo sin verificar.
+ *
+ * @throws std::invalid_argument si la norma o el concepto no están soportados.
+ */
+[[nodiscard]] inline std::string regulation_reference(
+    RegulatoryTopic topic,
+    RegulatoryStandard standard
+) {
+    const bool peru = (standard == RegulatoryStandard::DS024_Peru);
+    if (!peru && standard != RegulatoryStandard::DS132_Chile) {
+        throw std::invalid_argument(
+            "[VentPy] regulation_reference: norma sin referencias definidas");
+    }
+
+    switch (topic) {
+        case RegulatoryTopic::PersonnelFlow:
+            return peru
+                ? "DS 024-2016-EM, Art. 236"
+                : "DS 132, Art. 138";
+
+        // El DS 132 fija 3,0 m3/min por persona sin escalon por altitud
+        // (Art. 138), de modo que no hay clausula de escala que citar.
+        case RegulatoryTopic::PersonnelAltitudeScale:
+            return peru ? "Art. 247 escala altitud" : "";
+
+        case RegulatoryTopic::DieselHpFactor:
+            return peru
+                ? "DS 024-2016-EM, Art. 246"
+                : "DS 132, Art. 132";
+
+        case RegulatoryTopic::BlastingDilution:
+            return peru
+                ? "DS 024-2016-EM, Art. 243-244"
+                : "DS 132, Arts. 156, 571 y 585 (reingreso tras tronadura); "
+                  "el DS 132 no fija tiempo de dilucion ni volumen de gases "
+                  "por kg de explosivo - criterio de ingenieria";
+
+        case RegulatoryTopic::BlastingDilutionTimeLimit:
+            return peru
+                ? "max normativo, Art. 243"
+                : "max configurado, criterio de ingenieria: el DS 132 no fija "
+                  "tiempo de dilucion";
+
+        case RegulatoryTopic::DustRespirableLimit:
+            return peru
+                ? "DS 024-2016-EM, Art. 111 (LEO polvo respirable 3 mg/m3, "
+                  "jornada 8 h; paralizacion si se supera)"
+                : "DS 132: sin limite de polvo respirable verificado para "
+                  "Chile en esta libreria; la concentracion objetivo es "
+                  "criterio de ingenieria del usuario";
+
+        case RegulatoryTopic::DustLimitBasis:
+            return peru
+                ? "LEO del Art. 111 (DS 024-2016-EM)"
+                : "referencia ingenieril (el DS 132 no fija un limite de polvo "
+                  "respirable verificado en esta libreria)";
+
+        case RegulatoryTopic::DustSilicaReferral:
+            return peru
+                ? "el Anexo 15 / DS 015-2005-SA"
+                : "la normativa de higiene ocupacional chilena aplicable (no "
+                  "identificada en esta libreria)";
+
+        case RegulatoryTopic::ThermalBalance:
+            return peru
+                ? "DS 024-2016-EM: balance termico sensible (criterio "
+                  "ingenieril; carga = equipos + oxidacion, autocompresion "
+                  "reduce el DT disponible)"
+                : "DS 132: balance termico sensible (criterio ingenieril; "
+                  "carga = equipos + oxidacion, autocompresion reduce el DT "
+                  "disponible); el DS 132 no fija un criterio de ventilacion "
+                  "termica identificado en esta libreria";
+
+        case RegulatoryTopic::ThermalWithVelocityFloor:
+            return peru
+                ? "DS 024-2016-EM, Art. 252.d (velocidad minima 30 m/min con "
+                  "temperatura seca 24-29 C) combinado con balance termico "
+                  "sensible (criterio ingenieril)"
+                : "DS 132: piso de velocidad de 30 m/min con temperatura seca "
+                  "24-29 C aplicado como criterio de ingenieria (el DS 132 no "
+                  "fija un criterio de ventilacion termica identificado en "
+                  "esta libreria), combinado con balance termico sensible";
+
+        case RegulatoryTopic::ThermalInfeasibleWithFloor:
+            return peru
+                ? "DS 024-2016-EM, Art. 252.d (velocidad minima 30 m/min "
+                  "con temperatura seca 24-29 C) — balance termico "
+                  "sensible INFACTIBLE por autocompresion, se requiere "
+                  "refrigeracion mecanica adicional para alcanzar el "
+                  "objetivo termico"
+                : "DS 132: piso de velocidad de 30 m/min con temperatura seca "
+                  "24-29 C aplicado como criterio de ingenieria (el DS 132 no "
+                  "fija un criterio de ventilacion termica identificado en "
+                  "esta libreria) - balance termico sensible INFACTIBLE por "
+                  "autocompresion, se requiere refrigeracion mecanica "
+                  "adicional para alcanzar el objetivo termico";
+
+        case RegulatoryTopic::ThermalInfeasibleNoFloor:
+            return peru
+                ? "DS 024-2016-EM: objetivo de diseño no alcanzable por "
+                  "ventilacion (autocompresion agota el ΔT disponible)"
+                : "DS 132: objetivo de diseño no alcanzable por "
+                  "ventilacion (autocompresion agota el ΔT disponible)";
+
+        case RegulatoryTopic::ThermalStressReferral:
+            return peru
+                ? "Art. 104 + Anexo 13"
+                : "referencia chilena no identificada en esta libreria";
+
+        case RegulatoryTopic::AirVelocityLimits:
+            return peru
+                ? "DS 024-2016-EM, Art. 248"
+                : "limites configurados en CoverageParams; el DS 132 no fija "
+                  "limites de velocidad del aire identificados en esta "
+                  "libreria";
+
+        case RegulatoryTopic::CoverageZone:
+            return peru
+                ? "DS 024-2016-EM (mod. DS 023-2017-EM), Art. 252 lit. g - "
+                  "cobertura de la demanda de aire por labor"
+                : "DS 132: cobertura de la demanda de aire por labor - "
+                  "criterio de ingenieria; el DS 132 no fija un regimen de "
+                  "evaluacion de cobertura identificado en esta libreria";
+
+        case RegulatoryTopic::CoverageMine:
+            return peru
+                ? "DS 024-2016-EM (mod. DS 023-2017-EM), Art. 252: evaluacion "
+                  "integral semestral; lit. f (cobertura de mina) y lit. g "
+                  "(cobertura por labor)"
+                : "DS 132: balance de cobertura de la mina - criterio de "
+                  "ingenieria; el DS 132 no fija una evaluacion integral de "
+                  "cobertura identificada en esta libreria";
+    }
+
+    throw std::invalid_argument(
+        "[VentPy] regulation_reference: concepto no soportado");
+}
+
+/// Sobrecarga por configuración: la cita sigue a `config.standard()`.
+[[nodiscard]] inline std::string regulation_reference(
+    RegulatoryTopic topic,
+    const RegulatoryConfig& config
+) {
+    return regulation_reference(topic, config.standard());
+}
 
 } // namespace ventpy

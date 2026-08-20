@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(ventpy
-    VERSION 0.1.0
+    VERSION 0.2.1
     DESCRIPTION "High-performance mine ventilation calculation library"
     LANGUAGES CXX
 )
@@ -98,6 +98,7 @@ if(VENTPY_BUILD_TESTS)
         tests/cpp/test_caudal_termico.cpp
         tests/cpp/test_governor.cpp
         tests/cpp/test_normativa.cpp
+        tests/cpp/test_citas_normativas.cpp
         tests/cpp/test_limites_gases.cpp
         tests/cpp/test_cobertura.cpp
         tests/cpp/test_atkinson.cpp

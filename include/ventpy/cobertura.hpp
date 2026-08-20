@@ -7,12 +7,19 @@
  *  - compare_zone: puro — requerido ya calculado + medición de campo.
  *  - analyze_survey: orquestador — corre el Governor por zona y agrega.
  *
- * Sustento normativo:
+ * Sustento normativo (Perú, preset por defecto):
  *  - DS 024-2016-EM (mod. DS 023-2017-EM), Art. 252: evaluaciones integrales
  *    semestrales; lit. f) cobertura de la demanda de la mina; lit. g)
  *    cobertura de las demandas por labor.
  *  - DS 024-2016-EM, Art. 248 (original): velocidad 20–250 m/min; con ANFO
  *    u otros agentes de voladura, mínimo 25 m/min.
+ *
+ * La cita emitida sigue a `config.standard()` a través de
+ * `regulation_reference` (normativa.hpp). Bajo el DS 132 chileno esta librería
+ * no tiene un régimen de evaluación de cobertura ni límites de velocidad del
+ * aire verificados: la cita lo declara y atribuye los umbrales de
+ * `CoverageParams` a criterio de ingeniería, en vez de trasladar los artículos
+ * peruanos.
  *
  * @copyright 2026 VentPy Project
  */
@@ -28,6 +35,7 @@
 #include <vector>
 
 #include "ventpy/governor.hpp"
+#include "ventpy/normativa.hpp"
 #include "ventpy/types.hpp"
 #include "ventpy/validation.hpp"
 
@@ -55,13 +63,19 @@ class CoverageCalculator {
 public:
     /**
      * @brief Nivel puro: compara un requerido ya calculado contra la medición.
+     *
+     * `config` fija la norma de la cita emitida; su valor por defecto es el
+     * preset peruano, igual que el constructor por defecto de
+     * `RegulatoryConfig`. La ruta `analyze_survey` propaga la suya.
+     *
      * @throws std::invalid_argument si la medición no tiene exactamente una
      *         fuente, o ante cualquier dato fuera de dominio.
      */
     [[nodiscard]] static ZoneCoverageResult compare_zone(
         double q_required_m3min,
         const ZoneMeasurement& measurement,
-        const CoverageParams& params = {}
+        const CoverageParams& params = {},
+        const RegulatoryConfig& config = RegulatoryConfig::peru()
     ) {
         validate_params(params);
         validation::require_positive(q_required_m3min,
@@ -85,7 +99,7 @@ public:
             r.q_measured_m3min = *measurement.q_measured_m3min;
         } else {
             for (const AirflowStation& s : measurement.stations) {
-                StationResult sr = evaluate_station(s, params);
+                StationResult sr = evaluate_station(s, params, config);
                 r.q_measured_m3min += sr.q_station_m3min;
                 r.stations.push_back(std::move(sr));
             }
@@ -100,8 +114,7 @@ public:
             r.compliant && r.coverage_ratio < 1.0 + params.warning_margin;
         r.overventilated = r.coverage_ratio > params.overventilation_factor;
         r.regulation_ref =
-            "DS 024-2016-EM (mod. DS 023-2017-EM), Art. 252 lit. g - "
-            "cobertura de la demanda de aire por labor";
+            regulation_reference(RegulatoryTopic::CoverageZone, config);
         return r;
     }
 
@@ -151,8 +164,8 @@ public:
                     "' no genera requerimiento de ventilacion (q_total = 0) - revisar "
                     "su VentilationInput (trabajadores/flota/voladura).");
             }
-            ZoneCoverageResult zr =
-                compare_zone(demand.q_total_m3min, z.measurement, params);
+            ZoneCoverageResult zr = compare_zone(
+                demand.q_total_m3min, z.measurement, params, config);
             zr.zone_name = z.zone_name;
             zr.demand = demand;
 
@@ -163,7 +176,9 @@ public:
                 std::ostringstream oss;
                 oss << "Zona '" << z.zone_name << "': DEFICIT de "
                     << zr.deficit_m3min << " m3/min (cobertura "
-                    << (zr.coverage_ratio * 100.0) << "%) - Art. 252 lit. g";
+                    << (zr.coverage_ratio * 100.0) << "%) - "
+                    << regulation_reference(
+                           RegulatoryTopic::CoverageZone, config);
                 r.warnings.push_back(oss.str());
             } else if (zr.near_deficit_warning) {
                 std::ostringstream oss;
@@ -199,9 +214,7 @@ public:
             ? 0.0
             : safety_ceil(r.q_required_total_m3min - r.q_measured_total_m3min);
         r.regulation_ref =
-            "DS 024-2016-EM (mod. DS 023-2017-EM), Art. 252: evaluacion "
-            "integral semestral; lit. f (cobertura de mina) y lit. g "
-            "(cobertura por labor)";
+            regulation_reference(RegulatoryTopic::CoverageMine, config);
         return r;
     }
 
@@ -223,11 +236,14 @@ private:
         }
     }
 
-    /// Evalúa una estación: caudal Q = A × v × 60 y velocidad vs Art. 248.
-    /// Con ANFO el mínimo efectivo es max(min_velocity_mpm, 25) — Art. 248.
+    /// Evalúa una estación: caudal Q = A × v × 60 y velocidad vs los límites
+    /// aplicables. Con ANFO el mínimo efectivo es max(min_velocity_mpm, 25).
+    /// Los valores por defecto de `CoverageParams` son los del Art. 248
+    /// peruano; la cita de la advertencia la fija la norma de `config`.
     [[nodiscard]] static StationResult evaluate_station(
         const AirflowStation& s,
-        const CoverageParams& params
+        const CoverageParams& params,
+        const RegulatoryConfig& config
     ) {
         validation::require_positive(s.area_m2,
             "area_m2 [m2] - Seccion de la estacion de aforo");
@@ -248,7 +264,7 @@ private:
         // Tolerancia absoluta para el artefacto de punto flotante del
         // roundtrip m/s ↔ m/min (p.ej. 250.0/60.0*60.0 = 250.000000000003).
         // 1e-6 m/min es despreciable frente a la precision de un anemometro
-        // (~0.6 m/min); NO relaja el limite del Art. 248.
+        // (~0.6 m/min); NO relaja el limite configurado.
         constexpr double VEL_TOL_MPM = 1e-6;
         r.velocity_ok = (r.velocity_mpm >= min_effective - VEL_TOL_MPM) &&
                         (r.velocity_mpm <= params.max_velocity_mpm + VEL_TOL_MPM);
@@ -257,7 +273,9 @@ private:
             oss << "Estacion '" << s.station_id << "': velocidad "
                 << r.velocity_mpm << " m/min fuera de rango ["
                 << min_effective << ", " << params.max_velocity_mpm
-                << "] (DS 024-2016-EM, Art. 248";
+                << "] ("
+                << regulation_reference(
+                       RegulatoryTopic::AirVelocityLimits, config);
             if (params.anfo_or_blasting_agents && r.velocity_mpm < min_effective) {
                 oss << "; minimo 25 m/min con ANFO u otros agentes de voladura";
             }

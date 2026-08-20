@@ -22,9 +22,13 @@
  *    - No todos los equipos operan al 100% simultáneamente
  *    - Factor típico: 0.7-0.9
  *
- * Referencias normativas:
+ * Referencias normativas (Perú, preset por defecto):
  * - DS 024-2016-EM, Art. 246: 3 m³/min/HP mínimo
  * - DS 024-2016-EM, Art. 108: TLV CO=25ppm, NO2=5ppm
+ *
+ * La cita emitida en `regulation_ref` sigue a `config.standard()` a través de
+ * `regulation_reference` (normativa.hpp): bajo el DS 132 chileno el factor por
+ * HP efectivo al freno es el Art. 132 (2,83 m³/min/HP).
  *
  * @copyright 2026 VentPy Project
  */
@@ -266,7 +270,9 @@ public:
 
         result.total_derated_hp = result.total_effective_hp;
         result.q_diesel = safety_ceil(result.total_effective_hp * result.hp_factor_base);
-        result.regulation_ref = "DS 024-2016-EM, Art. 246 [Gobernante: factor HP]";
+        result.regulation_ref =
+            regulation_reference(RegulatoryTopic::DieselHpFactor, config) +
+            " [Gobernante: factor HP]";
         return result;
     }
 
@@ -380,8 +386,8 @@ private:
         double q_nox
     ) {
         std::ostringstream oss;
-        oss << "DS 024-2016-EM, Art. 246 (Factor: "
-            << config.diesel_hp_factor() << " m3/min/HP)";
+        oss << regulation_reference(RegulatoryTopic::DieselHpFactor, config)
+            << " (Factor: " << config.diesel_hp_factor() << " m3/min/HP)";
 
         if (altitude > 1000.0) {
             oss << " + Correccion altitud " << static_cast<int>(altitude) << " msnm";

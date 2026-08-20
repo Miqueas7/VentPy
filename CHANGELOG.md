@@ -4,6 +4,51 @@ Todas las versiones publicadas de VentPy. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el versionado es
 [semántico](https://semver.org/lang/es/).
 
+## [0.2.1] — 2026-08-20
+
+### La cita normativa sigue a la norma configurada
+
+Hasta 0.2.0 la referencia legal de cada resultado estaba escrita como literal
+peruano dentro de cada calculador y no consultaba la norma de la
+configuración. Con `RegulatoryConfig.chile()` los caudales eran correctos,
+pero la cita que los acompañaba era el DS 024-2016-EM peruano.
+
+**A quién afecta:** a quien haya emitido informes con el preajuste chileno. Los
+números no cambian —ni uno solo—; lo que cambia es el respaldo legal impreso
+junto a ellos. Conviene reemitir esos informes: citaban el reglamento peruano
+en una faena chilena.
+
+| Resultado | Perú (DS 024) | Chile (DS 132) |
+|---|---|---|
+| Caudal por persona | Art. 236, con la escala por altitud del Art. 247 | **Art. 138**, sin escala por altitud |
+| Caudal por HP diésel | Art. 246 | **Art. 132** |
+| Dilución tras voladura | Art. 243-244 | **Arts. 156, 571 y 585** (reingreso). El DS 132 no fija tiempo de dilución ni volumen de gases por kg: son criterio de ingeniería, y la cita lo dice |
+| Polvo respirable | Art. 111 | Sin límite verificado: la cita declara el vacío y atribuye la concentración objetivo a criterio de ingeniería |
+| Carga térmica | Art. 252 lit. d | Sin criterio verificado: el piso de 30 m/min se mantiene —el caudal es el mismo— pero la cita lo declara criterio de ingeniería |
+| Cobertura y velocidad del aire | Art. 252 lit. f/g y Art. 248 | Sin régimen ni límites verificados: la cita declara el vacío y remite a los umbrales configurados |
+
+Donde el DS 132 no regula un concepto, la cita lo dice explícitamente en vez de
+trasladar el artículo peruano. Ningún artículo chileno se cita sin verificar
+contra el texto vigente (LeyChile idNorma=221064, versión 09-abr-2024).
+
+### Cambios
+
+- Nueva función `regulation_reference(topic, config)` en `normativa.hpp`: único
+  lugar del núcleo donde vive el texto de una cita. Cada calculador la consulta
+  en lugar de llevar su propio literal.
+- `CoverageCalculator.compare_zone` acepta un cuarto argumento `config` que fija
+  la norma de la cita. Su valor por defecto es el preajuste peruano, igual que
+  el constructor por defecto de `RegulatoryConfig`; el código existente no
+  cambia de comportamiento. `analyze_survey` propaga la configuración que ya
+  recibía.
+- Las advertencias de sílice, de concentración de polvo sobre el umbral, de
+  estrés térmico y de velocidad fuera de rango también siguen la norma activa.
+
+### Versiones
+
+- `CMakeLists.txt` declaraba 0.1.0 mientras `pyproject.toml` y el paquete
+  Python declaraban 0.2.0. Las tres quedan en 0.2.1.
+
 ## [0.2.0] — 2026-08-20
 
 ### ⚠️ Los resultados cambian respecto de 0.1.0
