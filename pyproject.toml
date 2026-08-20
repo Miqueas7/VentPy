@@ -32,7 +32,7 @@ Issues = "https://github.com/Miqueas7/VentPy/issues"
 ventpy = "ventpy.cli:main"
 
 [project.optional-dependencies]
-test = ["pytest>=7.0"]
+test = ["pytest>=7.0", "hypothesis>=6.0"]
 viz = ["matplotlib>=3.7", "numpy>=1.24"]
 
 [tool.scikit-build]
@@ -42,6 +42,9 @@ wheel.packages = ["python/ventpy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]
+markers = [
+    "slow: pruebas de escala que tardan mas de lo habitual",
+]
 
 [tool.cibuildwheel]
 build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
