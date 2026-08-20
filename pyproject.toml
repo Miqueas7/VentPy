@@ -5,7 +5,7 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "ventpy"
 version = "0.2.0"
-description = "High-performance mine ventilation calculation library (DS 024-2016-EM, Peru)"
+description = "High-performance mine ventilation library: airflow demand, coverage, network solving and fan selection (Peru DS 024, Chile DS 132)"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -13,9 +13,10 @@ requires-python = ">=3.9"
 authors = [
     {name = "Miqueas Quintanilla Ventura", email = "miqueasq@gmail.com"},
 ]
-keywords = ["mining", "ventilation", "safety", "DS024", "engineering"]
+keywords = ["mining", "ventilation", "safety", "DS024", "DS132", "hardy-cross",
+            "atkinson", "ventilation-network", "engineering"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
     "Programming Language :: C++",
@@ -36,6 +37,7 @@ test = ["pytest>=7.0", "hypothesis>=6.0"]
 viz = ["matplotlib>=3.7", "numpy>=1.24"]
 
 [tool.scikit-build]
+sdist.include = ["CHANGELOG.md"]
 cmake.build-type = "Release"
 cmake.args = ["-DVENTPY_BUILD_PYTHON=ON", "-DVENTPY_BUILD_TESTS=OFF"]
 wheel.packages = ["python/ventpy"]
@@ -49,5 +51,5 @@ markers = [
 [tool.cibuildwheel]
 build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
 skip = "pp* *-musllinux*"
-test-requires = "pytest"
-test-command = "pytest {project}/tests/python -q"
+test-requires = "pytest hypothesis"
+test-command = "pytest {project}/tests/python -q -p no:cacheprovider"
