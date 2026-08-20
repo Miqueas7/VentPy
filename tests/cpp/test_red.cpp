@@ -4,6 +4,7 @@
  */
 #include <gtest/gtest.h>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include "ventpy/red.hpp"
 
@@ -83,6 +84,20 @@ TEST(RedValidacion, ArbolSinMallasLanza) {
     NetworkDefinition d;
     d.branches = { mk("T1","S","A",0.1), mk("T2","A","B",0.1) };   // B-N+1 = 0
     AtmosphericParams atm;
+    EXPECT_THROW(NetworkSolver::solve(d, atm), std::invalid_argument);
+}
+
+// Regresion: un infinito satisface "r_manual > 0" y se colaria como fuente
+// valida de resistencia. El balance saldria con caudales NaN y, como
+// std::max(0.0, NaN) devuelve 0.0, el solver los daria por convergidos.
+TEST(RedValidacion, ResistenciaNoFinitaLanza) {
+    AtmosphericParams atm;
+    auto d = red_a();
+    d.branches[1].r_manual = std::numeric_limits<double>::infinity();
+    EXPECT_THROW(NetworkSolver::solve(d, atm), std::invalid_argument);
+
+    d = red_a();
+    d.branches[1].r_manual = std::numeric_limits<double>::quiet_NaN();
     EXPECT_THROW(NetworkSolver::solve(d, atm), std::invalid_argument);
 }
 
