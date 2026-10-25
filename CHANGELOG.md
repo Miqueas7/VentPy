@@ -4,6 +4,14 @@ Todas las versiones publicadas de VentPy. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el versionado es
 [semántico](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Metadatos del paquete
+
+- `pyproject.toml` declara los clasificadores de Python 3.9, 3.10, 3.11, 3.12 y 3.13, las
+  mismas versiones para las que `cibuildwheel` ya compila ruedas. Así PyPI las muestra en la
+  ficha del paquete. No cambia el código.
+
 ## [0.2.1] — 2026-08-20
 
 ### La cita normativa sigue a la norma configurada
