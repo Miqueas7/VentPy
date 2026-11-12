@@ -1,8 +1,9 @@
 # Contributing to VentPy · Cómo contribuir a VentPy
 
 VentPy is an open-source library for **mine ventilation calculations**. It started with the
-Peruvian standard (DS 024-2016-EM) and is growing toward **multi-standard support across Latin
-America**: Chile, Colombia and Mexico.
+Peruvian standard (DS 024-2016-EM), now also covers Chile (DS 132), Colombia (Decreto 1886)
+and Mexico (NOM-023-STPS-2012), and is growing toward **multi-standard support across Latin
+America**.
 
 > 🇪🇸 **Este documento está en inglés y español.** Baja para la versión en español.
 > **No necesitas ser programador experto.** Si eres ingeniero de minas y conoces la norma de tu
@@ -38,7 +39,7 @@ pip install -e ".[test,viz]"
 pytest tests/python -q
 
 # 4. Create a branch, make your change, run tests again
-git checkout -b add-chile-standard
+git checkout -b add-bolivia-standard
 pytest tests/python -q
 
 # 5. Commit and open a Pull Request
@@ -65,8 +66,8 @@ clear to you, it wasn't clear enough.
 
 **No necesitas escribir C++.** En orden de lo que más falta:
 
-1. **Agregar la norma de tu país.** ¿Conoces el reglamento de ventilación de Chile, Colombia o
-   México? Esa es la contribución que más necesitamos. Mira `ROADMAP.md`.
+1. **Agregar la norma de tu país.** ¿Conoces el reglamento de ventilación de Bolivia, Ecuador,
+   Argentina u otro país? Esa es la contribución que más necesitamos. Mira `ROADMAP.md`.
 2. **Casos resueltos.** Un caso real de ventilación (anonimizado) con sus números, como test.
 3. **Documentación.** Corregir un párrafo confuso, traducir, agregar un diagrama.
 4. **Reportar un número equivocado.** Si un resultado no calza con tu experiencia en campo,
@@ -87,7 +88,7 @@ pip install -e ".[test,viz]"
 pytest tests/python -q
 
 # 4. Crea una rama, haz tu cambio, corre los tests otra vez
-git checkout -b agregar-norma-chile
+git checkout -b agregar-norma-bolivia
 pytest tests/python -q
 
 # 5. Commitea y abre un Pull Request
