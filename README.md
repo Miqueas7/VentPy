@@ -13,7 +13,7 @@
 
 High-performance underground mine ventilation calculations for Python, backed by a C++20 core.
 
-VentPy helps mining engineers estimate ventilation demand for underground operations through an auditable API covering personnel, diesel fleets, blasting, dust, thermal load, atmospheric corrections, duct/network design and fan selection, currently under the Peruvian (`DS 024-2016-EM` / `DS 023-2017-EM`) and Chilean (`DS 132` / `DS 594`) regulatory frameworks. Calculations run in a typed, tested C++ core instead of a spreadsheet: every result carries its governing criterion and its regulatory citation, not just a number.
+VentPy helps mining engineers estimate ventilation demand for underground operations through an auditable API covering personnel, diesel fleets, blasting, dust, thermal load, atmospheric corrections, duct/network design and fan selection, currently under the Peruvian (`DS 024-2016-EM` / `DS 023-2017-EM`), Chilean (`DS 132` / `DS 594`), Colombian (`Decreto 1886 de 2015`) and Mexican (`NOM-023-STPS-2012` / `NOM-010-STPS-2014`) regulatory frameworks. Calculations run in a typed, tested C++ core instead of a spreadsheet: every result carries its governing criterion and its regulatory citation, not just a number.
 
 ## What VentPy Does
 
@@ -33,35 +33,47 @@ VentPy helps mining engineers estimate ventilation demand for underground operat
 
 ## Multi-Standard Support
 
-VentPy ships official presets for two regulatory frameworks, each constant citing its article:
+VentPy ships official presets for four regulatory frameworks, each constant citing its article:
 
 ```python
 import ventpy
 
 peru = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.peru())
 chile = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.chile())
+colombia = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.colombia())
+mexico = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.mexico())
 
-print(f"Peru:  {peru.q_personnel} m3/min ({peru.flow_per_person_base} m3/min/person)")
-print(f"Chile: {chile.q_personnel} m3/min ({chile.flow_per_person_base} m3/min/person)")
+print(f"Peru:     {peru.q_personnel} m3/min ({peru.flow_per_person_base} m3/min/person)")
+print(f"Chile:    {chile.q_personnel} m3/min ({chile.flow_per_person_base} m3/min/person)")
+print(f"Colombia: {colombia.q_personnel} m3/min ({colombia.flow_per_person_base} m3/min/person)")
+print(f"Mexico:   {mexico.q_personnel} m3/min ({mexico.flow_per_person_base} m3/min/person)")
 ```
 
 Output:
 
 ```
-Peru:  90.0 m3/min (6.0 m3/min/person)
-Chile: 45.0 m3/min (3.0 m3/min/person)
+Peru:     90.0 m3/min (6.0 m3/min/person)
+Chile:    45.0 m3/min (3.0 m3/min/person)
+Colombia: 90.0 m3/min (6.0 m3/min/person)
+Mexico:   23.0 m3/min (1.5 m3/min/person)
 ```
 
 - `RegulatoryConfig.peru()` — `DS 024-2016-EM` / `DS 023-2017-EM`.
 - `RegulatoryConfig.chile()` — `DS 132`, Reglamento de Seguridad Minera (gas limits also draw on `DS 594`).
-- `RegulatoryConfig.for_standard(standard)` — builds either preset from a `RegulatoryStandard` enum member; used internally by the CLI's `--norma peru|chile` flag.
+- `RegulatoryConfig.colombia()` — `Decreto 1886 de 2015`, Reglamento de Seguridad en las Labores Mineras Subterráneas (as amended by `Decreto 944 de 2022`). A single altitude step at 1,500 masl; 6 m³/min per HP, or 4 when exhaust CO does not exceed 0.08%, in which case you build your own configuration.
+- `RegulatoryConfig.mexico()` — `NOM-023-STPS-2012`, for underground mines other than coal. No altitude scale; gas limits come by reference from `NOM-010-STPS-2014`. Coal mines fall under `NOM-032-STPS-2008`, which this preset does not cover.
+- `RegulatoryConfig.for_standard(standard)` — builds any of the four presets from a `RegulatoryStandard` enum member; used internally by the CLI's `--norma` flag.
+
+Where a standard does not regulate a concept (post-blast dilution time, duct leakage, minimum velocity outside coal mines in Colombia, minimum oxygen in workings in Mexico), the printed citation says so and attributes the value to engineering criteria.
 
 Adding another country's standard is the contribution VentPy needs most — see [Contributing](#contributing).
 
 ## Project Status
 
-VentPy is in **beta**. Personnel, diesel, blasting, dust, thermal, coverage, network, fan and atmospheric calculations are implemented, tested (219 C++ tests and 176 Python tests, including property-based and 500-branch scale tests) and exposed to Python for both presets.
+VentPy is in **beta**. Personnel, diesel, blasting, dust, thermal, coverage, network, fan and atmospheric calculations are implemented, tested (245 C++ tests and 199 Python tests, including property-based and 500-branch scale tests) and exposed to Python for all four presets.
 
+> **Blasting airflow changed in 0.3.0.** Until 0.2.1, setting `gas_volume_per_kg` made blasting airflow equal to gas volume divided by dilution time, never diluted to an exposure limit: the result was in the order of 1 m³/min. From 0.3.0 blasting is always computed by CO and NOx dilution, and `gas_volume_per_kg` only sets the reported gas volume. If you computed a demand with blasting and that parameter, recompute it: blasting airflow rises by several orders of magnitude and may become the governing factor. Details in [`CHANGELOG.md`](https://github.com/Miqueas7/VentPy/blob/master/CHANGELOG.md).
+>
 > **Citations changed in 0.2.1 — the numbers did not.** Until 0.2.0, every result cited the Peruvian framework even when built with `RegulatoryConfig.chile()`: the airflow was correct, the legal reference printed next to it was not. From 0.2.1 the citation follows the configured standard, and where `DS 132` does not regulate a concept the citation says so explicitly instead of borrowing a Peruvian article. If you issued reports using the Chilean preset, reissue them.
 
 > **Results changed between 0.1.0 and 0.2.0.** Version 0.2.0 corrects three normative citations in the core. If you calculated anything with 0.1.0, recompute it, especially above 1,500 masl.
@@ -118,9 +130,9 @@ Five worked, self-verifying examples (each `run.py` asserts its own documented n
 
 Installing VentPy also installs the `ventpy` command, a thin presentation layer over the same public API (no calculation logic of its own) with 5 subcommands:
 
-- `ventpy demanda <file.json> [--norma peru|chile] [--json]` — total ventilation demand for a zone/face
-- `ventpy lmp [--norma peru|chile] [--gas GAS] [--json]` — permissible exposure limits (LMP) for regulated gases
-- `ventpy cobertura <file.json> [--norma peru|chile] [--json]` — coverage/deficit analysis of a zone survey
+- `ventpy demanda <file.json> [--norma peru|chile|colombia|mexico] [--json]` — total ventilation demand for a zone/face
+- `ventpy lmp [--norma peru|chile|colombia|mexico] [--gas GAS] [--json]` — permissible exposure limits (LMP) for regulated gases
+- `ventpy cobertura <file.json> [--norma peru|chile|colombia|mexico] [--json]` — coverage/deficit analysis of a zone survey
 - `ventpy red <file.json> [--json]` — ventilation network balance (Hardy Cross)
 - `ventpy ventilador <file.json> [--json]` — fan operating point (standalone or coupled to a network)
 
@@ -142,7 +154,7 @@ regulation_ref: DS 024-2016-EM, Anexo 15, fila 33 (via Art. 246)
 
 VentPy exposes 87 public names (`ventpy.__all__`). Main entry points:
 
-- `RegulatoryConfig` (`.peru()`, `.chile()`, `.for_standard(...)`)
+- `RegulatoryConfig` (`.peru()`, `.chile()`, `.colombia()`, `.mexico()`, `.for_standard(...)`)
 - `VentilationGovernor`, `VentilationInput`
 - `DieselFleet`, `AtmosphericParams`, `PersonnelParams`, `BlastingParams`, `DustParams`, `ThermalParams`
 

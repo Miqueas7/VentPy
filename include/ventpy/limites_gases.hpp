@@ -5,6 +5,8 @@
  * Fuentes (validadas contra los textos oficiales):
  * - Perú: DS 024-2016-EM, Anexo 15 (obligatorio vía Art. 246, mod. DS 023-2017-EM).
  * - Chile: DS 594 Art. 66 (vía remisión del DS 132 Arts. 135/144) y DS 132.
+ * - Colombia: Decreto 1886 de 2015, Arts. 38, 39 y 53.
+ * - México: NOM-010-STPS-2014, Tabla I.1 (vía remisión de la NOM-023-STPS-2012).
  *
  * @copyright 2026 VentPy Project
  */
@@ -100,6 +102,112 @@ inline const std::vector<GasLimit>& gas_limits_chile() {
 }
 
 /**
+ * @brief Tabla de VLP de Colombia — Decreto 1886 de 2015, Art. 39 (gases),
+ *        Art. 38 (oxígeno) y Art. 53 (metano).
+ *
+ * La tabla del Art. 39 está en ppm y no fija valores techo. El artículo exige
+ * además cumplir «como mínimo» los estándares de la ACGIH y actualizar los
+ * VLP cada año (par. 1): esta tabla congela los valores del decreto. El SO2
+ * solo tiene STEL; el CO, el NO2 y el NO solo tienen TWA. Los VLP no se
+ * corrigen por altitud; para jornadas de más de 8 h el par. 2 aplica la
+ * corrección de Brief y Scala — fuera del alcance de esta tabla.
+ */
+inline const std::vector<GasLimit>& gas_limits_colombia() {
+    static const std::vector<GasLimit> table = {
+        {.gas = GasType::CO,  .unit = ConcentrationUnit::PPM,
+         .twa_8h = 25.0,
+         .regulation_ref = "Decreto 1886 de 2015, Art. 39 (VLP-TWA; sin STEL)"},
+        {.gas = GasType::CO2, .unit = ConcentrationUnit::PPM,
+         .twa_8h = 5000.0, .stel = 30000.0,
+         .regulation_ref = "Decreto 1886 de 2015, Art. 39 (VLP-TWA y STEL)"},
+        {.gas = GasType::NO2, .unit = ConcentrationUnit::PPM,
+         .twa_8h = 0.2,
+         .regulation_ref = "Decreto 1886 de 2015, Art. 39 (VLP-TWA; sin STEL)"},
+        {.gas = GasType::SO2, .unit = ConcentrationUnit::PPM,
+         .stel = 0.25,
+         .regulation_ref = "Decreto 1886 de 2015, Art. 39 'Anhidrido Sulfuroso' "
+                           "(solo STEL; el decreto no fija TWA)"},
+        {.gas = GasType::H2S, .unit = ConcentrationUnit::PPM,
+         .twa_8h = 1.0, .stel = 5.0,
+         .regulation_ref = "Decreto 1886 de 2015, Art. 39 'Acido Sulfhidrico' "
+                           "(VLP-TWA y STEL)"},
+        {.gas = GasType::CH4, .unit = ConcentrationUnit::PercentVolume,
+         .ceiling = 1.0,
+         .regulation_ref = "Decreto 1886 de 2015, Art. 53: 1.0% en frentes de "
+                           "explotacion o avance y en retornos principales "
+                           "(suspender trabajos y evacuar; valor mas estricto "
+                           "adoptado); 1.5% en retorno de tajos y de frentes de "
+                           "preparacion y desarrollo; sobre 2% solo personal de "
+                           "salvamento"},
+        {.gas = GasType::NO,  .unit = ConcentrationUnit::PPM,
+         .twa_8h = 25.0,
+         .regulation_ref = "Decreto 1886 de 2015, Art. 39 'Oxido Nitrico' "
+                           "(VLP-TWA; sin STEL)"},
+        {.gas = GasType::O2,  .unit = ConcentrationUnit::PercentVolume,
+         .ceiling = 23.5, .floor_min = 19.5,
+         .regulation_ref = "Decreto 1886 de 2015, Art. 38 (min 19.5%, max 23.5% "
+                           "en volumen)"},
+    };
+    return table;
+}
+
+/**
+ * @brief Tabla de VLE de México — NOM-010-STPS-2014, Apéndice I, Tabla I.1.
+ *
+ * La NOM-023-STPS-2012 no trae tabla de gases: sus numerales 7.4 e) y 7.5 f)
+ * remiten a la NOM-010-STPS-1999 «o las que las sustituyan», hoy la
+ * NOM-010-STPS-2014. Los valores son VLE-PPT (8 h) y VLE-CT (corto tiempo),
+ * para 25 °C y 101,3 kPa; la norma no los corrige por altitud. El SO2 solo
+ * tiene VLE-CT. El metano es un límite higiénico: la NOM-023 no fija
+ * porcentajes de acción por explosividad (eso es materia de la NOM-032, de
+ * minas de carbón, que este preset no cubre).
+ *
+ * Oxígeno: la NOM-023 no fija el mínimo en labores. El 19,5 % es criterio de
+ * ingeniería, y la cita lo declara.
+ */
+inline const std::vector<GasLimit>& gas_limits_mexico() {
+    static const std::vector<GasLimit> table = {
+        {.gas = GasType::CO,  .unit = ConcentrationUnit::PPM,
+         .twa_8h = 25.0,
+         .regulation_ref = "NOM-010-STPS-2014, Tabla I.1, fila 552 (VLE-PPT), "
+                           "via NOM-023-STPS-2012, numerales 7.4 e) y 7.5 f)"},
+        {.gas = GasType::CO2, .unit = ConcentrationUnit::PPM,
+         .twa_8h = 5000.0, .stel = 30000.0,
+         .regulation_ref = "NOM-010-STPS-2014, Tabla I.1, fila 318 (VLE-PPT y "
+                           "VLE-CT), via NOM-023-STPS-2012, numerales 7.4 e) y 7.5 f)"},
+        {.gas = GasType::NO2, .unit = ConcentrationUnit::PPM,
+         .twa_8h = 0.2,
+         .regulation_ref = "NOM-010-STPS-2014, Tabla I.1, fila 320 (VLE-PPT), "
+                           "via NOM-023-STPS-2012, numerales 7.4 e) y 7.5 f)"},
+        {.gas = GasType::SO2, .unit = ConcentrationUnit::PPM,
+         .stel = 0.25,
+         .regulation_ref = "NOM-010-STPS-2014, Tabla I.1, fila 317 (solo VLE-CT; "
+                           "la norma no fija VLE-PPT), via NOM-023-STPS-2012, "
+                           "numerales 7.4 e) y 7.5 f)"},
+        {.gas = GasType::H2S, .unit = ConcentrationUnit::PPM,
+         .twa_8h = 1.0, .stel = 5.0,
+         .regulation_ref = "NOM-010-STPS-2014, Tabla I.1, fila 683 (VLE-PPT y "
+                           "VLE-CT), via NOM-023-STPS-2012, numerales 7.4 e) y 7.5 f)"},
+        {.gas = GasType::CH4, .unit = ConcentrationUnit::PPM,
+         .twa_8h = 1000.0,
+         .regulation_ref = "NOM-010-STPS-2014, Tabla I.1, fila 500 (VLE-PPT, limite "
+                           "higienico = 0.1%); la NOM-023-STPS-2012 no fija "
+                           "porcentajes de accion por explosividad"},
+        {.gas = GasType::NO,  .unit = ConcentrationUnit::PPM,
+         .twa_8h = 25.0,
+         .regulation_ref = "NOM-010-STPS-2014, Tabla I.1, fila 599 (VLE-PPT), "
+                           "via NOM-023-STPS-2012, numerales 7.4 e) y 7.5 f)"},
+        {.gas = GasType::O2,  .unit = ConcentrationUnit::PercentVolume,
+         .floor_min = 19.5,
+         .regulation_ref = "Criterio de ingenieria (19.5%): la NOM-023-STPS-2012 "
+                           "no fija el minimo de oxigeno en labores (solo 18 a 21% "
+                           "en refugios, numeral 8.14.4 d); la NOM-010-STPS-2014, "
+                           "Tabla I.1 nota (D), da 18% para asfixiantes simples"},
+    };
+    return table;
+}
+
+/**
  * @brief Tabla LMP completa de la norma indicada.
  * @throws std::invalid_argument si la norma no tiene tabla implementada.
  */
@@ -109,6 +217,10 @@ inline const std::vector<GasLimit>& gas_limits(RegulatoryStandard standard) {
             return gas_limits_peru();
         case RegulatoryStandard::DS132_Chile:
             return gas_limits_chile();
+        case RegulatoryStandard::D1886_Colombia:
+            return gas_limits_colombia();
+        case RegulatoryStandard::NOM023_Mexico:
+            return gas_limits_mexico();
     }
     throw std::invalid_argument(
         "[VentPy] gas_limits: no LMP table implemented for this standard");

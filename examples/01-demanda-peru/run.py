@@ -1,8 +1,8 @@
 """Ejemplo 1 — Demanda de ventilacion de un frente de desarrollo (norma Peru).
 
 Reproduce, usando SOLO el API publico de `ventpy` (sin pasar por `ventpy.cli`),
-el caso de 15 trabajadores / 4200 msnm / scoop diesel 150 HP / voladura ANFO
-50 kg documentado en README.md de este ejemplo. Este script ES su propia
+el caso de 15 trabajadores / 4200 msnm / scoop diesel 150 HP documentado en
+README.md de este ejemplo (sin voladura: ver la nota del README). Este script ES su propia
 verificacion: si algun `assert` falla, el numero de referencia (981 m3/min)
 dejo de sostenerse.
 
@@ -27,14 +27,6 @@ scoop.availability = 0.85
 scoop.utilization = 0.70
 fleet.add_equipment(scoop)
 inp.diesel_fleet = fleet
-
-blast = ventpy.BlastingParams()
-blast.explosive_kg = 50
-blast.gas_volume_per_kg = 0.04
-blast.dilution_time_min = 30
-blast.face_area_m2 = 12
-blast.face_length_m = 200
-inp.blasting_params = blast
 
 result = governor.calculate_total_demand(inp)
 

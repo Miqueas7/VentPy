@@ -167,7 +167,7 @@ def __getattr__(name):
     raise AttributeError(f"module 'ventpy' has no attribute '{name}'")
 
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __all__ = [
     # Version

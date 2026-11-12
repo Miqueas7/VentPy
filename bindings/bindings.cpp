@@ -49,7 +49,11 @@ NB_MODULE(_ventpy_core, m) {
         .value("DS024_Peru", RegulatoryStandard::DS024_Peru,
                "DS 024-2016-EM / DS 023-2017-EM (Peru)")
         .value("DS132_Chile", RegulatoryStandard::DS132_Chile,
-               "DS 132 Reglamento de Seguridad Minera (Chile)");
+               "DS 132 Reglamento de Seguridad Minera (Chile)")
+        .value("D1886_Colombia", RegulatoryStandard::D1886_Colombia,
+               "Decreto 1886 de 2015, mod. Decreto 944 de 2022 (Colombia)")
+        .value("NOM023_Mexico", RegulatoryStandard::NOM023_Mexico,
+               "NOM-023-STPS-2012; gases por NOM-010-STPS-2014 (Mexico)");
 
     nb::enum_<GasType>(m, "GasType",
         "Gases regulados en interior mina.")
@@ -213,7 +217,8 @@ NB_MODULE(_ventpy_core, m) {
         .def_rw("explosive_type", &BlastingParams::explosive_type,
                 "Tipo de explosivo (ExplosiveType)")
         .def_rw("gas_volume_per_kg", &BlastingParams::gas_volume_per_kg,
-                "Vol. gases [m3/kg], 0 = usar tipo")
+                "Vol. total de gases [m3/kg] que se reporta; 0 = estimarlo.\n"
+                "No cambia el caudal: la dilucion usa CO y NOx por kg")
         .def_rw("dilution_time_min", &BlastingParams::dilution_time_min,
                 "Tiempo maximo de dilucion [min]")
         .def_rw("face_area_m2", &BlastingParams::face_area_m2,
@@ -564,19 +569,20 @@ NB_MODULE(_ventpy_core, m) {
         "Estructura auditable: cada entrada cita su fuente normativa exacta\n"
         "en regulation_ref. Los campos de valor son opcionales porque cada\n"
         "norma define combinaciones distintas (TWA+STEL, solo techo, minimo\n"
-        "para O2). Unidad canonica: ppm / % vol.")
+        "para O2). Un campo que la norma no fija vale None: no es cero.\n"
+        "Unidad canonica: ppm / % vol.")
         .def_ro("gas", &GasLimit::gas,
                 "Gas regulado (GasType)")
         .def_ro("unit", &GasLimit::unit,
                 "Unidad del limite (ConcentrationUnit: PPM o porcentaje en volumen)")
         .def_ro("twa_8h", &GasLimit::twa_8h,
-                "Promedio ponderado 8 h (TWA / LPP)")
+                "Promedio ponderado 8 h (TWA / LPP / VLE-PPT); None si la norma no lo fija")
         .def_ro("stel", &GasLimit::stel,
-                "Corta duracion (STEL / LPT)")
+                "Corta duracion (STEL / LPT / VLE-CT); None si la norma no lo fija")
         .def_ro("ceiling", &GasLimit::ceiling,
-                "Techo absoluto (C) - o maximo para O2")
+                "Techo absoluto (C) - o maximo para O2; None si la norma no lo fija")
         .def_ro("floor_min", &GasLimit::floor_min,
-                "Minimo permitido (solo O2)")
+                "Minimo permitido (solo O2); None en los demas gases")
         .def_ro("regulation_ref", &GasLimit::regulation_ref,
                 "Cita normativa exacta");
 
@@ -596,7 +602,8 @@ NB_MODULE(_ventpy_core, m) {
     // ========================================================================
     nb::class_<RegulatoryConfig>(m, "RegulatoryConfig",
         "Configuracion normativa inmutable para calculo de ventilacion.\n"
-        "DS 024-2016-EM / DS 023-2017-EM (Peru) o DS 132 (Chile).")
+        "DS 024-2016-EM / DS 023-2017-EM (Peru), DS 132 (Chile),\n"
+        "Decreto 1886 de 2015 (Colombia) o NOM-023-STPS-2012 (Mexico).")
         .def(nb::init<
                 RegulatoryStandard, double, double, double,
                 double, double, double, double, double, double,
@@ -620,6 +627,17 @@ NB_MODULE(_ventpy_core, m) {
              "Preset oficial chileno - DS 132, Reglamento de Seguridad Minera.\n"
              "3.0 m3/min por persona (Art. 138, sin escalon por altitud) y\n"
              "2.83 m3/min por HP efectivo al freno (Art. 132).")
+        .def_static("colombia", &RegulatoryConfig::colombia,
+             "Preset oficial colombiano - Decreto 1886 de 2015.\n"
+             "3.0 m3/min por trabajador hasta 1,500 msnm y 6.0 de 1,500 msnm\n"
+             "en adelante (Art. 54, nums. 1 y 2); 6.0 m3/min por HP con CO en\n"
+             "el exosto <= 0.12% (Art. 54, par. 2, num. 1). El num. 2 admite\n"
+             "4.0 m3/min por HP si el CO en el exosto es <= 0.08%.")
+        .def_static("mexico", &RegulatoryConfig::mexico,
+             "Preset oficial mexicano - NOM-023-STPS-2012 (minas subterraneas\n"
+             "que no son de carbon). 1.50 m3/min por trabajador, sin escalon\n"
+             "por altitud (numeral 8.4.4 a) 1) y 2.13 m3/min por caballo de\n"
+             "fuerza diesel (numeral 8.4.4 a) 2).")
         .def_static("for_standard", &RegulatoryConfig::for_standard,
              nb::arg("standard"),
              "Construye el preset oficial de la norma indicada.\n"
@@ -1065,7 +1083,7 @@ NB_MODULE(_ventpy_core, m) {
         .def_ro("type", &ShockFactorEntry::type,
                 "Tipo de singularidad (SingularityType)")
         .def_ro("x", &ShockFactorEntry::x,
-                "0 si es formula/manual (ver note)")
+                "Factor de choque; None si sale por formula o es manual (ver note)")
         .def_ro("biblio_ref", &ShockFactorEntry::biblio_ref,
                 "Cita bibliografica exacta de la entrada")
         .def_ro("note", &ShockFactorEntry::note,
@@ -1365,19 +1383,26 @@ NB_MODULE(_ventpy_core, m) {
           nb::arg("num_workers"), nb::arg("altitude_masl"),
           nb::arg("config"),
           "Calcula Q_Per (caudal por personal) - version simple.\n"
-          "DS 024-2016-EM, Art. 236.");
+          "La cita sigue a la norma configurada.");
 
     m.def("calculate_diesel_flow",
           &DieselFlowCalculator::calculate,
           nb::arg("fleet"), nb::arg("config"),
           "Calcula Q_Eq (caudal por equipos diesel) - version simple.\n"
-          "DS 024-2016-EM, Art. 246.");
+          "Solo aplica el factor normativo por HP de la norma configurada:\n"
+          "q_for_co_dilution y q_for_nox_dilution quedan en 0 porque no se\n"
+          "evaluan. La dilucion por contaminante segun el Tier del motor la\n"
+          "calcula VentilationGovernor.");
 
     m.def("calculate_blasting_flow",
           &BlastingFlowCalculator::calculate,
           nb::arg("params"), nb::arg("config"),
           "Calcula Q_Exp (caudal por explosivos) - version simple.\n"
-          "DS 024-2016-EM, Art. 243-244.");
+          "Modelo por contaminante (dilucion de CO y NOx segun el tipo de\n"
+          "explosivo), sin correccion por altitud y sin los criterios de\n"
+          "seccion si no se dan face_area_m2 y face_length_m. Para corregir\n"
+          "por altitud use VentilationGovernor. La cita sigue a la norma\n"
+          "configurada.");
 
     m.def("calculate_dust_flow",
           [](const DustParams& p, const RegulatoryConfig& c) {

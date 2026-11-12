@@ -37,15 +37,19 @@ def _write_json(tmp_path, name, data):
 
 
 class TestCmdDemanda:
-    def test_demanda_devface_981(self, tmp_path, capsys):
+    def test_demanda_devface_voladura_gobierna_7764(self, tmp_path, capsys):
         archivo = _write_json(tmp_path, "input.json", _DEVFACE_15W_4200_SCOOP150)
 
         exit_code = cli.main(["demanda", archivo, "--json"])
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
-        assert data["q_total_m3min"] == 981.0
-        assert data["governing_factor"] == "diesel (Q_Eq)"
+        # 50 kg de ANFO en 30 min a 4200 msnm: dilucion de NOx = 6751 m3/min,
+        # por encima del diesel (853). Total = ceil(6751 x 1.15) = 7764.
+        assert data["q_diesel_m3min"] == 853.0
+        assert data["q_blasting_m3min"] == 6751.0
+        assert data["q_total_m3min"] == 7764.0
+        assert data["governing_factor"] == "blasting (Q_Exp)"
 
     def test_demanda_norma_chile(self, tmp_path, capsys):
         archivo = _write_json(tmp_path, "input.json", _CHILE_10W_4200_SCOOP150)
@@ -57,6 +61,20 @@ class TestCmdDemanda:
         assert data["standard"] == "DS132_Chile"
         assert data["q_total_m3min"] == 981.0
         assert data["governing_factor"] == "diesel (Q_Eq)"
+
+    @pytest.mark.parametrize("norma, standard", [
+        ("colombia", "D1886_Colombia"),
+        ("mexico", "NOM023_Mexico"),
+    ])
+    def test_demanda_norma_colombia_y_mexico(self, tmp_path, capsys, norma, standard):
+        archivo = _write_json(tmp_path, "input.json", _CHILE_10W_4200_SCOOP150)
+
+        exit_code = cli.main(["demanda", archivo, "--norma", norma, "--json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["standard"] == standard
+        assert data["q_total_m3min"] > 0
 
     def test_demanda_clave_desconocida_exit1(self, tmp_path, capsys):
         archivo = _write_json(tmp_path, "input.json", {"trabajadores": 5})
@@ -144,6 +162,20 @@ class TestCmdLmp:
         data = json.loads(capsys.readouterr().out)
         assert data["twa_8h"] == 44.0
         assert "40 ppm" in data["regulation_ref"]
+
+    @pytest.mark.parametrize("norma, standard, so2_ref", [
+        ("colombia", "D1886_Colombia", "Decreto 1886 de 2015, Art. 39"),
+        ("mexico", "NOM023_Mexico", "NOM-010-STPS-2014, Tabla I.1, fila 317"),
+    ])
+    def test_lmp_colombia_y_mexico_so2_sin_twa(self, capsys, norma, standard, so2_ref):
+        exit_code = cli.main(["lmp", "--norma", norma, "--gas", "SO2", "--json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["standard"] == standard
+        assert data["twa_8h"] is None      # la norma solo fija corto tiempo
+        assert data["stel"] == 0.25
+        assert so2_ref in data["regulation_ref"]
 
     def test_lmp_gas_no_regulado_exit1(self, capsys):
         exit_code = cli.main(["lmp", "--norma", "chile", "--gas", "NO", "--json"])

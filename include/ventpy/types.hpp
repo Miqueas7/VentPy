@@ -41,6 +41,8 @@ enum class ZoneType {
 enum class RegulatoryStandard {
     DS024_Peru,     ///< DS 024-2016-EM + DS 023-2017-EM (Perú)
     DS132_Chile,    ///< DS 132 Reglamento de Seguridad Minera (Chile)
+    D1886_Colombia, ///< Decreto 1886 de 2015, mod. Decreto 944 de 2022 (Colombia)
+    NOM023_Mexico,  ///< NOM-023-STPS-2012; gases por NOM-010-STPS-2014 (México)
 };
 
 /**
@@ -206,7 +208,7 @@ struct PersonnelParams {
 struct BlastingParams {
     double explosive_kg = 0.0;          ///< Cantidad de explosivo por voladura [kg]
     ExplosiveType explosive_type = ExplosiveType::ANFO;
-    double gas_volume_per_kg = 0.0;     ///< Vol. gases [m³/kg], 0 = usar tipo
+    double gas_volume_per_kg = 0.0;     ///< Vol. total de gases reportado [m³/kg], 0 = estimar; no cambia el caudal
     double dilution_time_min = 0.0;     ///< Tiempo máximo de dilución [min]
     double face_area_m2 = 0.0;          ///< Sección del frente [m²]
     double face_length_m = 0.0;         ///< Longitud hasta el frente [m]
@@ -351,7 +353,7 @@ struct FrictionFactorEntry {
 /// Entrada informativa de la tabla de choque.
 struct ShockFactorEntry {
     SingularityType type;
-    double x;                     ///< 0 si es fórmula/manual
+    std::optional<double> x;      ///< Sin valor si es por fórmula o manual
     std::string biblio_ref;
     std::string note;
 };

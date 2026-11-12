@@ -6,6 +6,8 @@ Con el preajuste chileno la cita apunta al DS 132 o declara explicitamente que
 el DS 132 no fija el valor; en ningun caso aparece la normativa peruana.
 """
 
+import pytest
+
 import ventpy
 
 
@@ -282,3 +284,77 @@ class TestBarridoTransversal:
         for sub in (demanda.personnel, demanda.diesel, demanda.blasting,
                     demanda.dust, demanda.thermal):
             assert "DS 132" in sub.regulation_ref
+
+
+# ---------------------------------------------------------------------------
+# Colombia (Decreto 1886 de 2015) y Mexico (NOM-023-STPS-2012): cada cita
+# nombra su norma y ninguna toma prestado un articulo de las otras tres.
+# ---------------------------------------------------------------------------
+
+_PERU_Y_CHILE = MARCAS_PERU + ("DS 132", "DS 594")
+
+MARCOS_NUEVOS = [
+    pytest.param("colombia", "Decreto 1886",
+                 _PERU_Y_CHILE + ("NOM-",), id="colombia"),
+    pytest.param("mexico", "NOM-",
+                 _PERU_Y_CHILE + ("Decreto 1886",), id="mexico"),
+]
+
+
+@pytest.fixture
+def config(norma):
+    return getattr(ventpy.RegulatoryConfig, norma)()
+
+
+@pytest.mark.parametrize("norma, marca, ajenas", MARCOS_NUEVOS)
+class TestColombiaYMexico:
+    def test_governor_cita_solo_su_norma(self, config, marca, ajenas):
+        demanda = ventpy.VentilationGovernor(config).calculate_total_demand(
+            entrada_completa())
+        subs = (demanda.personnel, demanda.diesel, demanda.blasting,
+                demanda.dust, demanda.thermal)
+        assert all(s is not None for s in subs)
+        for sub in subs:
+            assert marca in sub.regulation_ref
+
+        infracciones = [(a, t) for t in textos_auditables(demanda)
+                        for a in ajenas if a in t]
+        assert infracciones == []
+
+    def test_voladura_declara_que_el_tope_no_es_normativo(self, config, marca, ajenas):
+        r = ventpy.calculate_blasting_flow(params_voladura(), config)
+        assert "no fija tiempo de dilucion" in r.regulation_ref
+        assert "max configurado" in r.regulation_ref
+        assert "max normativo" not in r.regulation_ref
+
+    def test_personal_sin_clausula_de_escala_aparte(self, config, marca, ajenas):
+        # Los umbrales de relleno (3.000 y 4.000 msnm) no deben llegar a la cita.
+        demanda = ventpy.VentilationGovernor(config).calculate_total_demand(
+            entrada_completa())
+        assert "(>" not in demanda.personnel.regulation_ref
+
+    def test_cobertura_declara_criterio_de_ingenieria(self, config, marca, ajenas):
+        m = ventpy.ZoneMeasurement()
+        m.zone_name = "Frente N-02"
+        m.q_measured_m3min = 90.0
+        r = ventpy.CoverageCalculator.compare_zone(100.0, m, config=config)
+        assert marca in r.regulation_ref
+        assert "criterio de ingenieria" in r.regulation_ref
+        assert [a for a in ajenas if a in r.regulation_ref] == []
+
+
+def test_citas_puntuales_colombia_y_mexico():
+    col = ventpy.RegulatoryConfig.colombia()
+    mex = ventpy.RegulatoryConfig.mexico()
+    assert "Art. 54 nums. 1 y 2" in ventpy.calculate_personnel_flow(
+        15, 2600.0, col).regulation_ref
+    assert "Art. 54 par. 2 num. 1" in ventpy.calculate_diesel_flow(
+        flota_diesel(), col).regulation_ref
+    assert "Art. 157" in ventpy.calculate_blasting_flow(
+        params_voladura(), col).regulation_ref
+    assert "numeral 8.4.4 a) 1)" in ventpy.calculate_personnel_flow(
+        15, 2600.0, mex).regulation_ref
+    assert "numeral 8.4.4 a) 2)" in ventpy.calculate_diesel_flow(
+        flota_diesel(), mex).regulation_ref
+    assert "numeral 8.6.9 g)" in ventpy.calculate_blasting_flow(
+        params_voladura(), mex).regulation_ref
