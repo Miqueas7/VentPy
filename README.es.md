@@ -13,7 +13,7 @@
 
 Cálculos de ventilación subterránea de alto rendimiento para Python, respaldados por un núcleo en C++20.
 
-VentPy ayuda a ingenieros de minas a estimar la demanda de ventilación en operaciones subterráneas mediante una API auditable que cubre personal, flotas diesel, voladura, polvo, carga térmica, correcciones atmosféricas, diseño de ductos/red y selección de ventilador, actualmente bajo los marcos regulatorios peruano (`DS 024-2016-EM` / `DS 023-2017-EM`) y chileno (`DS 132` / `DS 594`). Los cálculos corren en un núcleo C++ tipado y probado en vez de una hoja de cálculo: cada resultado trae su criterio gobernante y su cita normativa, no solo un número.
+VentPy ayuda a ingenieros de minas a estimar la demanda de ventilación en operaciones subterráneas mediante una API auditable que cubre personal, flotas diesel, voladura, polvo, carga térmica, correcciones atmosféricas, diseño de ductos/red y selección de ventilador, actualmente bajo los marcos regulatorios peruano (`DS 024-2016-EM` / `DS 023-2017-EM`), chileno (`DS 132` / `DS 594`), colombiano (`Decreto 1886 de 2015`) y mexicano (`NOM-023-STPS-2012` / `NOM-010-STPS-2014`). Los cálculos corren en un núcleo C++ tipado y probado en vez de una hoja de cálculo: cada resultado trae su criterio gobernante y su cita normativa, no solo un número.
 
 ## Qué hace VentPy
 
@@ -33,35 +33,47 @@ VentPy ayuda a ingenieros de minas a estimar la demanda de ventilación en opera
 
 ## Soporte multi-norma
 
-VentPy trae preajustes oficiales para dos marcos regulatorios, cada constante citando su artículo:
+VentPy trae preajustes oficiales para cuatro marcos regulatorios, cada constante citando su artículo:
 
 ```python
 import ventpy
 
 peru = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.peru())
 chile = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.chile())
+colombia = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.colombia())
+mexico = ventpy.calculate_personnel_flow(15, 4200.0, ventpy.RegulatoryConfig.mexico())
 
-print(f"Peru:  {peru.q_personnel} m3/min ({peru.flow_per_person_base} m3/min/person)")
-print(f"Chile: {chile.q_personnel} m3/min ({chile.flow_per_person_base} m3/min/person)")
+print(f"Peru:     {peru.q_personnel} m3/min ({peru.flow_per_person_base} m3/min/person)")
+print(f"Chile:    {chile.q_personnel} m3/min ({chile.flow_per_person_base} m3/min/person)")
+print(f"Colombia: {colombia.q_personnel} m3/min ({colombia.flow_per_person_base} m3/min/person)")
+print(f"Mexico:   {mexico.q_personnel} m3/min ({mexico.flow_per_person_base} m3/min/person)")
 ```
 
 Salida:
 
 ```
-Peru:  90.0 m3/min (6.0 m3/min/person)
-Chile: 45.0 m3/min (3.0 m3/min/person)
+Peru:     90.0 m3/min (6.0 m3/min/person)
+Chile:    45.0 m3/min (3.0 m3/min/person)
+Colombia: 90.0 m3/min (6.0 m3/min/person)
+Mexico:   23.0 m3/min (1.5 m3/min/person)
 ```
 
 - `RegulatoryConfig.peru()` — `DS 024-2016-EM` / `DS 023-2017-EM`.
 - `RegulatoryConfig.chile()` — `DS 132`, Reglamento de Seguridad Minera (los límites de gases también usan el `DS 594`).
-- `RegulatoryConfig.for_standard(standard)` — construye cualquiera de los dos preajustes a partir de un miembro del enum `RegulatoryStandard`; es lo que usa internamente el flag `--norma peru|chile` de la CLI.
+- `RegulatoryConfig.colombia()` — `Decreto 1886 de 2015`, Reglamento de Seguridad en las Labores Mineras Subterráneas (consolidado con el `Decreto 944 de 2022`). Un solo escalón de altitud a los 1.500 msnm; 6 m³/min por HP, o 4 si el CO en el escape no pasa de 0,08 %, caso en que se construye una configuración propia.
+- `RegulatoryConfig.mexico()` — `NOM-023-STPS-2012`, para minas subterráneas que no son de carbón. No escala por altitud; los límites de gases llegan por remisión a la `NOM-010-STPS-2014`. Las minas de carbón se rigen por la `NOM-032-STPS-2008`, que este preajuste no cubre.
+- `RegulatoryConfig.for_standard(standard)` — construye cualquiera de los cuatro preajustes a partir de un miembro del enum `RegulatoryStandard`; es lo que usa internamente el flag `--norma` de la CLI.
+
+Donde una norma no regula un concepto (tiempo de dilución tras la voladura, fugas en ductos, velocidad mínima fuera del carbón en Colombia, oxígeno mínimo en labores en México), la cita impresa lo declara y atribuye el valor a criterio de ingeniería.
 
 Agregar la norma de otro país es la contribución que más necesita VentPy — ver [Contribuir](#contribuir).
 
 ## Estado del proyecto
 
-VentPy se encuentra en **beta**. Los cálculos de personal, diesel, voladura, polvo, térmico, cobertura, red, ventilador y atmósfera están implementados, probados (219 pruebas en C++ y 176 en Python, incluidas pruebas basadas en propiedades y de escala hasta 500 ramales) y expuestos a Python para ambos preajustes.
+VentPy se encuentra en **beta**. Los cálculos de personal, diesel, voladura, polvo, térmico, cobertura, red, ventilador y atmósfera están implementados, probados (245 pruebas en C++ y 199 en Python, incluidas pruebas basadas en propiedades y de escala hasta 500 ramales) y expuestos a Python para los cuatro preajustes.
 
+> **En la 0.3.0 cambia el caudal de voladura.** Hasta la 0.2.1, declarar `gas_volume_per_kg` hacía que la voladura se calculara como volumen de gases entre tiempo de dilución, sin llevarlo a un límite de exposición: el resultado era del orden de 1 m³/min. Desde la 0.3.0 la voladura se calcula siempre por dilución de CO y NOx, y `gas_volume_per_kg` solo fija el volumen de gases que se reporta. Si calculaste una demanda con voladura y ese parámetro, recalcúlala: el caudal de voladura sube varios órdenes de magnitud y puede pasar a gobernar. Detalle en el [`CHANGELOG.md`](https://github.com/Miqueas7/VentPy/blob/master/CHANGELOG.md).
+>
 > **En la 0.2.1 cambian las citas, no los números.** Hasta la 0.2.0, todo resultado citaba el marco peruano aunque se construyera con `RegulatoryConfig.chile()`: el caudal era correcto, pero la referencia legal impresa junto a él no. Desde la 0.2.1 la cita sigue a la norma configurada, y donde el `DS 132` no regula un concepto, la cita lo declara explícitamente en vez de tomar prestado un artículo peruano. Si emitiste informes con el preajuste chileno, conviene reemitirlos.
 
 > **Los resultados cambian entre 0.1.0 y 0.2.0.** La versión 0.2.0 corrige tres citas normativas del núcleo. Si calculaste algo con 0.1.0, conviene rehacerlo, especialmente por encima de 1.500 msnm.
@@ -118,9 +130,9 @@ Cinco ejemplos resueltos y auto-verificables (cada `run.py` afirma sus propios n
 
 Instalar VentPy también instala el comando `ventpy`, una capa de presentación delgada sobre la misma API pública (sin lógica de cálculo propia) con 5 subcomandos:
 
-- `ventpy demanda <archivo.json> [--norma peru|chile] [--json]` — demanda total de ventilación de una zona/frente
-- `ventpy lmp [--norma peru|chile] [--gas GAS] [--json]` — límites máximos permisibles (LMP) de gases regulados
-- `ventpy cobertura <archivo.json> [--norma peru|chile] [--json]` — análisis de déficit/cobertura de un levantamiento de zonas
+- `ventpy demanda <archivo.json> [--norma peru|chile|colombia|mexico] [--json]` — demanda total de ventilación de una zona/frente
+- `ventpy lmp [--norma peru|chile|colombia|mexico] [--gas GAS] [--json]` — límites máximos permisibles (LMP) de gases regulados
+- `ventpy cobertura <archivo.json> [--norma peru|chile|colombia|mexico] [--json]` — análisis de déficit/cobertura de un levantamiento de zonas
 - `ventpy red <archivo.json> [--json]` — balance de una red de ventilación (Hardy Cross)
 - `ventpy ventilador <archivo.json> [--json]` — punto de operación de un ventilador (independiente o acoplado a una red)
 
@@ -142,7 +154,7 @@ regulation_ref: DS 024-2016-EM, Anexo 15, fila 33 (via Art. 246)
 
 VentPy expone 87 nombres públicos (`ventpy.__all__`). Puntos de entrada principales:
 
-- `RegulatoryConfig` (`.peru()`, `.chile()`, `.for_standard(...)`)
+- `RegulatoryConfig` (`.peru()`, `.chile()`, `.colombia()`, `.mexico()`, `.for_standard(...)`)
 - `VentilationGovernor`, `VentilationInput`
 - `DieselFleet`, `AtmosphericParams`, `PersonnelParams`, `BlastingParams`, `DustParams`, `ThermalParams`
 

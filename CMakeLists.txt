@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(ventpy
-    VERSION 0.2.1
+    VERSION 0.3.0
     DESCRIPTION "High-performance mine ventilation calculation library"
     LANGUAGES CXX
 )
