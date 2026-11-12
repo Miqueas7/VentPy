@@ -159,8 +159,22 @@ class TestBlastingFlow:
         params.face_length_m = 200.0
 
         result = ventpy.calculate_blasting_flow(params, default_config)
-        # Basic formula: (50 * 0.04) / 30 = 0.0667 m3/min (minimum)
-        assert result.q_blasting > 0
+        # NOx dilution: 50 kg * 10 L/kg / (5e-6 * 30 min) / 1000 * 1.2 = 4000
+        assert result.q_blasting == 4000.0
+        assert result.governing_criterion == "dilucion NOx"
+        # gas_volume_per_kg only sets the reported gas volume: 50 * 0.04
+        assert result.total_gas_volume_m3 == 2.0
+
+    def test_without_face_section_only_dilution_criteria(self, default_config):
+        # 60 kg de ANFO en 30 min: NOx 600 L / (5e-6 * 30) / 1000 * 1.2 = 4800.
+        params = ventpy.BlastingParams()
+        params.explosive_kg = 60.0
+        params.dilution_time_min = 30.0
+
+        result = ventpy.calculate_blasting_flow(params, default_config)
+
+        assert result.q_blasting == 4800.0
+        assert result.governing_criterion == "dilucion NOx"
 
     def test_zero_dilution_time_raises(self, default_config):
         params = ventpy.BlastingParams()
@@ -322,8 +336,11 @@ class TestGovernor:
 
         result = governor.calculate_total_demand(inp)
 
-        # Diesel should govern (larger than personnel or blasting)
-        assert "diesel" in result.governing_factor.lower()
+        # Blasting governs: NOx dilution of a 50 kg ANFO round at 4200 masl
+        # (6751 m3/min) exceeds the diesel requirement (853 m3/min).
+        assert result.q_diesel_m3min == 853.0
+        assert result.q_blasting_m3min == 6751.0
+        assert result.governing_factor == "blasting (Q_Exp)"
         assert result.q_total_m3min > 0
         assert result.q_total_cfm > 0
 

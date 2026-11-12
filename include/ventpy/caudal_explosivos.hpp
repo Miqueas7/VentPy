@@ -78,7 +78,54 @@ public:
             "face_area_m2 [m2] - Seccion del frente");
         validation::require_positive(params.face_length_m,
             "face_length_m [m] - Longitud de la labor");
+        validation::require_non_negative(params.gas_volume_per_kg,
+            "gas_volume_per_kg [m3/kg] - Volumen de gases por kg (0 = estimar)");
 
+        return by_contaminant(
+            params,
+            AtmosphereCalculator::calculate_volume_correction_factor(
+                atm.altitude_masl),
+            config);
+    }
+
+    /**
+     * @brief Versión simplificada (compatibilidad con API anterior).
+     *
+     * Mismo modelo por contaminante que `calculate_full`, sin corrección por
+     * altitud (no recibe atmósfera) y sin los criterios de sección si
+     * `face_area_m2` o `face_length_m` vienen en 0.
+     *
+     * `gas_volume_per_kg` no cambia el caudal: solo fija el volumen total de
+     * gases que se reporta. Hasta la 0.2.1 seleccionaba una fórmula que
+     * dividía ese volumen entre el tiempo de dilución, sin llevarlo a un
+     * límite de exposición, y devolvía caudales del orden de 1 m³/min.
+     */
+    [[nodiscard]] static BlastingFlowResult calculate(
+        const BlastingParams& params,
+        const RegulatoryConfig& config
+    ) {
+        validation::require_positive(params.explosive_kg,
+            "explosive_kg [kg] - Cantidad de explosivo por disparo");
+        validation::require_positive(params.dilution_time_min,
+            "dilution_time_min [min] - Tiempo de dilucion");
+        validation::require_non_negative(params.gas_volume_per_kg,
+            "gas_volume_per_kg [m3/kg] - Volumen de gases por kg (0 = estimar)");
+        return by_contaminant(params, 1.0, config);
+    }
+
+private:
+    /**
+     * @brief Modelo por contaminante: dilución de CO y NOx, recambio
+     *        volumétrico y velocidad mínima de barrido.
+     *
+     * Los dos criterios de sección valen 0 si la sección o la longitud no se
+     * dieron; `calculate_full` las exige antes de llegar aquí.
+     */
+    [[nodiscard]] static BlastingFlowResult by_contaminant(
+        const BlastingParams& params,
+        double volume_correction,
+        const RegulatoryConfig& config
+    ) {
         BlastingFlowResult result;
         result.explosive_type = params.explosive_type;
         result.explosive_kg = params.explosive_kg;
@@ -91,18 +138,16 @@ public:
         result.co_generated_liters = params.explosive_kg * co_per_kg;
         result.nox_generated_liters = params.explosive_kg * nox_per_kg;
 
-        // Volumen total de gases (CO + NOx + otros)
+        // Volumen total de gases: el declarado por el usuario o, si no,
+        // CO + NOx + otros. Es un dato de auditoría: no entra en el caudal.
         double other_gases = params.explosive_kg * 20.0;  // N2, H2O vapor, etc.
-        result.total_gas_volume_m3 = (result.co_generated_liters +
-                                       result.nox_generated_liters +
-                                       other_gases) / 1000.0;
+        result.total_gas_volume_m3 = (params.gas_volume_per_kg > 0.0)
+            ? params.explosive_kg * params.gas_volume_per_kg
+            : (result.co_generated_liters + result.nox_generated_liters +
+               other_gases) / 1000.0;
 
         // Volumen de la labor
         result.face_volume_m3 = params.face_area_m2 * params.face_length_m;
-
-        // Factor de corrección por altitud
-        double volume_correction = AtmosphereCalculator::calculate_volume_correction_factor(
-            atm.altitude_masl);
 
         // --- Criterio 1: Dilución de CO a TLV ---
         result.q_for_co_dilution = calculate_q_for_gas(
@@ -156,50 +201,6 @@ public:
         return result;
     }
 
-    /**
-     * @brief Versión simplificada (compatibilidad con API anterior).
-     */
-    [[nodiscard]] static BlastingFlowResult calculate(
-        const BlastingParams& params,
-        const RegulatoryConfig& config
-    ) {
-        validation::require_positive(params.explosive_kg,
-            "explosive_kg [kg] - Cantidad de explosivo por disparo");
-        validation::require_positive(params.dilution_time_min,
-            "dilution_time_min [min] - Tiempo de dilucion");
-        // 0 = sentinel "usar factores del tipo de explosivo"; negativo es dato inválido
-        validation::require_non_negative(params.gas_volume_per_kg,
-            "gas_volume_per_kg [m3/kg] - Volumen de gases por kg (0 = usar tipo)");
-
-        BlastingFlowResult result;
-        result.explosive_type = params.explosive_type;
-        result.explosive_kg = params.explosive_kg;
-        result.dilution_time_min = params.dilution_time_min;
-
-        double gas_volume_per_kg = params.gas_volume_per_kg;
-        if (gas_volume_per_kg <= 0.0) {
-            auto [co, nox] = get_gas_factors(params);
-            gas_volume_per_kg = (co + nox) / 1000.0;
-        }
-
-        result.co_generated_liters = 0.0;
-        result.nox_generated_liters = 0.0;
-        result.total_gas_volume_m3 = params.explosive_kg * gas_volume_per_kg;
-        result.face_volume_m3 = params.face_area_m2 * params.face_length_m;
-        result.q_for_co_dilution = 0.0;
-        result.q_for_nox_dilution = 0.0;
-        result.q_for_volume_exchange =
-            result.total_gas_volume_m3 / params.dilution_time_min;
-        result.q_for_min_velocity = 0.0;
-        result.q_blasting = safety_ceil(result.q_for_volume_exchange);
-        result.governing_criterion = "volumen total";
-        // Misma referencia auditable que calculate_full: incluye la ADVERTENCIA
-        // si el tiempo de dilución excede el máximo normativo (Art. 243).
-        result.regulation_ref = build_regulation_ref(params, config, result);
-        return result;
-    }
-
-private:
     /**
      * @brief Obtiene factores de gases según tipo de explosivo.
      *

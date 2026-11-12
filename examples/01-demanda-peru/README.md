@@ -7,7 +7,7 @@ La demanda total de ventilacion (`Q_total`) de un frente de desarrollo
 
 - 15 trabajadores, a 4200 msnm
 - 1 scoop diesel de 150 HP (disponibilidad 0.85, utilizacion 0.70)
-- 1 disparo de 50 kg de ANFO (0.04 m3 de gases/kg, 30 min de dilucion)
+- sin voladura (ver la nota al final)
 
 usando la norma peruana `DS 024-2016-EM` (el preset por defecto de
 `RegulatoryConfig`).
@@ -25,7 +25,7 @@ ventpy demanda examples/01-demanda-peru/input.json --json
   "standard": "DS024_Peru",
   "q_personnel_m3min": 180.0,
   "q_diesel_m3min": 853.0,
-  "q_blasting_m3min": 1.0,
+  "q_blasting_m3min": 0.0,
   "governing_factor": "diesel (Q_Eq)",
   "q_total_m3min": 981.0,
   "velocity_at_face_mps": 1.1847222222222222,
@@ -40,7 +40,7 @@ ventpy demanda examples/01-demanda-peru/input.json --json
 El Governor toma el `max()` de los caudales de personal, diesel y
 explosivos para una zona de tipo frente/rampa (`select_governing_flow`,
 `include/ventpy/governor.hpp`). Aqui `Q_Eq` (853 m3/min) es mayor que
-`Q_Per` (180) y `Q_Exp` (1), asi que **"diesel (Q_Eq)"** es el criterio
+`Q_Per` (180) y no hay voladura, asi que **"diesel (Q_Eq)"** es el criterio
 gobernante.
 
 Dentro del calculo de `Q_Eq` (`DieselFlowCalculator::calculate_full`,
@@ -79,6 +79,16 @@ diesel — no es un criterio adicional que aumente `Q_total` en este
 ejemplo, pero forma parte de la auditoria obligatoria de todo resultado
 (criterio de auditoria del proyecto: estructura de auditoria completa,
 sin `double` suelto).
+
+## Nota: por que este ejemplo ya no incluye voladura
+
+Hasta la 0.2.1 este caso llevaba un disparo de 50 kg de ANFO con
+`gas_volume_per_kg = 0.04`, y `Q_Exp` salia en 1 m3/min: la libreria dividia
+el volumen de gases entre el tiempo de dilucion, sin llevarlo a un limite de
+exposicion. Desde la 0.3.0 la voladura se calcula siempre por dilucion de CO
+y NOx. Con ese mismo disparo, `Q_Exp` vale 6751 m3/min y pasa a gobernar
+(`Q_total` = 7764 m3/min). Se quito del ejemplo para que siga mostrando el
+caso gobernado por el diesel; el detalle del cambio esta en `CHANGELOG.md`.
 
 ## Ejecutar
 

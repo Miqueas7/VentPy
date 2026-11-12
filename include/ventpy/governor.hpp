@@ -154,15 +154,11 @@ public:
             if (blast.face_area_m2 <= 0) blast.face_area_m2 = input.face_area_m2;
             if (blast.face_length_m <= 0) blast.face_length_m = input.face_length_m;
 
-            // Compatibilidad: si el usuario usa la parametrización simple
-            // basada en volumen total de gases, mantener el comportamiento
-            // legacy en lugar del modelo detallado por contaminantes.
+            // Un solo modelo: dilución por contaminante con corrección de
+            // altitud. `gas_volume_per_kg` ya no desvía a la fórmula de
+            // volumen total entre tiempo, que no diluía a ningún límite.
             auto blast_result =
-                (blast.gas_volume_per_kg > 0.0 &&
-                 blast.co_per_kg_liters <= 0.0 &&
-                 blast.nox_per_kg_liters <= 0.0)
-                    ? BlastingFlowCalculator::calculate(blast, config_)
-                    : BlastingFlowCalculator::calculate_full(blast, atm, config_);
+                BlastingFlowCalculator::calculate_full(blast, atm, config_);
             result.q_blasting_m3min = blast_result.q_blasting;
             result.blasting = blast_result;
         }

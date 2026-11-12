@@ -51,17 +51,21 @@ TEST_F(GovernorTest, DevelopmentFace_FullCalculation) {
         .face_length_m = 200.0
     };
     input.blasting_params = blast;
-    // Q_Exp = (50 × 0.04) / 30 = 0.0667
+    // Dilución de NOx tras la voladura (gobierna dentro de Q_Exp):
+    //   50 × 10 = 500 L → 500 / (5e-6 × 30) / 1000 × 1,2 = 4.000
+    //   × corr_vol(4200 = 1.6876) = 6750.4 → Q_Exp = safety_ceil = 6751
 
     auto result = governor.calculateTotalDemand(input);
 
     // Q_Per = 180 (piso de velocidad: 12 m² × 0.25 m/s × 60; ver PersonnelOnly)
-    // Gobernante: max(180, 853, 0.0667) = 853 (diésel)
-    EXPECT_EQ(result.governing_factor, "diesel (Q_Eq)");
-    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 853.0);
+    // Gobernante: max(180, 853, 6751) = 6751 (voladura)
+    EXPECT_DOUBLE_EQ(result.q_diesel_m3min, 853.0);
+    EXPECT_DOUBLE_EQ(result.q_blasting_m3min, 6751.0);
+    EXPECT_EQ(result.governing_factor, "blasting (Q_Exp)");
+    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 6751.0);
 
-    // Con fugas 15%: 853 × 1.15 = 980.95 → ceil = 981
-    EXPECT_DOUBLE_EQ(result.q_total_m3min, 981.0);
+    // Con fugas 15%: 6751 × 1.15 = 7763.65 → ceil = 7764
+    EXPECT_DOUBLE_EQ(result.q_total_m3min, 7764.0);
 
     // Verificar que todos los componentes están presentes
     EXPECT_TRUE(result.personnel.has_value());
@@ -319,14 +323,15 @@ TEST_F(GovernorPolvoTermico, TermicoGobiernaE2E) {
 // rederivar aqui el modelo Tier3 de dilucion NOx del diesel.
 //   q_per     = 180   (piso velocidad; igual que TermicoGobiernaE2E)
 //   q_eq      = 0     (sin flota diesel; simplificacion documentada)
-//   q_exp     = 1     (blasting simple 50 kg, 0.04 m3/kg, 30 min:
-//                       ceil((50*0.04)/30) = ceil(0.0667) = 1)
+//   q_exp     = 5428  (50 kg de ANFO en 30 min, dilucion de NOx:
+//                       500 L / (5e-6 x 30) / 1000 x 1.2 = 4000;
+//                       x corr_vol(2500 = 1.3569) = 5427.6 => ceil)
 //   q_dust    = 300   (caso A de DilucionConSupresionExacta en
 //                       test_caudal_polvo.cpp: 50 mg/s con supresion 0.7,
 //                       target 3.0 => exacto, sin resto)
 //   q_thermal = 9391  (mismo caso de test_caudal_termico.cpp que TermicoGobiernaE2E)
-// suma = 180+0+1+300+9391 = 9872.
-// total = ceil(9872 x 1.15) = ceil(11352.8) = 11353.
+// suma = 180+0+5428+300+9391 = 15299.
+// total = ceil(15299 x 1.15) = ceil(17593.85) = 17594.
 TEST_F(GovernorPolvoTermico, GeneralMineSumaSinFlota) {
     VentilationInput input;
     input.zone_type = ZoneType::GeneralMine;
@@ -365,15 +370,15 @@ TEST_F(GovernorPolvoTermico, GeneralMineSumaSinFlota) {
 
     EXPECT_DOUBLE_EQ(result.q_personnel_m3min, 180.0);
     EXPECT_DOUBLE_EQ(result.q_diesel_m3min, 0.0);
-    EXPECT_DOUBLE_EQ(result.q_blasting_m3min, 1.0);
+    EXPECT_DOUBLE_EQ(result.q_blasting_m3min, 5428.0);
     EXPECT_DOUBLE_EQ(result.q_dust_m3min, 300.0);
     EXPECT_DOUBLE_EQ(result.q_thermal_m3min, 9391.0);
 
     double suma_manual = result.q_personnel_m3min + result.q_diesel_m3min +
                           result.q_blasting_m3min + result.q_dust_m3min +
                           result.q_thermal_m3min;
-    EXPECT_DOUBLE_EQ(suma_manual, 9872.0);
+    EXPECT_DOUBLE_EQ(suma_manual, 15299.0);
     EXPECT_EQ(result.governing_factor, "summation (mine total)");
-    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 9872.0);
-    EXPECT_DOUBLE_EQ(result.q_total_m3min, 11353.0);
+    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 15299.0);
+    EXPECT_DOUBLE_EQ(result.q_total_m3min, 17594.0);
 }
