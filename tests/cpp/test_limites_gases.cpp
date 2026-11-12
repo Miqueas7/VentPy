@@ -149,3 +149,122 @@ TEST(LimitesGasesChile, TablaCompleta_7Gases_TodasConRef) {
         EXPECT_TRUE(g.twa_8h || g.stel || g.ceiling || g.floor_min);
     }
 }
+
+// ============================================================================
+// Colombia — Decreto 1886 de 2015, Arts. 38 (O2), 39 (tabla de VLP) y 53 (CH4)
+// ============================================================================
+
+TEST(LimitesGasesColombia, TablaDelArt39) {
+    const auto col = RegulatoryStandard::D1886_Colombia;
+
+    const GasLimit& co = lmp_for(col, GasType::CO);
+    EXPECT_DOUBLE_EQ(co.twa_8h.value(), 25.0);
+    EXPECT_FALSE(co.stel.has_value());
+
+    const GasLimit& co2 = lmp_for(col, GasType::CO2);
+    EXPECT_DOUBLE_EQ(co2.twa_8h.value(), 5000.0);
+    EXPECT_DOUBLE_EQ(co2.stel.value(), 30000.0);
+
+    const GasLimit& no2 = lmp_for(col, GasType::NO2);
+    EXPECT_DOUBLE_EQ(no2.twa_8h.value(), 0.2);
+    EXPECT_FALSE(no2.stel.has_value());
+
+    const GasLimit& no = lmp_for(col, GasType::NO);
+    EXPECT_DOUBLE_EQ(no.twa_8h.value(), 25.0);
+
+    const GasLimit& h2s = lmp_for(col, GasType::H2S);
+    EXPECT_DOUBLE_EQ(h2s.twa_8h.value(), 1.0);
+    EXPECT_DOUBLE_EQ(h2s.stel.value(), 5.0);
+
+    for (GasType g : {GasType::CO, GasType::CO2, GasType::NO2, GasType::NO,
+                      GasType::H2S, GasType::SO2}) {
+        EXPECT_NE(lmp_for(col, g).regulation_ref.find("Art. 39"),
+                  std::string::npos);
+        EXPECT_EQ(lmp_for(col, g).unit, ConcentrationUnit::PPM);
+    }
+}
+
+// El decreto solo fija STEL para el SO2: el TWA va vacío, nunca en cero.
+TEST(LimitesGasesColombia, SO2_SoloStel) {
+    const GasLimit& g = lmp_for(RegulatoryStandard::D1886_Colombia, GasType::SO2);
+    EXPECT_FALSE(g.twa_8h.has_value());
+    EXPECT_DOUBLE_EQ(g.stel.value(), 0.25);
+}
+
+TEST(LimitesGasesColombia, CH4_Art53_1PorCientoMasEstricto) {
+    const GasLimit& g = lmp_for(RegulatoryStandard::D1886_Colombia, GasType::CH4);
+    EXPECT_EQ(g.unit, ConcentrationUnit::PercentVolume);
+    EXPECT_DOUBLE_EQ(g.ceiling.value(), 1.0);
+    EXPECT_NE(g.regulation_ref.find("Art. 53"), std::string::npos);
+    EXPECT_NE(g.regulation_ref.find("1.5%"), std::string::npos);
+}
+
+TEST(LimitesGasesColombia, O2_Art38_Min19p5Max23p5) {
+    const GasLimit& g = lmp_for(RegulatoryStandard::D1886_Colombia, GasType::O2);
+    EXPECT_DOUBLE_EQ(g.floor_min.value(), 19.5);
+    EXPECT_DOUBLE_EQ(g.ceiling.value(), 23.5);
+    EXPECT_NE(g.regulation_ref.find("Art. 38"), std::string::npos);
+}
+
+TEST(LimitesGasesColombia, TablaCompleta_8Gases_TodasConRef) {
+    const auto& table = gas_limits(RegulatoryStandard::D1886_Colombia);
+    EXPECT_EQ(table.size(), 8u);
+    for (const GasLimit& g : table) {
+        EXPECT_NE(g.regulation_ref.find("Decreto 1886 de 2015"), std::string::npos);
+        EXPECT_TRUE(g.twa_8h || g.stel || g.ceiling || g.floor_min);
+    }
+}
+
+// ============================================================================
+// México — NOM-010-STPS-2014, Tabla I.1 (vía remisión de la NOM-023-STPS-2012)
+// ============================================================================
+
+TEST(LimitesGasesMexico, TablaI1PorFila) {
+    const auto mex = RegulatoryStandard::NOM023_Mexico;
+    struct Fila { GasType gas; double ppt; const char* fila; };
+    const Fila filas[] = {
+        {GasType::CO,  25.0,   "fila 552"},
+        {GasType::CO2, 5000.0, "fila 318"},
+        {GasType::NO2, 0.2,    "fila 320"},
+        {GasType::NO,  25.0,   "fila 599"},
+        {GasType::H2S, 1.0,    "fila 683"},
+        {GasType::CH4, 1000.0, "fila 500"},
+    };
+    for (const Fila& f : filas) {
+        const GasLimit& g = lmp_for(mex, f.gas);
+        EXPECT_DOUBLE_EQ(g.twa_8h.value(), f.ppt) << f.fila;
+        EXPECT_EQ(g.unit, ConcentrationUnit::PPM) << f.fila;
+        EXPECT_NE(g.regulation_ref.find("NOM-010-STPS-2014"), std::string::npos);
+        EXPECT_NE(g.regulation_ref.find(f.fila), std::string::npos);
+    }
+    EXPECT_DOUBLE_EQ(lmp_for(mex, GasType::CO2).stel.value(), 30000.0);
+    EXPECT_DOUBLE_EQ(lmp_for(mex, GasType::H2S).stel.value(), 5.0);
+    EXPECT_FALSE(lmp_for(mex, GasType::CO).stel.has_value());
+    EXPECT_FALSE(lmp_for(mex, GasType::NO2).stel.has_value());
+}
+
+TEST(LimitesGasesMexico, SO2_SoloCortoTiempo) {
+    const GasLimit& g = lmp_for(RegulatoryStandard::NOM023_Mexico, GasType::SO2);
+    EXPECT_FALSE(g.twa_8h.has_value());
+    EXPECT_DOUBLE_EQ(g.stel.value(), 0.25);
+    EXPECT_NE(g.regulation_ref.find("fila 317"), std::string::npos);
+}
+
+// La NOM-023 no fija el mínimo de oxígeno en labores: el 19,5 % es criterio
+// de ingeniería y la cita tiene que decirlo, no atribuirlo a un numeral.
+TEST(LimitesGasesMexico, O2_CriterioDeIngenieriaDeclarado) {
+    const GasLimit& g = lmp_for(RegulatoryStandard::NOM023_Mexico, GasType::O2);
+    EXPECT_DOUBLE_EQ(g.floor_min.value(), 19.5);
+    EXPECT_FALSE(g.ceiling.has_value());
+    EXPECT_NE(g.regulation_ref.find("Criterio de ingenieria"), std::string::npos);
+    EXPECT_NE(g.regulation_ref.find("no fija"), std::string::npos);
+}
+
+TEST(LimitesGasesMexico, TablaCompleta_8Gases_TodasConRef) {
+    const auto& table = gas_limits(RegulatoryStandard::NOM023_Mexico);
+    EXPECT_EQ(table.size(), 8u);
+    for (const GasLimit& g : table) {
+        EXPECT_FALSE(g.regulation_ref.empty());
+        EXPECT_TRUE(g.twa_8h || g.stel || g.ceiling || g.floor_min);
+    }
+}

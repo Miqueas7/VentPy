@@ -97,13 +97,14 @@ TEST(TablaChoque, TablaInformativa7EntradasTodasConCita) {
     int exactos = 0;
     for (const auto& e : t) {
         if (e.type == SingularityType::Exit) {
-            EXPECT_DOUBLE_EQ(e.x, 1.0);
+            EXPECT_DOUBLE_EQ(e.x.value(), 1.0);
             ++exactos;
         } else if (e.type == SingularityType::Entrance) {
-            EXPECT_DOUBLE_EQ(e.x, 0.5);
+            EXPECT_DOUBLE_EQ(e.x.value(), 0.5);
             ++exactos;
         } else {
-            EXPECT_DOUBLE_EQ(e.x, 0.0);
+            // Por fórmula o manual: sin valor, para que no se lea como X = 0.
+            EXPECT_FALSE(e.x.has_value());
             EXPECT_FALSE(e.note.empty());
         }
     }

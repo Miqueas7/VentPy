@@ -14,6 +14,8 @@ import ventpy
 _NORMAS = {
     "peru": ventpy.RegulatoryStandard.DS024_Peru,
     "chile": ventpy.RegulatoryStandard.DS132_Chile,
+    "colombia": ventpy.RegulatoryStandard.D1886_Colombia,
+    "mexico": ventpy.RegulatoryStandard.NOM023_Mexico,
 }
 
 _ALLOWED_ATMOSPHERIC = frozenset({
@@ -103,7 +105,7 @@ _ALLOWED_VENTILADOR_REQUEST = frozenset({
 # Helpers de presentación (regla 6: sin decisiones de física aquí)
 # ============================================================================
 def _norma(nombre):
-    """"peru" | "chile" -> RegulatoryConfig (preset oficial de la norma)."""
+    """Nombre de la norma (clave de _NORMAS) -> RegulatoryConfig (preset oficial)."""
     try:
         standard = _NORMAS[nombre]
     except KeyError:
@@ -765,7 +767,8 @@ def build_parser():
     parser = argparse.ArgumentParser(
         prog="ventpy",
         description="VentPy - calculos de ventilacion de minas subterraneas "
-                     "(DS 024-2016-EM Peru / DS 132 Chile).",
+                     "(DS 024-2016-EM Peru / DS 132 Chile / Decreto 1886 "
+                     "Colombia / NOM-023-STPS-2012 Mexico).",
         epilog=_EXIT_CODES_EPILOG,
     )
     subparsers = parser.add_subparsers(dest="command", required=True)

@@ -159,3 +159,107 @@ TEST(RegulatoryPresets, Chile_EndToEnd_Governor) {
     EXPECT_NEAR(result.q_total_m3min, 981.0, 3.0);
     EXPECT_EQ(result.standard, RegulatoryStandard::DS132_Chile);
 }
+
+// ============================================================================
+// colombia(): valores del Decreto 1886 de 2015 (consolidado con el 944 de 2022)
+// ============================================================================
+
+TEST(RegulatoryPresets, Colombia_ValuesFromDecreto1886) {
+    const RegulatoryConfig col = RegulatoryConfig::colombia();
+
+    EXPECT_EQ(col.standard(), RegulatoryStandard::D1886_Colombia);
+    // Art. 54, num. 1: 3 m³/min por trabajador hasta 1.500 msnm
+    EXPECT_DOUBLE_EQ(col.min_flow_per_person(), 3.0);
+    // Art. 54, num. 2: 6 m³/min de 1.500 msnm en adelante (un solo escalón)
+    EXPECT_DOUBLE_EQ(col.altitude_threshold_1(), 1500.0);
+    EXPECT_DOUBLE_EQ(col.flow_above_threshold_1(), 6.0);
+    EXPECT_DOUBLE_EQ(col.flow_above_threshold_2(), 6.0);
+    EXPECT_DOUBLE_EQ(col.flow_above_threshold_3(), 6.0);
+    // Art. 54, par. 2, num. 1: 6 m³/min por HP (CO en el exosto <= 0,12 %)
+    EXPECT_DOUBLE_EQ(col.diesel_hp_factor(), 6.0);
+    // No regulados por el decreto — defaults ingenieriles
+    EXPECT_DOUBLE_EQ(col.max_dilution_time(), 30.0);
+    EXPECT_DOUBLE_EQ(col.default_gas_volume_per_kg(), 0.04);
+    EXPECT_DOUBLE_EQ(col.default_leakage_factor(), 0.15);
+}
+
+// Las dos bandas del Art. 54 incluyen el 1.500 en su texto; rige la semántica
+// común de borde ('>' estricto): a 1.500 msnm exactos aplica la banda inferior.
+TEST(RegulatoryPresets, Colombia_UnSoloEscalonEn1500) {
+    const RegulatoryConfig col = RegulatoryConfig::colombia();
+    const auto caudal = [&col](double altitud) {
+        return PersonnelFlowCalculator::calculate(10, altitud, col);
+    };
+
+    EXPECT_DOUBLE_EQ(caudal(0.0).flow_per_person_base, 3.0);
+    EXPECT_DOUBLE_EQ(caudal(1500.0).flow_per_person_base, 3.0);
+    EXPECT_DOUBLE_EQ(caudal(1500.5).flow_per_person_base, 6.0);
+    EXPECT_DOUBLE_EQ(caudal(2600.0).flow_per_person_base, 6.0);
+    EXPECT_DOUBLE_EQ(caudal(4200.0).flow_per_person_base, 6.0);
+    EXPECT_DOUBLE_EQ(caudal(2600.0).q_personnel, 60.0);   // 10 × 6
+}
+
+// ============================================================================
+// mexico(): valores de la NOM-023-STPS-2012 (numeral 8.4.4)
+// ============================================================================
+
+TEST(RegulatoryPresets, Mexico_ValuesFromNOM023) {
+    const RegulatoryConfig mex = RegulatoryConfig::mexico();
+
+    EXPECT_EQ(mex.standard(), RegulatoryStandard::NOM023_Mexico);
+    // 8.4.4 a) 1): 1,50 m³/min por trabajador, sin escala por altitud
+    EXPECT_DOUBLE_EQ(mex.min_flow_per_person(), 1.5);
+    EXPECT_DOUBLE_EQ(mex.flow_above_threshold_1(), 1.5);
+    EXPECT_DOUBLE_EQ(mex.flow_above_threshold_2(), 1.5);
+    EXPECT_DOUBLE_EQ(mex.flow_above_threshold_3(), 1.5);
+    // 8.4.4 a) 2): 2,13 m³/min por caballo de fuerza diésel
+    EXPECT_DOUBLE_EQ(mex.diesel_hp_factor(), 2.13);
+    // No regulados por la norma — defaults ingenieriles
+    EXPECT_DOUBLE_EQ(mex.max_dilution_time(), 30.0);
+    EXPECT_DOUBLE_EQ(mex.default_gas_volume_per_kg(), 0.04);
+    EXPECT_DOUBLE_EQ(mex.default_leakage_factor(), 0.15);
+}
+
+TEST(RegulatoryPresets, Mexico_SinEscalaPorAltitud) {
+    const RegulatoryConfig mex = RegulatoryConfig::mexico();
+    const auto bajo = PersonnelFlowCalculator::calculate(15, 500.0, mex);
+    const auto alto = PersonnelFlowCalculator::calculate(15, 4200.0, mex);
+
+    EXPECT_DOUBLE_EQ(bajo.flow_per_person_base, 1.5);
+    EXPECT_DOUBLE_EQ(alto.flow_per_person_base, 1.5);
+    EXPECT_DOUBLE_EQ(alto.q_personnel, 23.0);   // ceil(15 × 1,5 = 22,5)
+}
+
+TEST(RegulatoryPresets, ForStandard_DispatchesColombiaYMexico) {
+    const RegulatoryConfig col =
+        RegulatoryConfig::for_standard(RegulatoryStandard::D1886_Colombia);
+    const RegulatoryConfig mex =
+        RegulatoryConfig::for_standard(RegulatoryStandard::NOM023_Mexico);
+
+    EXPECT_EQ(col.standard(), RegulatoryStandard::D1886_Colombia);
+    EXPECT_DOUBLE_EQ(col.diesel_hp_factor(), 6.0);
+    EXPECT_EQ(mex.standard(), RegulatoryStandard::NOM023_Mexico);
+    EXPECT_DOUBLE_EQ(mex.diesel_hp_factor(), 2.13);
+}
+
+TEST(RegulatoryPresets, StandardName_ColombiaYMexico) {
+    EXPECT_EQ(RegulatoryConfig::colombia().standard_name(),
+              "Decreto 1886 de 2015 (Colombia)");
+    EXPECT_EQ(RegulatoryConfig::mexico().standard_name(),
+              "NOM-023-STPS-2012 (Mexico)");
+}
+
+// El factor por HP de cada norma llega al desglose del diésel. Flota:
+// 200 HP × 0,85 × 0,70 = 119 HP efectivos.
+TEST(RegulatoryPresets, DieselPorNorma_FactorVisibleEnElDesglose) {
+    DieselFleet fleet;
+    fleet.add_equipment("Scooptram", 200.0, 0.85, 0.70);
+
+    const auto col = DieselFlowCalculator::calculate(fleet, RegulatoryConfig::colombia());
+    const auto mex = DieselFlowCalculator::calculate(fleet, RegulatoryConfig::mexico());
+
+    EXPECT_DOUBLE_EQ(col.hp_factor_base, 6.0);
+    EXPECT_NEAR(col.q_diesel, 714.0, 1.0);    // 119 × 6
+    EXPECT_DOUBLE_EQ(mex.hp_factor_base, 2.13);
+    EXPECT_NEAR(mex.q_diesel, 254.0, 1.0);    // ceil(119 × 2,13 = 253,47)
+}

@@ -48,6 +48,18 @@ class TestTablaChoque:
         for entry in tabla:
             assert "A5" in entry.biblio_ref
 
+    def test_factor_por_formula_o_manual_va_sin_valor(self):
+        # Un 0.0 se leería como "sin pérdida"; solo los límites exactos traen x.
+        x = {e.type: e.x for e in ventpy.shock_factors()}
+        assert x[ventpy.SingularityType.Exit] == pytest.approx(1.0)
+        assert x[ventpy.SingularityType.Entrance] == pytest.approx(0.5)
+        for tipo in (ventpy.SingularityType.Expansion,
+                     ventpy.SingularityType.Contraction,
+                     ventpy.SingularityType.Bend90,
+                     ventpy.SingularityType.Bend45,
+                     ventpy.SingularityType.Junction):
+            assert x[tipo] is None
+
     def test_resolve_shock_factor_exit_entrance(self):
         exit_s = ventpy.AirwaySingularity()
         exit_s.type = ventpy.SingularityType.Exit
