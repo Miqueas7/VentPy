@@ -458,3 +458,176 @@ TEST(CitasNormativas, CadaCitaChilenaNombraSuMarco) {
     EXPECT_TRUE(contiene(d.dust->regulation_ref, "DS 132"));
     EXPECT_TRUE(contiene(d.thermal->regulation_ref, "DS 132"));
 }
+
+// ---------------------------------------------------------------------------
+// Colombia (Decreto 1886 de 2015) y México (NOM-023-STPS-2012)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+struct MarcoNormativo {
+    RegulatoryConfig config;
+    std::string marca;                  ///< Cómo nombra la cita a su norma
+    std::vector<std::string> ajenas;    ///< Marcas de las otras tres normas
+};
+
+[[nodiscard]] std::vector<MarcoNormativo> marcos_nuevos() {
+    return {
+        {RegulatoryConfig::colombia(), "Decreto 1886",
+         {"DS 024", "DS 023", "DS 015-2005-SA", "Anexo 15", "Anexo 13",
+          "DS 132", "DS 594", "NOM-"}},
+        {RegulatoryConfig::mexico(), "NOM-",
+         {"DS 024", "DS 023", "DS 015-2005-SA", "Anexo 15", "Anexo 13",
+          "DS 132", "DS 594", "Decreto 1886"}},
+    };
+}
+
+[[nodiscard]] std::string marca_ajena(const MarcoNormativo& m,
+                                      const std::string& texto) {
+    for (const std::string& a : m.ajenas) {
+        if (texto.find(a) != std::string::npos) return a;
+    }
+    return "";
+}
+
+}  // namespace
+
+TEST(CitasNormativas, HelperColombiaYMexico) {
+    EXPECT_TRUE(contiene(
+        regulation_reference(RegulatoryTopic::PersonnelFlow,
+                             RegulatoryStandard::D1886_Colombia),
+        "Decreto 1886 de 2015, Art. 54 nums. 1 y 2"));
+    EXPECT_TRUE(contiene(
+        regulation_reference(RegulatoryTopic::DieselHpFactor,
+                             RegulatoryStandard::D1886_Colombia),
+        "Art. 54 par. 2 num. 1"));
+    EXPECT_EQ(regulation_reference(RegulatoryTopic::PersonnelFlow,
+                                   RegulatoryStandard::NOM023_Mexico),
+              "NOM-023-STPS-2012, numeral 8.4.4 a) 1)");
+    EXPECT_EQ(regulation_reference(RegulatoryTopic::DieselHpFactor,
+                                   RegulatoryConfig::mexico()),
+              "NOM-023-STPS-2012, numeral 8.4.4 a) 2)");
+}
+
+// Ninguna de las dos tiene una cláusula de escala aparte: México no escala y
+// el único escalón colombiano ya va en la cita del caudal por persona. Así
+// la cita no arrastra los umbrales de relleno (3.000 y 4.000 msnm).
+TEST(CitasNormativas, ColombiaYMexicoSinClausulaDeEscalaAparte) {
+    PersonnelParams per;
+    per.num_workers = 15;
+    const auto atm = [] { AtmosphericParams a; a.altitude_masl = 4200.0; return a; }();
+
+    for (const MarcoNormativo& m : marcos_nuevos()) {
+        EXPECT_EQ(regulation_reference(RegulatoryTopic::PersonnelAltitudeScale,
+                                       m.config), "");
+        const auto r = PersonnelFlowCalculator::calculate_full(
+            per, atm, ZoneType::DevelopmentFace, 12.0, m.config);
+        EXPECT_TRUE(contiene(r.regulation_ref, m.marca));
+        EXPECT_FALSE(contiene(r.regulation_ref, "(>"));
+    }
+}
+
+TEST(CitasNormativas, NingunaCitaNuevaMencionaOtraNorma) {
+    const RegulatoryTopic temas[] = {
+        RegulatoryTopic::PersonnelFlow,
+        RegulatoryTopic::PersonnelAltitudeScale,
+        RegulatoryTopic::DieselHpFactor,
+        RegulatoryTopic::BlastingDilution,
+        RegulatoryTopic::BlastingDilutionTimeLimit,
+        RegulatoryTopic::DustRespirableLimit,
+        RegulatoryTopic::DustLimitBasis,
+        RegulatoryTopic::DustSilicaReferral,
+        RegulatoryTopic::ThermalBalance,
+        RegulatoryTopic::ThermalWithVelocityFloor,
+        RegulatoryTopic::ThermalInfeasibleWithFloor,
+        RegulatoryTopic::ThermalInfeasibleNoFloor,
+        RegulatoryTopic::ThermalStressReferral,
+        RegulatoryTopic::AirVelocityLimits,
+        RegulatoryTopic::CoverageZone,
+        RegulatoryTopic::CoverageMine
+    };
+    for (const MarcoNormativo& m : marcos_nuevos()) {
+        for (RegulatoryTopic t : temas) {
+            const std::string ref = regulation_reference(t, m.config);
+            EXPECT_EQ(marca_ajena(m, ref), "") << ref;
+        }
+    }
+}
+
+// Donde la norma no regula, la cita lo declara y no llama "normativo" al tope.
+TEST(CitasNormativas, VoladuraNuevaCitaReingresoYDeclaraVacio) {
+    const auto col = BlastingFlowCalculator::calculate(
+        params_voladura(), RegulatoryConfig::colombia());
+    const auto mex = BlastingFlowCalculator::calculate(
+        params_voladura(), RegulatoryConfig::mexico());
+
+    EXPECT_TRUE(contiene(col.regulation_ref, "Decreto 1886 de 2015, Art. 157"));
+    EXPECT_TRUE(contiene(mex.regulation_ref, "NOM-023-STPS-2012, numeral 8.6.9 g)"));
+    for (const auto* r : {&col, &mex}) {
+        EXPECT_TRUE(contiene(r->regulation_ref, "no fija tiempo de dilucion"));
+        EXPECT_TRUE(contiene(r->regulation_ref, "max configurado"));
+        EXPECT_FALSE(contiene(r->regulation_ref, "max normativo"));
+    }
+}
+
+// Los caudales de polvo y térmico no dependen de la norma: solo cambia la cita.
+TEST(CitasNormativas, PolvoYTermicoNuevosSoloCambianLaCita) {
+    const auto atm = atmosfera_2500_16c();
+    const auto polvo_pe = DustFlowCalculator::calculate(
+        params_polvo(), RegulatoryConfig::peru());
+    const auto termico_pe = ThermalFlowCalculator::calculate(
+        params_termicos(), atm, RegulatoryConfig::peru());
+
+    for (const MarcoNormativo& m : marcos_nuevos()) {
+        const auto polvo = DustFlowCalculator::calculate(params_polvo(), m.config);
+        const auto termico =
+            ThermalFlowCalculator::calculate(params_termicos(), atm, m.config);
+
+        EXPECT_DOUBLE_EQ(polvo.q_dust, polvo_pe.q_dust);
+        EXPECT_DOUBLE_EQ(termico.q_thermal, termico_pe.q_thermal);
+        EXPECT_TRUE(contiene(polvo.regulation_ref, m.marca));
+        EXPECT_TRUE(contiene(termico.regulation_ref, "criterio de ingenieria"));
+        EXPECT_FALSE(contiene(termico.regulation_ref, "252"));
+        EXPECT_FALSE(contiene(polvo.regulation_ref, "Art. 111"));
+    }
+}
+
+TEST(CitasNormativas, BarridoDelGovernorColombiaYMexico) {
+    for (const MarcoNormativo& m : marcos_nuevos()) {
+        const VentilationDemandResult d =
+            VentilationGovernor{m.config}.calculateTotalDemand(entrada_completa());
+
+        ASSERT_TRUE(d.personnel.has_value());
+        ASSERT_TRUE(d.diesel.has_value());
+        ASSERT_TRUE(d.blasting.has_value());
+        ASSERT_TRUE(d.dust.has_value());
+        ASSERT_TRUE(d.thermal.has_value());
+
+        for (const std::string& texto : textos_auditables(d)) {
+            EXPECT_EQ(marca_ajena(m, texto), "") << texto;
+        }
+        EXPECT_TRUE(contiene(d.personnel->regulation_ref, m.marca));
+        EXPECT_TRUE(contiene(d.diesel->regulation_ref, m.marca));
+        EXPECT_TRUE(contiene(d.blasting->regulation_ref, m.marca));
+        EXPECT_TRUE(contiene(d.dust->regulation_ref, m.marca));
+        EXPECT_TRUE(contiene(d.thermal->regulation_ref, m.marca));
+    }
+}
+
+TEST(CitasNormativas, CoberturaColombiaYMexico) {
+    ZoneMeasurement medida;
+    medida.zone_name = "Frente N-02";
+    medida.stations.push_back({"E-1", 12.0, 0.30});  // 18 m/min: fuera de rango
+
+    for (const MarcoNormativo& m : marcos_nuevos()) {
+        const auto r = CoverageCalculator::compare_zone(
+            100.0, medida, CoverageParams{}, m.config);
+
+        EXPECT_TRUE(contiene(r.regulation_ref, m.marca));
+        EXPECT_TRUE(contiene(r.regulation_ref, "criterio de ingenieria"));
+        EXPECT_EQ(marca_ajena(m, r.regulation_ref), "");
+        ASSERT_FALSE(r.stations[0].velocity_ok);
+        EXPECT_FALSE(contiene(r.stations[0].warning, "248"));
+        EXPECT_EQ(marca_ajena(m, r.stations[0].warning), "");
+    }
+}

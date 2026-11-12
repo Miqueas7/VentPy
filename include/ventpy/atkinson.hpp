@@ -61,8 +61,9 @@ inline const std::vector<FrictionFactorEntry>& atkinson_friction_factors() {
 }
 
 /// Tabla informativa de factores de choque — McPherson (2009), Apéndice A5
-/// (p. 5-26 a 5-38). x > 0 solo para los valores exactos; x = 0 indica
-/// "por fórmula" (nota) o "manual-only" (nota). NO incluye Manual.
+/// (p. 5-26 a 5-38). x solo trae valor en los límites exactos; va sin valor
+/// donde el factor sale "por fórmula" o es "manual-only" (ver la nota): un
+/// 0 se leería como "sin pérdida". NO incluye Manual.
 inline const std::vector<ShockFactorEntry>& shock_factors() {
     static const std::vector<ShockFactorEntry> table = {
         {SingularityType::Exit, 1.0,
@@ -71,19 +72,19 @@ inline const std::vector<ShockFactorEntry>& shock_factors() {
         {SingularityType::Entrance, 0.5,
          "McPherson (2009), Ap. A5.2(b), p. 5-28",
          "Limite exacto de contraccion brusca con A1 -> infinito: X = 0.5(1 - A2/A1)^2 -> 0.5"},
-        {SingularityType::Expansion, 0.0,
+        {SingularityType::Expansion, std::nullopt,
          "McPherson (2009), Ap. A5.2(a), p. 5-28",
          "Por formula: X = (1 - area_ratio)^2 con area_ratio = A1/A2 en (0,1)"},
-        {SingularityType::Contraction, 0.0,
+        {SingularityType::Contraction, std::nullopt,
          "McPherson (2009), Ap. A5.2(b), p. 5-28",
          "Por formula: X = 0.5*(1 - area_ratio)^2 con area_ratio = A2/A1 en (0,1)"},
-        {SingularityType::Bend90, 0.0,
+        {SingularityType::Bend90, std::nullopt,
          "McPherson (2009), Figs. A5.1-A5.2, p. 5-27",
          "Manual-only v1: la fuente publica graficos, no constantes"},
-        {SingularityType::Bend45, 0.0,
+        {SingularityType::Bend45, std::nullopt,
          "McPherson (2009), Fig. A5.3, p. 5-28",
          "Manual-only v1: correccion por angulo X_theta = X90 * k (grafico)"},
-        {SingularityType::Junction, 0.0,
+        {SingularityType::Junction, std::nullopt,
          "McPherson (2009), Ap. A5.3, p. 5-28",
          "Manual-only: la formula exige velocidades de ramales de la red"},
     };
