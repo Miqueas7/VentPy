@@ -81,7 +81,7 @@ jobs:
       - name: Medir y comprobar umbral
         run: |
           lcov --capture --directory build-cov --output-file cov.info \
-               --rc branch_coverage=1 --ignore-errors mismatch,gcov,source
+               --rc branch_coverage=1 --ignore-errors mismatch,gcov,source,inconsistent
           lcov --extract cov.info "*/include/ventpy/*" --output-file cov-core.info \
                --rc branch_coverage=1 --ignore-errors unused
           lcov --list cov-core.info --rc branch_coverage=1
