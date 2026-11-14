@@ -229,6 +229,9 @@ NB_MODULE(_ventpy_core, m) {
                 "CO generado [L/kg], 0 = usar tipo")
         .def_rw("nox_per_kg_liters", &BlastingParams::nox_per_kg_liters,
                 "NOx generado [L/kg], 0 = usar tipo")
+        .def_rw("blasting_levels", &BlastingParams::blasting_levels,
+                "Niveles en voladura (N del DS 024-2016-EM, Anexo 38);\n"
+                "solo cuenta en el total de mina")
         .def_rw("target_co_ppm", &BlastingParams::target_co_ppm,
                 "Limite CO objetivo [ppm] (DS024: 25 ppm)")
         .def_rw("target_nox_ppm", &BlastingParams::target_nox_ppm,

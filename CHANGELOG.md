@@ -43,7 +43,37 @@ contaminante: sus resultados no cambian.
 - El ejemplo `01-demanda-peru` ya no incluye voladura, para seguir mostrando
   el caso gobernado por el diésel. Su README explica el cambio.
 - El modelo por contaminante es conservador: diluye todo el CO a 25 ppm y
-  todo el NOx a 5 ppm dentro del tiempo declarado, con 20 % de margen.
+  todo el NOx a 5 ppm dentro del tiempo declarado, con 20 % de margen. Con el
+  DS 024 es criterio de ingeniería para el frente, y la cita lo declara: el
+  reglamento fija el caudal de voladura solo en el total de mina.
+
+### Total de mina con el DS 024: voladura según el Anexo 38
+
+Con el preajuste peruano, `ZoneType.GeneralMine` sigue el Anexo 38 del
+DS 024-2016-EM (texto del DS 023-2017-EM):
+
+- Con equipos diésel (num. 1), la voladura no entra en el total. El resultado
+  lo advierte y `q_blasting_m3min` queda en 0.
+- Sin equipos diésel (num. 2 lit. e), rige el mayor entre el total con fugas y
+  `Q_Ex = A × V × N`: área promedio de labores, velocidad mínima del Art. 248
+  (25 m/min con ANFO u otros agentes de voladura, 20 m/min con dinamita) y
+  niveles en voladura, el campo nuevo `BlastingParams.blasting_levels`
+  (por defecto 1). `Q_Ex` no lleva fugas.
+
+**A quién afecta:** a quien calcule el total de mina con voladura bajo el
+DS 024. Hasta ahora se sumaba el caudal por dilución de contaminantes; con
+50 kg de ANFO a 2.500 msnm, sin diésel, eso agregaba 5.428 m³/min y ahora
+agrega 300 (12 m² × 25 m/min × 1 nivel). Chile, Colombia y México no tienen
+un equivalente al Anexo 38 y siguen sumando la dilución.
+
+### Advertencia de velocidad máxima
+
+`VentilationGovernor` advierte cuando la velocidad en el frente, la rampa o el
+tajeo supera la máxima de la norma: 250 m/min en Perú (DS 024, Art. 248) y
+6 m/s (360 m/min) en Colombia (Decreto 1886, Art. 56). Chile y México no
+tienen máxima verificada y no se advierte. Solo es un aviso: el caudal
+requerido no cambia. La función `max_air_velocity_mpm` del núcleo C++
+devuelve esos topes.
 
 ### Metadatos del paquete
 

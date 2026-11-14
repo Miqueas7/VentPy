@@ -181,3 +181,32 @@ TEST_F(BlastingFlowTest, SinVolumenDeGases_CoincideConCompletoAlNivelDelMar) {
     EXPECT_EQ(simple.governing_criterion, completo.governing_criterion);
     EXPECT_GT(simple.q_for_min_velocity, 0.0);
 }
+
+// --- Q_Ex del DS 024, Anexo 38: A x V x N con V del Art. 248 ---
+TEST_F(BlastingFlowTest, Anexo38_AnfoUsa25PorMinuto) {
+    BlastingParams params{.explosive_kg = 50.0, .face_area_m2 = 12.0};
+    params.blasting_levels = 2;
+    auto r = BlastingFlowCalculator::calculate_annex38(params);
+    EXPECT_DOUBLE_EQ(r.q_blasting, 12.0 * 25.0 * 2);
+    EXPECT_DOUBLE_EQ(r.q_for_min_velocity, r.q_blasting);
+    EXPECT_NE(r.regulation_ref.find("Anexo 38"), std::string::npos);
+}
+
+// La dinamita es explosivo, no agente de voladura: rige el minimo general.
+TEST_F(BlastingFlowTest, Anexo38_DinamitaUsa20PorMinuto) {
+    BlastingParams params{.explosive_kg = 50.0,
+                          .explosive_type = ExplosiveType::Dynamite,
+                          .face_area_m2 = 10.0};
+    auto r = BlastingFlowCalculator::calculate_annex38(params);
+    EXPECT_DOUBLE_EQ(r.q_blasting, 200.0);
+}
+
+TEST_F(BlastingFlowTest, Anexo38_ValidaAreaYNiveles) {
+    BlastingParams sin_area{.explosive_kg = 50.0};
+    EXPECT_THROW((void)BlastingFlowCalculator::calculate_annex38(sin_area),
+                 std::invalid_argument);
+    BlastingParams sin_niveles{.explosive_kg = 50.0, .face_area_m2 = 12.0};
+    sin_niveles.blasting_levels = 0;
+    EXPECT_THROW((void)BlastingFlowCalculator::calculate_annex38(sin_niveles),
+                 std::invalid_argument);
+}

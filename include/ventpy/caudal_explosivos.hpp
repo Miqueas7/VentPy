@@ -113,6 +113,41 @@ public:
         return by_contaminant(params, 1.0, config);
     }
 
+    /**
+     * @brief Q_Ex del total de mina sin equipos diésel (DS 024-2016-EM,
+     *        Anexo 38, num. 2 lit. e): Q_Ex = A × V × N.
+     *
+     * A es `face_area_m2` (área promedio de labores), N es `blasting_levels`
+     * y V es la velocidad mínima del Art. 248: 25 m/min con ANFO u otros
+     * agentes de voladura, 20 m/min con dinamita, que es explosivo y no
+     * agente. Los tipos sin clasificar (`Custom`, `ElectronicDet`) toman 25,
+     * el valor más exigente.
+     */
+    [[nodiscard]] static BlastingFlowResult calculate_annex38(
+        const BlastingParams& params
+    ) {
+        validation::require_positive(params.face_area_m2,
+            "face_area_m2 [m2] - Area promedio de labores (A del Anexo 38)");
+        validation::require_positive_int(params.blasting_levels,
+            "blasting_levels - Niveles en voladura (N del Anexo 38)");
+
+        const double v_mpm =
+            (params.explosive_type == ExplosiveType::Dynamite) ? 20.0 : 25.0;
+
+        BlastingFlowResult result{};
+        result.explosive_type = params.explosive_type;
+        result.explosive_kg = params.explosive_kg;
+        result.q_for_min_velocity =
+            params.face_area_m2 * v_mpm * params.blasting_levels;
+        result.q_blasting = safety_ceil(result.q_for_min_velocity);
+        result.governing_criterion = "anexo 38 (A x V x N)";
+        result.regulation_ref =
+            "DS 024-2016-EM, Anexo 38 num. 2 lit. e (Q_Ex = A x V x N; V = " +
+            std::to_string(static_cast<int>(v_mpm)) +
+            " m/min del Art. 248)";
+        return result;
+    }
+
 private:
     /**
      * @brief Modelo por contaminante: dilución de CO y NOx, recambio

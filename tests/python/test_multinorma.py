@@ -108,3 +108,33 @@ class TestLmp:
         o2 = ventpy.lmp_for(mex, ventpy.GasType.O2)
         assert o2.floor_min == 19.5 and o2.ceiling is None
         assert "Criterio de ingenieria" in o2.regulation_ref
+
+
+class TestAnexo38:
+    """Total de mina con el DS 024: la voladura sigue el Anexo 38."""
+
+    def _mina(self, **blast):
+        inp = ventpy.VentilationInput()
+        inp.zone_type = ventpy.ZoneType.GeneralMine
+        b = ventpy.BlastingParams()
+        b.explosive_kg = 50.0
+        b.dilution_time_min = 30.0
+        for k, v in blast.items():
+            setattr(b, k, v)
+        inp.blasting_params = b
+        return inp
+
+    def test_sin_diesel_rige_q_ex(self):
+        gov = ventpy.VentilationGovernor(ventpy.RegulatoryConfig.peru())
+        r = gov.calculate_total_demand(self._mina(blasting_levels=3))
+        # 12 m2 x 25 m/min (ANFO, Art. 248) x 3 niveles
+        assert r.q_blasting_m3min == 900.0
+        assert r.q_total_m3min == 900.0
+        assert r.governing_factor == "blasting (Q_Ex, Anexo 38)"
+
+    def test_velocidad_maxima_advierte_en_el_frente(self):
+        gov = ventpy.VentilationGovernor(ventpy.RegulatoryConfig.peru())
+        inp = self._mina()
+        inp.zone_type = ventpy.ZoneType.DevelopmentFace
+        r = gov.calculate_total_demand(inp)
+        assert any("maximo" in w and "Art. 248" in w for w in r.warnings)

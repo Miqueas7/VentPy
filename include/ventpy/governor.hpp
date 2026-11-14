@@ -10,6 +10,11 @@
  *
  * Para la MINA TOTAL (General Mine):
  *   Q_total = Σ(Q_zonas) con sumatoria inteligente de todos los sectores.
+ *   Con el DS 024 la voladura sigue el Anexo 38: no entra si hay equipos
+ *   diésel y, si no los hay, rige max(Q_total, Q_Ex = A × V × N).
+ *
+ * Velocidad en el frente: advierte bajo el mínimo y sobre el máximo de la
+ * norma (`max_air_velocity_mpm`), sin recortar el caudal requerido.
  *
  * Características robustas:
  * - Correcciones atmosféricas automáticas por altitud
@@ -148,19 +153,32 @@ public:
         }
 
         // === 4. Caudal por Explosivos (Q_Exp) ===
+        // Total de mina con el DS 024: el Anexo 38 reemplaza la dilución.
+        const bool annex38 = input.zone_type == ZoneType::GeneralMine &&
+                             config_.standard() == RegulatoryStandard::DS024_Peru;
+        const bool has_diesel = input.diesel_fleet.has_value() &&
+                                !input.diesel_fleet->empty();
         if (input.blasting_params.has_value()) {
             BlastingParams blast = input.blasting_params.value();
             // Completar parámetros si faltan
             if (blast.face_area_m2 <= 0) blast.face_area_m2 = input.face_area_m2;
             if (blast.face_length_m <= 0) blast.face_length_m = input.face_length_m;
 
-            // Un solo modelo: dilución por contaminante con corrección de
-            // altitud. `gas_volume_per_kg` ya no desvía a la fórmula de
-            // volumen total entre tiempo, que no diluía a ningún límite.
-            auto blast_result =
-                BlastingFlowCalculator::calculate_full(blast, atm, config_);
-            result.q_blasting_m3min = blast_result.q_blasting;
-            result.blasting = blast_result;
+            if (annex38 && has_diesel) {
+                result.warnings.push_back(
+                    "DS 024-2016-EM, Anexo 38 num. 1: con equipos diesel la "
+                    "voladura no entra en el total de mina");
+            } else if (annex38) {
+                auto blast_result = BlastingFlowCalculator::calculate_annex38(blast);
+                result.q_blasting_m3min = blast_result.q_blasting;
+                result.blasting = blast_result;
+            } else {
+                // Dilución por contaminante con corrección de altitud.
+                auto blast_result =
+                    BlastingFlowCalculator::calculate_full(blast, atm, config_);
+                result.q_blasting_m3min = blast_result.q_blasting;
+                result.blasting = blast_result;
+            }
         }
 
         // === 4b. Caudal por Polvo (Q_polvo) ===
@@ -186,7 +204,7 @@ public:
         }
 
         // === 5. Lógica de Selección (Governor) ===
-        double q_governing = select_governing_flow(result, input.zone_type);
+        double q_governing = select_governing_flow(result, input.zone_type, annex38);
         result.q_governing_m3min = q_governing;
 
         // === 6. Aplicar factor de seguridad ===
@@ -216,6 +234,17 @@ public:
             result.q_total_m3min = safety_ceil(leak_result.q_at_fan);
         }
 
+        // Anexo 38 num. 2: sin diésel rige el mayor entre el total con fugas
+        // y Q_Ex, que no lleva fugas.
+        if (annex38) {
+            const double q_ex = result.q_blasting_m3min * input.safety_factor;
+            if (q_ex > result.q_total_m3min) {
+                result.q_at_fan_m3min = q_ex;
+                result.q_total_m3min = safety_ceil(q_ex);
+                result.governing_factor = "blasting (Q_Ex, Anexo 38)";
+            }
+        }
+
         // === 8. Conversiones ===
         result.q_total_m3s = result.q_total_m3min * constants::M3MIN_TO_M3S;
         result.q_total_cfm = result.q_total_m3min * constants::M3MIN_TO_CFM;
@@ -232,6 +261,19 @@ public:
                 result.warnings.push_back(
                     "Velocidad " + std::to_string(result.velocity_at_face_mps) +
                     " m/s < minimo " + std::to_string(min_vel) + " m/s");
+            }
+
+            // Solo advierte: el caudal requerido no se recorta.
+            const auto max_mpm = max_air_velocity_mpm(config_.standard());
+            const double v_mpm = result.velocity_at_face_mps * 60.0;
+            if (input.zone_type != ZoneType::GeneralMine && max_mpm &&
+                v_mpm > *max_mpm) {
+                result.warnings.push_back(
+                    "Velocidad " + std::to_string(v_mpm) + " m/min > maximo " +
+                    std::to_string(*max_mpm) + " m/min (" +
+                    regulation_reference(RegulatoryTopic::AirVelocityLimits,
+                                         config_) +
+                    "): ampliar la seccion o repartir el caudal");
             }
         }
 
@@ -291,7 +333,8 @@ private:
      */
     [[nodiscard]] double select_governing_flow(
         VentilationDemandResult& result,
-        ZoneType zone_type
+        ZoneType zone_type,
+        bool annex38
     ) const {
         double q_per = result.q_personnel_m3min;
         double q_eq = result.q_diesel_m3min;
@@ -326,8 +369,10 @@ private:
             }
 
             case ZoneType::GeneralMine:
-                // Sumatoria de todos los requerimientos
-                q_governing = q_per + q_eq + q_exp + q_dust + q_thermal;
+                // Sumatoria de todos los requerimientos; con el Anexo 38
+                // Q_Ex no se suma, se compara después con el total.
+                q_governing = q_per + q_eq + (annex38 ? 0.0 : q_exp) +
+                              q_dust + q_thermal;
                 result.governing_factor = "summation (mine total)";
                 break;
         }

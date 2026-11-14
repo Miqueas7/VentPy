@@ -223,6 +223,9 @@ struct BlastingParams {
 
     // Velocidad mínima de barrido
     double min_velocity_mps = 0.3;      ///< Velocidad mínima en el frente [m/s]
+
+    /// Niveles en voladura (N del DS 024-2016-EM, Anexo 38); solo cuenta en el total de mina
+    int blasting_levels = 1;
 };
 
 /**

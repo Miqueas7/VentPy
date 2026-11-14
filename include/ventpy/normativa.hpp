@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -391,7 +392,9 @@ enum class RegulatoryTopic {
 
         case RegulatoryTopic::BlastingDilution:
             return cita(
-                "DS 024-2016-EM, Art. 243-244",
+                "DS 024-2016-EM, Art. 243-244 (reingreso); el DS 024 fija el "
+                  "caudal de voladura solo en el total de mina (Anexo 38) - la "
+                  "dilucion por contaminante en el frente es criterio de ingenieria",
                 "DS 132, Arts. 156, 571 y 585 (reingreso tras tronadura); "
                   "el DS 132 no fija tiempo de dilucion ni volumen de gases "
                   "por kg de explosivo - criterio de ingenieria",
@@ -588,6 +591,25 @@ enum class RegulatoryTopic {
     const RegulatoryConfig& config
 ) {
     return regulation_reference(topic, config.standard());
+}
+
+/**
+ * @brief Velocidad máxima del aire en labores con personal [m/min], o vacío
+ *        si la norma no la fija (la cita está en `AirVelocityLimits`).
+ *
+ * Perú: 250 m/min (DS 024-2016-EM, Art. 248). Colombia: 6 m/s = 360 m/min
+ * (Decreto 1886 de 2015, Art. 56). Chile y México: sin máxima verificada.
+ */
+[[nodiscard]] inline std::optional<double> max_air_velocity_mpm(
+    RegulatoryStandard standard
+) noexcept {
+    switch (standard) {
+        case RegulatoryStandard::DS024_Peru:     return 250.0;
+        case RegulatoryStandard::D1886_Colombia: return 360.0;
+        case RegulatoryStandard::DS132_Chile:
+        case RegulatoryStandard::NOM023_Mexico:  return std::nullopt;
+    }
+    return std::nullopt;
 }
 
 } // namespace ventpy

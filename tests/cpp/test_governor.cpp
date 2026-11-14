@@ -323,15 +323,15 @@ TEST_F(GovernorPolvoTermico, TermicoGobiernaE2E) {
 // rederivar aqui el modelo Tier3 de dilucion NOx del diesel.
 //   q_per     = 180   (piso velocidad; igual que TermicoGobiernaE2E)
 //   q_eq      = 0     (sin flota diesel; simplificacion documentada)
-//   q_exp     = 5428  (50 kg de ANFO en 30 min, dilucion de NOx:
-//                       500 L / (5e-6 x 30) / 1000 x 1.2 = 4000;
-//                       x corr_vol(2500 = 1.3569) = 5427.6 => ceil)
+//   q_exp     = 300   (DS 024, Anexo 38 num. 2 lit. e, sin diesel:
+//                       Q_Ex = A x V x N = 12 x 25 (Art. 248, ANFO) x 1;
+//                       no entra en la suma, se compara con el total)
 //   q_dust    = 300   (caso A de DilucionConSupresionExacta en
 //                       test_caudal_polvo.cpp: 50 mg/s con supresion 0.7,
 //                       target 3.0 => exacto, sin resto)
 //   q_thermal = 9391  (mismo caso de test_caudal_termico.cpp que TermicoGobiernaE2E)
-// suma = 180+0+5428+300+9391 = 15299.
-// total = ceil(15299 x 1.15) = ceil(17593.85) = 17594.
+// suma = 180+0+300+9391 = 9871.
+// total = max(ceil(9871 x 1.15), Q_Ex) = max(ceil(11351.65), 300) = 11352.
 TEST_F(GovernorPolvoTermico, GeneralMineSumaSinFlota) {
     VentilationInput input;
     input.zone_type = ZoneType::GeneralMine;
@@ -370,15 +370,133 @@ TEST_F(GovernorPolvoTermico, GeneralMineSumaSinFlota) {
 
     EXPECT_DOUBLE_EQ(result.q_personnel_m3min, 180.0);
     EXPECT_DOUBLE_EQ(result.q_diesel_m3min, 0.0);
-    EXPECT_DOUBLE_EQ(result.q_blasting_m3min, 5428.0);
+    EXPECT_DOUBLE_EQ(result.q_blasting_m3min, 300.0);
     EXPECT_DOUBLE_EQ(result.q_dust_m3min, 300.0);
     EXPECT_DOUBLE_EQ(result.q_thermal_m3min, 9391.0);
 
-    double suma_manual = result.q_personnel_m3min + result.q_diesel_m3min +
-                          result.q_blasting_m3min + result.q_dust_m3min +
-                          result.q_thermal_m3min;
-    EXPECT_DOUBLE_EQ(suma_manual, 15299.0);
     EXPECT_EQ(result.governing_factor, "summation (mine total)");
-    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 15299.0);
-    EXPECT_DOUBLE_EQ(result.q_total_m3min, 17594.0);
+    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 9871.0);
+    EXPECT_DOUBLE_EQ(result.q_total_m3min, 11352.0);
+}
+
+// ============================================================================
+// Total de mina con el DS 024: voladura segun el Anexo 38
+// ============================================================================
+
+// Con equipos diesel (Anexo 38 num. 1) la voladura no entra en el total:
+// mismo caso que GeneralMine_Summation mas un disparo, mismo resultado.
+TEST_F(GovernorTest, GeneralMine_Anexo38_ConDieselLaVoladuraNoSuma) {
+    VentilationInput input;
+    input.zone_type = ZoneType::GeneralMine;
+    input.num_workers = 100;
+    input.altitude_masl = 4500.0;
+
+    DieselFleet fleet;
+    fleet.add_equipment("Scoop1", 200.0, 0.9, 0.8);
+    input.diesel_fleet = fleet;
+
+    BlastingParams blast;
+    blast.explosive_kg = 50.0;
+    blast.dilution_time_min = 30.0;
+    input.blasting_params = blast;
+
+    auto result = governor.calculateTotalDemand(input);
+
+    EXPECT_DOUBLE_EQ(result.q_blasting_m3min, 0.0);
+    EXPECT_FALSE(result.blasting.has_value());
+    EXPECT_DOUBLE_EQ(result.q_governing_m3min, 2511.0);
+    bool aviso = false;
+    for (const auto& w : result.warnings)
+        aviso = aviso || w.find("Anexo 38") != std::string::npos;
+    EXPECT_TRUE(aviso);
+}
+
+// Sin diesel (Anexo 38 num. 2) rige el mayor entre el total con fugas y
+// Q_Ex = A x V x N, que no lleva fugas: 12 m2 x 25 m/min (ANFO) x 3 = 900.
+TEST_F(GovernorTest, GeneralMine_Anexo38_SinDieselGobiernaQEx) {
+    VentilationInput input;
+    input.zone_type = ZoneType::GeneralMine;
+
+    BlastingParams blast;
+    blast.explosive_kg = 50.0;
+    blast.dilution_time_min = 30.0;
+    blast.blasting_levels = 3;
+    input.blasting_params = blast;
+
+    auto result = governor.calculateTotalDemand(input);
+
+    EXPECT_DOUBLE_EQ(result.q_blasting_m3min, 900.0);
+    EXPECT_DOUBLE_EQ(result.q_total_m3min, 900.0);
+    EXPECT_EQ(result.governing_factor, "blasting (Q_Ex, Anexo 38)");
+    ASSERT_TRUE(result.blasting.has_value());
+    EXPECT_NE(result.blasting->regulation_ref.find("Anexo 38"), std::string::npos);
+}
+
+// Fuera del DS 024 no hay Anexo 38: el total sigue sumando la dilucion.
+TEST(GovernorAnexo38, OtrasNormasSumanLaDilucion) {
+    VentilationGovernor governor{RegulatoryConfig::colombia()};
+    VentilationInput input;
+    input.zone_type = ZoneType::GeneralMine;
+    BlastingParams blast;
+    blast.explosive_kg = 50.0;
+    blast.dilution_time_min = 30.0;
+    input.blasting_params = blast;
+
+    auto result = governor.calculateTotalDemand(input);
+
+    EXPECT_GT(result.q_blasting_m3min, 1000.0);
+    EXPECT_DOUBLE_EQ(result.q_governing_m3min, result.q_blasting_m3min);
+}
+
+// ============================================================================
+// Velocidad maxima en el frente: solo advierte, no cambia el caudal
+// ============================================================================
+
+namespace {
+VentilationInput frente_con_voladura() {
+    VentilationInput input;
+    input.zone_type = ZoneType::DevelopmentFace;
+    input.atmospheric.altitude_masl = 4200.0;
+    BlastingParams blast;
+    blast.explosive_kg = 50.0;
+    blast.dilution_time_min = 30.0;
+    input.blasting_params = blast;
+    return input;
+}
+
+bool hay_aviso(const VentilationDemandResult& r, const std::string& texto) {
+    for (const auto& w : r.warnings)
+        if (w.find("maximo") != std::string::npos &&
+            w.find(texto) != std::string::npos) return true;
+    return false;
+}
+}  // namespace
+
+TEST(GovernorVelocidadMaxima, PeruAdvierteSobre250PorMinuto) {
+    VentilationGovernor governor{RegulatoryConfig::peru()};
+    auto r = governor.calculateTotalDemand(frente_con_voladura());
+    ASSERT_GT(r.velocity_at_face_mps * 60.0, 250.0);
+    EXPECT_TRUE(hay_aviso(r, "Art. 248"));
+}
+
+TEST(GovernorVelocidadMaxima, ColombiaAdvierteSobre360PorMinuto) {
+    VentilationGovernor governor{RegulatoryConfig::colombia()};
+    auto r = governor.calculateTotalDemand(frente_con_voladura());
+    ASSERT_GT(r.velocity_at_face_mps * 60.0, 360.0);
+    EXPECT_TRUE(hay_aviso(r, "Art. 56"));
+}
+
+TEST(GovernorVelocidadMaxima, MexicoNoFijaMaxima) {
+    VentilationGovernor governor{RegulatoryConfig::mexico()};
+    auto r = governor.calculateTotalDemand(frente_con_voladura());
+    EXPECT_FALSE(hay_aviso(r, ""));
+}
+
+TEST(GovernorVelocidadMaxima, BajoElMaximoNoAdvierte) {
+    VentilationGovernor governor{RegulatoryConfig::peru()};
+    VentilationInput input;
+    input.num_workers = 10;
+    auto r = governor.calculateTotalDemand(input);
+    ASSERT_LT(r.velocity_at_face_mps * 60.0, 250.0);
+    EXPECT_FALSE(hay_aviso(r, ""));
 }
