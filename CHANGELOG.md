@@ -4,7 +4,7 @@ Todas las versiones publicadas de VentPy. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el versionado es
 [semántico](https://semver.org/lang/es/).
 
-## [0.3.0] — 2026-11-12
+## [0.3.0] — 2026-11-14
 
 ### El caudal de voladura cambia
 
