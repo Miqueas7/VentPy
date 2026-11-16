@@ -70,7 +70,7 @@ Adding another country's standard is the contribution VentPy needs most — see 
 
 ## Project Status
 
-VentPy is in **beta**. Personnel, diesel, blasting, dust, thermal, coverage, network, fan and atmospheric calculations are implemented, tested (255 C++ tests and 201 Python tests, including property-based and 500-branch scale tests) and exposed to Python for all four presets.
+VentPy is in **beta**. Personnel, diesel, blasting, dust, thermal, coverage, network, fan and atmospheric calculations are implemented, tested (310 C++ tests and 218 Python tests, including property-based and 500-branch scale tests) and exposed to Python for all four presets.
 
 > **Blasting airflow changed in 0.3.0.** Until 0.2.1, setting `gas_volume_per_kg` made blasting airflow equal to gas volume divided by dilution time, never diluted to an exposure limit: the result was in the order of 1 m³/min. From 0.3.0 blasting is always computed by CO and NOx dilution, and `gas_volume_per_kg` only sets the reported gas volume. If you computed a demand with blasting and that parameter, recompute it: blasting airflow rises by several orders of magnitude and may become the governing factor. Under the Peruvian preset that model is an engineering criterion for the face; the mine total (`ZoneType.GeneralMine`) follows Annex 38 of DS 024-2016-EM instead: blasting is left out when diesel equipment is present, and otherwise the larger of the total and `Q_Ex = A × V × N` governs. Details in [`CHANGELOG.md`](https://github.com/Miqueas7/VentPy/blob/master/CHANGELOG.md).
 >
@@ -119,8 +119,8 @@ print(f"Governing factor = {result.governing_factor}")
 Output:
 
 ```
-Q_total = 207.0 m3/min
-Q_total = 7310.1 cfm
+Q_total = 276.0 m3/min
+Q_total = 9746.9 cfm
 Governing factor = personnel (Q_Per)
 ```
 
@@ -172,7 +172,7 @@ Coverage and gas limits:
 
 Utilities:
 
-- `calculate_pressure_kpa`, `calculate_density_kg_m3`, `calculate_volume_correction_factor`, `calculate_diesel_derate_factor`, `get_min_velocity`, `safety_ceil`, `safety_ceil_decimals`
+- `calculate_pressure_kpa`, `calculate_density_kg_m3`, `calculate_volume_correction_factor`, `calculate_diesel_derate_factor`, `get_min_velocity`, `min_air_velocity_mpm`, `max_air_velocity_mpm`, `dilution_target_ppm`, `timber_production_factor`, `safety_ceil`, `safety_ceil_decimals`
 
 ## Visualization
 

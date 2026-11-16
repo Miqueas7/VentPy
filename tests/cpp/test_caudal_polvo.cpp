@@ -111,10 +111,137 @@ TEST(CaudalPolvo, Validaciones) {
     RegulatoryConfig cfg;
     auto p = base_dust(); p.dust_generation_rate_mg_s = -1.0;
     EXPECT_THROW(DustFlowCalculator::calculate(p, cfg), std::invalid_argument);
-    p = base_dust(); p.target_concentration_mg_m3 = 0.0;
+    p = base_dust(); p.target_concentration_mg_m3 = -1.0;  // 0 = limite de la norma
     EXPECT_THROW(DustFlowCalculator::calculate(p, cfg), std::invalid_argument);
     p = base_dust(); p.suppression_efficiency = 1.0;   // [0,1)
     EXPECT_THROW(DustFlowCalculator::calculate(p, cfg), std::invalid_argument);
     p = base_dust(); p.silica_content_percent = 130.0;
     EXPECT_THROW(DustFlowCalculator::calculate(p, cfg), std::invalid_argument);
+}
+
+// Con target 0 rige el límite de la norma configurada.
+//   Perú: 3 mg/m³ (DS 024-2016-EM, Art. 111) → 15 / 3 × 60 = 300 m³/min.
+//   Chile al nivel del mar: 2,4 mg/m³ (DS 594, Art. 66) → 15 / 2,4 × 60 = 375.
+//   México: 3 mg/m³ (NOM-010-STPS-2014, fila 609); Colombia: 3 (criterio).
+TEST(CaudalPolvo, ObjetivoPorDefectoSigueALaNorma) {
+    auto p = base_dust();
+    p.target_concentration_mg_m3 = 0.0;
+    const auto pe = DustFlowCalculator::calculate(p, RegulatoryConfig::peru());
+    const auto cl = DustFlowCalculator::calculate(p, RegulatoryConfig::chile());
+    const auto mx = DustFlowCalculator::calculate(p, RegulatoryConfig::mexico());
+    const auto co = DustFlowCalculator::calculate(p, RegulatoryConfig::colombia());
+    EXPECT_DOUBLE_EQ(pe.target_concentration, 3.0);
+    EXPECT_DOUBLE_EQ(pe.q_dust, 300.0);
+    EXPECT_DOUBLE_EQ(cl.target_concentration, 2.4);
+    EXPECT_DOUBLE_EQ(cl.q_dust, 375.0);
+    EXPECT_DOUBLE_EQ(mx.target_concentration, 3.0);
+    EXPECT_DOUBLE_EQ(co.target_concentration, 3.0);
+    EXPECT_TRUE(cl.warnings.empty());
+}
+
+// Chile sobre 1.000 msnm: LPP × Fa, Fa = P/760 con dos decimales (DS 594,
+// Art. 63). A 3.000 msnm, ISA: P = 70,100 kPa = 525,79 mmHg → Fa = 0,6918 →
+// 0,69 → 2,4 × 0,69 = 1,656 mg/m³. Q = 15 / 1,656 × 60 = 543,48 → 544.
+// A 1.000 msnm exactos no aplica (el artículo dice «superior a 1.000»).
+TEST(CaudalPolvo, ChileCorrigePorFaSobre1000msnm) {
+    auto p = base_dust();
+    p.target_concentration_mg_m3 = 0.0;
+    AtmosphericParams atm;
+    atm.altitude_masl = 3000.0;
+    const auto r = DustFlowCalculator::calculate(p, RegulatoryConfig::chile(), atm);
+    EXPECT_NEAR(r.target_concentration, 1.656, 1e-12);
+    EXPECT_DOUBLE_EQ(r.q_dust, 544.0);
+
+    atm.altitude_masl = 1000.0;
+    EXPECT_DOUBLE_EQ(DustFlowCalculator::respirable_limit_mg_m3(
+        RegulatoryConfig::chile(), atm), 2.4);
+    // Presión medida: 80,0 kPa → Fa = 0,7895 → 0,79 → 1,896 mg/m³.
+    atm.altitude_masl = 2000.0;
+    atm.barometric_pressure_kpa = 80.0;
+    EXPECT_NEAR(DustFlowCalculator::respirable_limit_mg_m3(
+        RegulatoryConfig::chile(), atm), 1.896, 1e-12);
+    // Fuera de Chile no hay corrección por altitud.
+    EXPECT_DOUBLE_EQ(DustFlowCalculator::respirable_limit_mg_m3(
+        RegulatoryConfig::peru(), atm), 3.0);
+}
+
+// Un objetivo del usuario sobre el límite de la norma se advierte: con Chile
+// 3 mg/m³ supera los 2,4 del DS 594, Art. 66.
+TEST(CaudalPolvo, ChileAdvierteObjetivoSobreElLimite) {
+    const auto r = DustFlowCalculator::calculate(base_dust(), RegulatoryConfig::chile());
+    ASSERT_EQ(r.warnings.size(), 1u);
+    EXPECT_NE(r.warnings[0].find("por ENCIMA de 2.4 mg/m3"), std::string::npos)
+        << r.warnings[0];
+    EXPECT_NE(r.warnings[0].find("DS 594, Art. 66"), std::string::npos);
+}
+
+// Con sílice declarada, el objetivo es el menor entre el límite respirable y
+// el límite de sílice dividido entre la fracción de sílice del polvo.
+TEST(CaudalPolvo, SiliceGobiernaElObjetivoEnPeru) {
+    auto p = base_dust();
+    p.target_concentration_mg_m3 = 0.0;   // el de la norma
+    p.silica_content_percent = 10.0;
+    auto r = DustFlowCalculator::calculate(p, RegulatoryConfig::peru());
+    // Anexo 15: 0,05 mg/m3 / 0,10 = 0,5 < 3 → Q = 15 / 0,5 = 30 m3/s = 1800
+    EXPECT_DOUBLE_EQ(r.target_concentration, 0.5);
+    EXPECT_DOUBLE_EQ(r.q_dust, 1800.0);
+    EXPECT_NE(r.regulation_ref.find("Anexo 15"), std::string::npos);
+}
+
+TEST(CaudalPolvo, PocaSiliceNoGobierna) {
+    auto p = base_dust();
+    p.target_concentration_mg_m3 = 0.0;
+    p.silica_content_percent = 1.0;       // 0,05 / 0,01 = 5 > 3
+    auto r = DustFlowCalculator::calculate(p, RegulatoryConfig::peru());
+    EXPECT_DOUBLE_EQ(r.target_concentration, 3.0);
+    EXPECT_DOUBLE_EQ(r.q_dust, 300.0);
+}
+
+TEST(CaudalPolvo, SiliceChileYMexico) {
+    auto p = base_dust();
+    p.target_concentration_mg_m3 = 0.0;
+    p.silica_content_percent = 10.0;
+    // DS 594 Art. 66, cuarzo 0,08 (Fa = 1 a nivel del mar) / 0,10 = 0,8
+    auto cl = DustFlowCalculator::calculate(p, RegulatoryConfig::chile());
+    EXPECT_DOUBLE_EQ(cl.target_concentration, 0.8);
+    EXPECT_DOUBLE_EQ(cl.q_dust, 1125.0);
+    // NOM-010 fila 668: 0,025 / 0,10 = 0,25 → 15 / 0,25 = 60 m3/s
+    auto mx = DustFlowCalculator::calculate(p, RegulatoryConfig::mexico());
+    EXPECT_DOUBLE_EQ(mx.target_concentration, 0.25);
+    EXPECT_DOUBLE_EQ(mx.q_dust, 3600.0);
+}
+
+// El Decreto 1886 remite a la ACGIH sin fijar un número: no se cuantifica.
+TEST(CaudalPolvo, SiliceColombiaSoloAdvierte) {
+    auto p = base_dust();
+    p.silica_content_percent = 10.0;
+    auto r = DustFlowCalculator::calculate(p, RegulatoryConfig::colombia());
+    EXPECT_DOUBLE_EQ(r.q_dust, 300.0);
+    ASSERT_FALSE(r.warnings.empty());
+    EXPECT_NE(r.warnings[0].find("no cuantificado"), std::string::npos);
+}
+
+TEST(CaudalPolvo, ObjetivoDelUsuarioSobreLaSiliceAdvierte) {
+    auto p = base_dust();                 // objetivo explícito de 3 mg/m3
+    p.silica_content_percent = 10.0;
+    auto r = DustFlowCalculator::calculate(p, RegulatoryConfig::peru());
+    EXPECT_DOUBLE_EQ(r.q_dust, 300.0);
+    bool aviso = false;
+    for (const auto& w : r.warnings) aviso = aviso || w.find("silice") != std::string::npos;
+    EXPECT_TRUE(aviso);
+}
+
+// DS 594 Art. 66: cristobalita y tridimita 0,04 mg/m3, la mitad que el cuarzo.
+TEST(CaudalPolvo, CristobalitaChileUsa004) {
+    auto p = base_dust();
+    p.target_concentration_mg_m3 = 0.0;
+    p.silica_content_percent = 10.0;
+    p.silica_cristobalite_or_tridymite = true;
+    auto r = DustFlowCalculator::calculate(p, RegulatoryConfig::chile());
+    // 0,04 / 0,10 = 0,4 → 15 / 0,4 = 37,5 m3/s = 2250 m3/min
+    EXPECT_DOUBLE_EQ(r.target_concentration, 0.4);
+    EXPECT_DOUBLE_EQ(r.q_dust, 2250.0);
+    // En Perú el Anexo 15 da 0,05 para las tres formas: no cambia.
+    auto pe = DustFlowCalculator::calculate(p, RegulatoryConfig::peru());
+    EXPECT_DOUBLE_EQ(pe.target_concentration, 0.5);
 }

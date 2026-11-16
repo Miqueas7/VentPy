@@ -25,8 +25,9 @@ namespace ventpy {
 /**
  * @brief Tipo de zona de cálculo según contexto operativo.
  *
- * DS 024-2016-EM, Art. 236: La ventilación debe cubrir todos los
- * frentes de trabajo, rampas, tajeos y áreas donde transiten personas.
+ * DS 024-2016-EM, Art. 246 lits. b y c: circulación de aire limpio en todas
+ * las labores subterráneas, con el circuito general dividido en ramales para
+ * que cada labor en trabajo reciba su parte de aire fresco.
  */
 enum class ZoneType {
     DevelopmentFace,  ///< Frente de desarrollo (avance, galería, crucero)
@@ -159,8 +160,9 @@ enum class EngineEmissionTier {
 /**
  * @brief Información de un equipo diésel individual (versión robusta).
  *
- * DS 024-2016-EM, Art. 246: Todo equipo con motor de combustión interna
- * que opere en interior mina requiere un caudal mínimo de aire.
+ * DS 024-2016-EM, Art. 252 lit. e y Anexo 38 num. 1 lit. d: todo equipo con
+ * motor petrolero requiere al menos 3 m³/min por HP efectivo
+ * (Q_Eq = 3 × HP × Dm × Fu).
  */
 struct DieselEquipment {
     std::string name;               ///< Identificador del equipo
@@ -203,7 +205,11 @@ struct PersonnelParams {
 /**
  * @brief Parámetros para cálculo de caudal por explosivos (versión robusta).
  *
- * DS 024-2016-EM, Art. 243: Tiempo máximo de dilución 30 minutos.
+ * Objetivos de dilución: con 0 (valor por defecto) se usa el límite de 8 h
+ * (TWA) de la norma configurada, tomado de limites_gases.hpp; el NOx se
+ * diluye como NO2. Un valor positivo es el objetivo propio del usuario.
+ * El tiempo de dilución no lo fija ninguna norma implementada: es criterio de
+ * ingeniería (en Perú el reingreso lo rige el DS 024-2016-EM, Art. 240).
  */
 struct BlastingParams {
     double explosive_kg = 0.0;          ///< Cantidad de explosivo por voladura [kg]
@@ -217,11 +223,12 @@ struct BlastingParams {
     double co_per_kg_liters = 0.0;      ///< CO generado [L/kg], 0 = usar tipo
     double nox_per_kg_liters = 0.0;     ///< NOx generado [L/kg], 0 = usar tipo
 
-    // Límites de exposición objetivo
-    double target_co_ppm = 25.0;        ///< Límite CO objetivo [ppm] (DS024: 25 ppm)
-    double target_nox_ppm = 5.0;        ///< Límite NOx objetivo [ppm] (DS024: 5 ppm)
+    // Límites de exposición objetivo (0 = TWA de la norma configurada)
+    double target_co_ppm = 0.0;         ///< Objetivo CO [ppm]; 0 = TWA de la norma
+    double target_nox_ppm = 0.0;        ///< Objetivo NOx como NO2 [ppm]; 0 = TWA de la norma
 
-    // Velocidad mínima de barrido
+    // Velocidad mínima de barrido: criterio de ingeniería; el calculador
+    // nunca usa menos que la mínima de la norma (`get_min_velocity`).
     double min_velocity_mps = 0.3;      ///< Velocidad mínima en el frente [m/s]
 
     /// Niveles en voladura (N del DS 024-2016-EM, Anexo 38); solo cuenta en el total de mina
@@ -244,12 +251,17 @@ struct DuctParams {
 /**
  * @brief Parámetros para cálculo de dilución de polvo.
  *
- * DS 024-2016-EM, Art. 111: LEO polvo respirable 3 mg/m³ (8 h).
+ * Con `target_concentration_mg_m3 = 0` (valor por defecto) se usa el límite de
+ * polvo respirable de la norma configurada: Perú 3 mg/m³ (DS 024-2016-EM,
+ * Art. 111); Chile 2,4 mg/m³ × Fa sobre 1.000 msnm (DS 594, Arts. 63 y 66);
+ * México 3 mg/m³ (NOM-010-STPS-2014, Tabla I.1, fila 609); Colombia 3 mg/m³
+ * como criterio de ingeniería (el Decreto 1886, Art. 74, remite a la ACGIH).
  */
 struct DustParams {
     double dust_generation_rate_mg_s = 0.0;  ///< Tasa generación polvo [mg/s]
     double silica_content_percent = 0.0;     ///< Contenido de sílice [%]
-    double target_concentration_mg_m3 = 3.0; ///< Límite polvo respirable [mg/m³]
+    bool silica_cristobalite_or_tridymite = false; ///< Sílice como cristobalita o tridimita (no cuarzo)
+    double target_concentration_mg_m3 = 0.0; ///< Objetivo [mg/m³]; 0 = límite de la norma
     double face_area_m2 = 0.0;               ///< Sección para velocidad [m²]
     bool   water_suppression = true;         ///< ¿Usa supresión con agua?
     double suppression_efficiency = 0.7;     ///< Eficiencia supresión [0-1]
@@ -304,15 +316,18 @@ struct ZoneMeasurement {
  * @brief Umbrales del análisis de cobertura.
  *
  * `warning_margin` y `overventilation_factor` son criterios INGENIERILES
- * (no normados: verificación negativa, no existe valor normado). Los límites
- * de velocidad provienen del DS 024-2016-EM, Art. 248 (texto original vigente).
+ * (no normados: verificación negativa, no existe valor normado).
+ *
+ * Límites de velocidad: con 0 (valor por defecto) rigen los de la norma
+ * configurada (`CoverageCalculator::velocity_limits`). Un valor positivo solo
+ * puede endurecer el límite de la norma, nunca relajarlo.
  */
 struct CoverageParams {
     double warning_margin = 0.10;         ///< Advertir si cobertura < 1+margen (ingenieril)
     double overventilation_factor = 1.5;  ///< Advertir si cobertura > factor (ingenieril)
-    double min_velocity_mpm = 20.0;       ///< DS 024, Art. 248: mínimo 20 m/min
-    double max_velocity_mpm = 250.0;      ///< DS 024, Art. 248: máximo 250 m/min
-    bool anfo_or_blasting_agents = false; ///< Art. 248: con ANFO el mínimo es 25 m/min
+    double min_velocity_mpm = 0.0;        ///< Mínimo [m/min]; 0 = el de la norma
+    double max_velocity_mpm = 0.0;        ///< Máximo [m/min]; 0 = el de la norma
+    bool anfo_or_blasting_agents = false; ///< Perú, Art. 248: con ANFO el mínimo es 25 m/min
 };
 
 /// Tipo de labor/revestimiento: mapeo 1:1 a McPherson (2009) Tabla 5.1.
@@ -414,6 +429,8 @@ struct DieselFlowResult {
 
     double co_emission_total_g_min;     ///< Emisión total CO [g/min]
     double nox_emission_total_g_min;    ///< Emisión total NOx [g/min]
+    double target_co_ppm = 0.0;         ///< Objetivo CO usado [ppm] (TWA de la norma)
+    double target_nox_ppm = 0.0;        ///< Objetivo NOx (como NO2) usado [ppm] (TWA de la norma)
 
     std::string regulation_ref;
 };
@@ -435,6 +452,8 @@ struct BlastingFlowResult {
     double q_for_volume_exchange;       ///< Q para recambio volumétrico [m³/min]
     double q_for_min_velocity;          ///< Q para velocidad mínima [m³/min]
     double q_blasting;                  ///< Caudal gobernante [m³/min]
+    double target_co_ppm = 0.0;         ///< Objetivo CO usado [ppm]
+    double target_nox_ppm = 0.0;        ///< Objetivo NOx (como NO2) usado [ppm]
 
     std::string governing_criterion;    ///< Qué criterio gobierna
     std::string regulation_ref;
@@ -496,7 +515,7 @@ struct ThermalFlowResult {
  * @brief Resultado consolidado de demanda de ventilación.
  *
  * Estructura de auditoría: contiene el desglose completo del cálculo
- * para trazabilidad según Art. 236 DS 024-2016-EM.
+ * para trazabilidad (Perú: DS 024-2016-EM, Art. 252 lit. d y Anexo 38).
  */
 struct VentilationDemandResult {
     ZoneType zone_type;
@@ -520,6 +539,10 @@ struct VentilationDemandResult {
     double q_dust_m3min      = 0.0;
     double q_thermal_m3min   = 0.0;
     double q_leakage_m3min   = 0.0;
+    /// Q_Ma = T × u (DS 024-2016-EM, Anexo 38 lit. b); solo en el total de mina peruano
+    double q_timber_m3min      = 0.0;
+    /// Q_Te = Vm × A × N (DS 024-2016-EM, Anexo 38 lit. c); solo en el total de mina peruano
+    double q_temperature_m3min = 0.0;
 
     // Caudal final
     double q_governing_m3min = 0.0;     ///< Caudal gobernante en el frente
@@ -548,9 +571,9 @@ struct StationResult {
     std::string station_id;
     double area_m2 = 0.0;
     double velocity_mps = 0.0;
-    double velocity_mpm = 0.0;      ///< = velocity_mps × 60 (unidad del Art. 248)
+    double velocity_mpm = 0.0;      ///< = velocity_mps × 60 (unidad de las normas)
     double q_station_m3min = 0.0;   ///< = area × velocity_mps × 60 (crudo)
-    bool   velocity_ok = true;      ///< dentro de [mín efectivo, máx] del Art. 248
+    bool   velocity_ok = true;      ///< dentro de [mín, máx] de la norma configurada
     std::string warning;            ///< vacío si velocity_ok
 };
 
@@ -776,24 +799,28 @@ namespace constants {
     inline constexpr double GRAVITY_M_S2 = 9.81;
     inline constexpr double O2_FRACTION_AIR = 0.2095;
 
-    // --- Límites de exposición DS 024-2016-EM ---
-    inline constexpr double TLV_CO_PPM = 25.0;               // Art. 108
-    inline constexpr double TLV_NO2_PPM = 5.0;               // Art. 108
-    inline constexpr double TLV_NO_PPM = 25.0;
-    inline constexpr double TLV_SO2_PPM = 5.0;
-    inline constexpr double TLV_H2S_PPM = 10.0;
+    // --- Límites de exposición de 8 h (TWA) del DS 024-2016-EM ---
+    // Art. 110 + Anexo 15. Son de referencia: los calculadores toman el
+    // límite de la norma configurada desde limites_gases.hpp.
+    inline constexpr double TLV_CO_PPM = 25.0;               // Anexo 15, fila 33
+    inline constexpr double TLV_NO2_PPM = 3.0;               // Anexo 15, fila 21 (STEL 5)
+    inline constexpr double TLV_NO_PPM = 25.0;               // Anexo 15, fila 34
+    inline constexpr double TLV_SO2_PPM = 2.0;               // Anexo 15, fila 7 (STEL 5)
+    inline constexpr double TLV_H2S_PPM = 10.0;              // Anexo 15, fila 5
     inline constexpr double TLV_DUST_RESPIRABLE_MG_M3 = 3.0; // Art. 111
-    inline constexpr double MIN_O2_PERCENT = 19.5;           // Art. 236
+    inline constexpr double MIN_O2_PERCENT = 19.5;           // Art. 246 lit. b
     inline constexpr double MAX_EFFECTIVE_TEMP_C = 30.0;     // INGENIERIL:
         // la norma vigente NO fija TE maxima (herencia del derogado DS
         // 055-2010-EM); el criterio normativo real es Art. 252.d (30 m/min,
         // 24-29 C) y Art. 104/Anexo 13 (WBGT) — ver caudal_termico.hpp
     inline constexpr double AIR_CP_KJ_KG_K = 1.005;           // cp aire seco
 
-    // --- Velocidades mínimas DS 024-2016-EM ---
-    inline constexpr double MIN_VELOCITY_DEVELOPMENT_MPS = 0.25;  // Art. 236
-    inline constexpr double MIN_VELOCITY_RAMP_MPS = 0.30;
-    inline constexpr double MIN_VELOCITY_STOPE_MPS = 0.20;
+    // --- Velocidades mínimas por tipo de labor: criterio de ingeniería ---
+    // Nunca rigen por debajo de la mínima de la norma configurada:
+    // `get_min_velocity` (normativa.hpp) toma el mayor de los dos.
+    inline constexpr double MIN_VELOCITY_DEVELOPMENT_MPS = 0.25;  // 15 m/min
+    inline constexpr double MIN_VELOCITY_RAMP_MPS = 0.30;         // 18 m/min
+    inline constexpr double MIN_VELOCITY_STOPE_MPS = 0.20;        // 12 m/min
 
     // --- Consumo de oxígeno por nivel de actividad [L O2/min] ---
     inline constexpr double O2_REST_LPM = 0.3;
@@ -862,17 +889,7 @@ namespace constants {
     }
 }
 
-/**
- * @brief Obtiene la velocidad mínima requerida según tipo de zona [m/s].
- */
-[[nodiscard]] inline double get_min_velocity(ZoneType zone) noexcept {
-    switch (zone) {
-        case ZoneType::DevelopmentFace: return constants::MIN_VELOCITY_DEVELOPMENT_MPS;
-        case ZoneType::Ramp:            return constants::MIN_VELOCITY_RAMP_MPS;
-        case ZoneType::Stope:           return constants::MIN_VELOCITY_STOPE_MPS;
-        case ZoneType::GeneralMine:     return constants::MIN_VELOCITY_DEVELOPMENT_MPS;
-        default:                        return constants::MIN_VELOCITY_DEVELOPMENT_MPS;
-    }
-}
+// La velocidad mínima por tipo de labor depende de la norma: vive en
+// normativa.hpp (`get_min_velocity`).
 
 } // namespace ventpy

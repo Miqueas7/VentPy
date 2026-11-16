@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -48,7 +49,8 @@ inline const std::vector<GasLimit>& gas_limits_peru() {
         {.gas = GasType::CH4, .unit = ConcentrationUnit::PPM,
          .ceiling = 5000.0,
          .regulation_ref = "DS 024-2016-EM, Anexo 15, fila 32, columna Techo C "
-                           "(= 0.5%; coherente con Art. 259: zona 'gaseada' si CH4 > 0.5%)"},
+                           "(= 0.5%; coherente con Art. 259, minas de carbon: zona "
+                           "'gaseada' si CH4 > 0.5%)"},
         {.gas = GasType::NO,  .unit = ConcentrationUnit::PPM,
          .twa_8h = 25.0,
          .regulation_ref = "DS 024-2016-EM, Anexo 15, fila 34 (via Art. 246)"},
@@ -90,13 +92,19 @@ inline const std::vector<GasLimit>& gas_limits_chile() {
          .regulation_ref = "DS 594, Art. 66 'Hidrogeno Sulfurado' (LPP/LPT)"},
         {.gas = GasType::CH4, .unit = ConcentrationUnit::PercentVolume,
          .ceiling = 0.75,
-         .regulation_ref = "DS 132, Art. 274: 0.75% en galerias de retorno general "
-                           "(valor conservador adoptado); 2% en frentes de arranque"},
+         .regulation_ref = "DS 132, Titulo V (explotacion de carbon), Art. 274: "
+                           "0.75% en galerias de retorno general; 2% en frentes de "
+                           "arranque. Fuera del carbon el DS 132 no fija un % de "
+                           "metano: 0.75% es valor conservador adoptado"},
+        {.gas = GasType::NO,  .unit = ConcentrationUnit::PPM,
+         .twa_8h = 22.0,
+         .regulation_ref = "DS 594, Art. 66 'Oxido Nitrico' (LPP)"},
         {.gas = GasType::O2,  .unit = ConcentrationUnit::PercentVolume,
          .floor_min = 19.5,
          .regulation_ref = "DS 132, Art. 144 (19.5%, redaccion 'en cuanto a peso' "
-                           "documentada como ambigua; interpretacion conservadora). "
-                           "DS 594, Art. 58: prohibido < 18% sin EPP"},
+                           "documentada como ambigua; el Art. 628 dice 'en cuanto a "
+                           "volumen', lectura adoptada). DS 594, Art. 58: "
+                           "prohibido < 18% sin EPP"},
     };
     return table;
 }
@@ -237,6 +245,31 @@ inline const GasLimit& lmp_for(RegulatoryStandard standard, GasType gas) {
     }
     throw std::invalid_argument(
         "[VentPy] lmp_for: gas not regulated under the selected standard");
+}
+
+/**
+ * @brief Objetivo de dilución de un gas [ppm] bajo una norma.
+ *
+ * Es el límite de 8 h (TWA / LPP / VLE-PPT) de la tabla de la norma. Si la
+ * norma no fija TWA para ese gas, se usa el más estricto entre su STEL y su
+ * techo. Los gases de voladura y de escape diésel se diluyen a este valor; el
+ * NOx se lleva a NO2, la lectura conservadora.
+ *
+ * @throws std::invalid_argument si el gas no está regulado, no se expresa en
+ *         ppm o no tiene ningún límite aplicable.
+ */
+inline double dilution_target_ppm(RegulatoryStandard standard, GasType gas) {
+    const GasLimit& g = lmp_for(standard, gas);
+    if (g.unit != ConcentrationUnit::PPM) {
+        throw std::invalid_argument(
+            "[VentPy] dilution_target_ppm: el limite no esta en ppm");
+    }
+    if (g.twa_8h) return *g.twa_8h;
+    if (g.stel && g.ceiling) return std::min(*g.stel, *g.ceiling);
+    if (g.stel) return *g.stel;
+    if (g.ceiling) return *g.ceiling;
+    throw std::invalid_argument(
+        "[VentPy] dilution_target_ppm: la norma no fija un limite para el gas");
 }
 
 } // namespace ventpy

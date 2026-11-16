@@ -122,9 +122,12 @@ TEST(RegulatoryPresets, StandardName_PeruUnchanged) {
 //     hp_factor_base = 2,83 (Art. 132)
 //     método HP: 150 × 0,85 × 0,70 × 2,83 = 252,5775 m³/min
 //   Criterios robustos de calculate_full():
-//     Q_Per = max(personal corregido, piso velocidad 12 m² × 0,25 m/s × 60) = 180
-//     Q_Eq  = máx(método HP, dilución NOx Tier3) ≈ 853  → gobierna diésel
-//   Total = safety_ceil(q_gobernante × 1,15) ≈ 981 m³/min
+//     Q_Per = max(personal corregido, piso velocidad 12 m² × 15 m/min
+//             (Art. 138 inc. 3) = 180) = 180
+//     Q_Eq  = máx(método HP, dilución NOx Tier3 al LPP de NO2, 2,6 ppm,
+//             DS 594 Art. 66; simultaneidad 1,0) ≈ 852,31 × (5/2,6) / 0,85
+//             = 1.928,3 → gobierna diésel
+//   Total = safety_ceil(1.929 × 1,15) = 2.219 m³/min
 // ============================================================================
 
 TEST(RegulatoryPresets, Chile_EndToEnd_Governor) {
@@ -150,13 +153,14 @@ TEST(RegulatoryPresets, Chile_EndToEnd_Governor) {
 
     // Criterios robustos de calculate_full() (no normativos chilenos):
     EXPECT_NEAR(result.q_personnel_m3min, 180.0, 0.01);   // piso de velocidad
-    EXPECT_NEAR(result.diesel->q_for_nox_dilution, 853.0, 2.0);
+    EXPECT_NEAR(result.diesel->q_for_nox_dilution, 1928.3, 0.1);
+    EXPECT_DOUBLE_EQ(result.diesel->target_nox_ppm, 2.6);
     EXPECT_EQ(result.governing_factor, "diesel (Q_Eq)");
 
     // Cadena de fugas + redondeo de seguridad exacta:
     EXPECT_DOUBLE_EQ(result.q_total_m3min,
                      std::ceil(result.q_governing_m3min * 1.15));
-    EXPECT_NEAR(result.q_total_m3min, 981.0, 3.0);
+    EXPECT_DOUBLE_EQ(result.q_total_m3min, 2219.0);
     EXPECT_EQ(result.standard, RegulatoryStandard::DS132_Chile);
 }
 
@@ -184,7 +188,7 @@ TEST(RegulatoryPresets, Colombia_ValuesFromDecreto1886) {
 }
 
 // Las dos bandas del Art. 54 incluyen el 1.500 en su texto; rige la semántica
-// común de borde ('>' estricto): a 1.500 msnm exactos aplica la banda inferior.
+// común de borde: a 1.500 msnm exactos aplica la banda alta (6 m³/min).
 TEST(RegulatoryPresets, Colombia_UnSoloEscalonEn1500) {
     const RegulatoryConfig col = RegulatoryConfig::colombia();
     const auto caudal = [&col](double altitud) {
@@ -192,8 +196,8 @@ TEST(RegulatoryPresets, Colombia_UnSoloEscalonEn1500) {
     };
 
     EXPECT_DOUBLE_EQ(caudal(0.0).flow_per_person_base, 3.0);
-    EXPECT_DOUBLE_EQ(caudal(1500.0).flow_per_person_base, 3.0);
-    EXPECT_DOUBLE_EQ(caudal(1500.5).flow_per_person_base, 6.0);
+    EXPECT_DOUBLE_EQ(caudal(1499.5).flow_per_person_base, 3.0);
+    EXPECT_DOUBLE_EQ(caudal(1500.0).flow_per_person_base, 6.0);
     EXPECT_DOUBLE_EQ(caudal(2600.0).flow_per_person_base, 6.0);
     EXPECT_DOUBLE_EQ(caudal(4200.0).flow_per_person_base, 6.0);
     EXPECT_DOUBLE_EQ(caudal(2600.0).q_personnel, 60.0);   // 10 × 6
@@ -262,4 +266,92 @@ TEST(RegulatoryPresets, DieselPorNorma_FactorVisibleEnElDesglose) {
     EXPECT_NEAR(col.q_diesel, 714.0, 1.0);    // 119 × 6
     EXPECT_DOUBLE_EQ(mex.hp_factor_base, 2.13);
     EXPECT_NEAR(mex.q_diesel, 254.0, 1.0);    // ceil(119 × 2,13 = 253,47)
+}
+
+// ============================================================================
+// Velocidades del aire por norma
+// ============================================================================
+
+// Máximas: Perú 250 (DS 024, Art. 248); Chile 150 (DS 132, Art. 138 inc. 3);
+// Colombia 360 = 6 m/s (Decreto 1886, Art. 56 par. 1); México sin máxima.
+TEST(VelocidadesPorNorma, Maximas) {
+    EXPECT_EQ(max_air_velocity_mpm(RegulatoryStandard::DS024_Peru), 250.0);
+    EXPECT_EQ(max_air_velocity_mpm(RegulatoryStandard::DS132_Chile), 150.0);
+    EXPECT_EQ(max_air_velocity_mpm(RegulatoryStandard::D1886_Colombia), 360.0);
+    EXPECT_FALSE(max_air_velocity_mpm(RegulatoryStandard::NOM023_Mexico).has_value());
+}
+
+// Mínimas: Perú 20 (25 con ANFO u otros agentes); Chile 15; Colombia ninguna
+// fuera del carbón; México 15,24 solo con diésel.
+TEST(VelocidadesPorNorma, Minimas) {
+    using S = RegulatoryStandard;
+    EXPECT_EQ(min_air_velocity_mpm(S::DS024_Peru), 20.0);
+    EXPECT_EQ(min_air_velocity_mpm(S::DS024_Peru, false, true), 25.0);
+    EXPECT_EQ(min_air_velocity_mpm(S::DS132_Chile), 15.0);
+    EXPECT_FALSE(min_air_velocity_mpm(S::D1886_Colombia, true, true).has_value());
+    EXPECT_FALSE(min_air_velocity_mpm(S::NOM023_Mexico).has_value());
+    EXPECT_EQ(min_air_velocity_mpm(S::NOM023_Mexico, true), 15.24);
+}
+
+// get_min_velocity = max(valor de ingeniería por labor, mínima de la norma).
+// Valores de ingeniería: frente 15, rampa 18, tajeo 12 m/min.
+TEST(VelocidadesPorNorma, MinimaParaDimensionarNuncaBajaDeLaNorma) {
+    using S = RegulatoryStandard;
+    using Z = ZoneType;
+    // Perú: 20 m/min en toda labor (antes 15 / 18 / 12).
+    for (Z z : {Z::DevelopmentFace, Z::Ramp, Z::Stope, Z::GeneralMine}) {
+        EXPECT_NEAR(get_min_velocity(z) * 60.0, 20.0, 1e-9);
+        EXPECT_NEAR(get_min_velocity(z, S::DS024_Peru, false, true) * 60.0, 25.0, 1e-9);
+    }
+    // Chile: el tajeo sube de 12 a 15; la rampa conserva 18 (> 15).
+    EXPECT_NEAR(get_min_velocity(Z::Stope, S::DS132_Chile) * 60.0, 15.0, 1e-9);
+    EXPECT_NEAR(get_min_velocity(Z::Ramp, S::DS132_Chile) * 60.0, 18.0, 1e-9);
+    // Colombia: solo los valores de ingeniería.
+    EXPECT_NEAR(get_min_velocity(Z::Stope, S::D1886_Colombia) * 60.0, 12.0, 1e-9);
+    // México: 15,24 con diésel; sin diésel, el valor de ingeniería.
+    EXPECT_NEAR(get_min_velocity(Z::Stope, S::NOM023_Mexico, true) * 60.0, 15.24, 1e-9);
+    EXPECT_NEAR(get_min_velocity(Z::DevelopmentFace, S::NOM023_Mexico, true) * 60.0,
+                15.24, 1e-9);
+    EXPECT_NEAR(get_min_velocity(Z::Stope, S::NOM023_Mexico) * 60.0, 12.0, 1e-9);
+}
+
+TEST(VelocidadesPorNorma, AgentesDeVoladura) {
+    EXPECT_TRUE(is_blasting_agent(ExplosiveType::ANFO));
+    EXPECT_TRUE(is_blasting_agent(ExplosiveType::Emulsion));
+    EXPECT_FALSE(is_blasting_agent(ExplosiveType::Dynamite));
+}
+
+// ============================================================================
+// DS 024-2016-EM, Anexo 38 lit. b: factor u por consumo de madera
+// ============================================================================
+
+TEST(FactorMadera, TablaDelAnexo38) {
+    EXPECT_DOUBLE_EQ(timber_production_factor(0.0), 0.0);
+    EXPECT_DOUBLE_EQ(timber_production_factor(19.9), 0.0);
+    EXPECT_DOUBLE_EQ(timber_production_factor(20.0), 0.60);
+    EXPECT_DOUBLE_EQ(timber_production_factor(40.0), 0.60);
+    // Hueco de la tabla entre 40 y 41 %: rige el valor mayor.
+    EXPECT_DOUBLE_EQ(timber_production_factor(40.5), 1.00);
+    EXPECT_DOUBLE_EQ(timber_production_factor(41.0), 1.00);
+    EXPECT_DOUBLE_EQ(timber_production_factor(70.0), 1.00);
+    // "> 70" (num. 1 y Art. 252 lit. d), no "> 71" (num. 2).
+    EXPECT_DOUBLE_EQ(timber_production_factor(70.5), 1.25);
+    EXPECT_DOUBLE_EQ(timber_production_factor(100.0), 1.25);
+    EXPECT_THROW((void)timber_production_factor(-1.0), std::invalid_argument);
+    EXPECT_THROW((void)timber_production_factor(100.1), std::invalid_argument);
+}
+
+// DS 132, Título XV (faenas de hasta 5.000 t/mes, Art. 594): el Art. 627
+// exige 3 m3/min por persona y por cada HP.
+TEST(PresetChilePequenaMineria, FactorYCitaDelArt627) {
+    const auto cfg = RegulatoryConfig::chile_small_mining();
+    EXPECT_EQ(cfg.standard(), RegulatoryStandard::DS132_Chile);
+    EXPECT_TRUE(cfg.small_mining());
+    EXPECT_FALSE(RegulatoryConfig::chile().small_mining());
+    EXPECT_DOUBLE_EQ(cfg.diesel_hp_factor(), 3.0);
+    EXPECT_DOUBLE_EQ(cfg.min_flow_per_person(), 3.0);
+    EXPECT_EQ(regulation_reference(RegulatoryTopic::DieselHpFactor, cfg)
+                  .rfind("DS 132, Art. 627", 0), 0u);
+    EXPECT_EQ(regulation_reference(RegulatoryTopic::PersonnelFlow, cfg)
+                  .rfind("DS 132, Art. 627", 0), 0u);
 }

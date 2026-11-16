@@ -10,10 +10,11 @@
  * aquí; v1 NO calcula WBGT).
  *
  * La cita emitida en `regulation_ref` sigue a `config.standard()` a través de
- * `regulation_reference` (normativa.hpp). Bajo el DS 132 chileno esta librería
- * no tiene un criterio de ventilación térmica verificado: el piso de 30 m/min
- * se sigue exigiendo —es el resultado conservador y el caudal no cambia— pero
- * la cita lo declara criterio de ingeniería en vez de atribuirlo al DS 132.
+ * `regulation_reference` (normativa.hpp). El DS 132 chileno no fija un
+ * criterio de ventilación térmica (su Art. 143 remite al DS 594, Arts. 96 a
+ * 98, índice TGBH): el piso de 30 m/min se sigue exigiendo —es el resultado
+ * conservador y el caudal no cambia— pero la cita lo declara criterio de
+ * ingeniería en vez de atribuirlo al DS 132.
  *
  * `target_effective_temp_c` (default 28°C) y `constants::MAX_EFFECTIVE_TEMP_C`
  * (30°C) son objetivos INGENIERILES heredados del derogado DS 055-2010-EM:
@@ -205,8 +206,10 @@ public:
             std::ostringstream oss;
             oss << "Temperatura de entrada (" << inlet_temp_bottom
                 << " C) supera 29 C: remitir a evaluacion de estres termico "
-                   "WBGT (Art. 104 + Anexo 13; no calculado por este "
-                   "calculador)";
+                   "WBGT ("
+                << regulation_reference(
+                       RegulatoryTopic::ThermalStressReferral, config)
+                << "; no calculado por este calculador)";
             r.warnings.push_back(oss.str());
         }
 

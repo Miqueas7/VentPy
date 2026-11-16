@@ -32,8 +32,8 @@ class TestPresets:
         c = ventpy.RegulatoryConfig.colombia()
         por_persona = lambda alt: ventpy.calculate_personnel_flow(
             10, alt, c).flow_per_person_base
-        assert por_persona(1500.0) == 3.0          # borde: rige la banda inferior
-        assert por_persona(1500.5) == 6.0
+        assert por_persona(1499.5) == 3.0
+        assert por_persona(1500.0) == 6.0          # borde: rige la banda alta
         assert por_persona(4200.0) == 6.0
 
     def test_mexico_values(self):
@@ -65,13 +65,15 @@ class TestLmp:
         assert co.twa_8h == 44.0
         assert "40 ppm" in co.regulation_ref
 
-    def test_chile_no_not_regulated(self):
-        with pytest.raises(ValueError):
-            ventpy.lmp_for(ventpy.RegulatoryStandard.DS132_Chile, ventpy.GasType.NO)
+    def test_chile_no_lpp_22(self):
+        # DS 594, Art. 66, 'Oxido Nitrico': LPP 22 ppm.
+        no = ventpy.lmp_for(ventpy.RegulatoryStandard.DS132_Chile, ventpy.GasType.NO)
+        assert no.twa_8h == 22.0
+        assert "DS 594, Art. 66" in no.regulation_ref
 
     def test_tables_complete(self):
         assert len(ventpy.gas_limits(ventpy.RegulatoryStandard.DS024_Peru)) == 8
-        assert len(ventpy.gas_limits(ventpy.RegulatoryStandard.DS132_Chile)) == 7
+        assert len(ventpy.gas_limits(ventpy.RegulatoryStandard.DS132_Chile)) == 8
         assert len(ventpy.gas_limits(ventpy.RegulatoryStandard.D1886_Colombia)) == 8
         assert len(ventpy.gas_limits(ventpy.RegulatoryStandard.NOM023_Mexico)) == 8
 
@@ -138,3 +140,115 @@ class TestAnexo38:
         inp.zone_type = ventpy.ZoneType.DevelopmentFace
         r = gov.calculate_total_demand(inp)
         assert any("maximo" in w and "Art. 248" in w for w in r.warnings)
+
+
+class TestCorreccionesNormativas:
+    """Objetivos y pisos que siguen a la norma configurada."""
+
+    def test_simultaneidad_por_defecto_respeta_el_anexo_38(self):
+        # Q_Eq = 3 x HP x Dm x Fu = 3 x 100 = 300 (DS 024-2016-EM, Anexo 38).
+        vi = ventpy.VentilationInput()
+        assert vi.simultaneity_factor == 1.0
+        vi.zone_type = ventpy.ZoneType.GeneralMine
+        vi.num_workers = 1
+        vi.face_area_m2 = 1.0
+        e = ventpy.DieselEquipment()
+        e.name = "E1"
+        e.horsepower = 100.0
+        e.emission_tier = ventpy.EngineEmissionTier.Tier4_Final
+        f = ventpy.DieselFleet()
+        f.add_equipment(e)
+        vi.diesel_fleet = f
+        gov = ventpy.VentilationGovernor(ventpy.RegulatoryConfig.peru())
+        assert gov.calculate_total_demand(vi).q_diesel_m3min == 300.0
+        vi.simultaneity_factor = 0.85
+        r = gov.calculate_total_demand(vi)
+        assert r.q_diesel_m3min == 255.0
+        assert any("simultaneidad 0.85" in w for w in r.warnings)
+
+    @pytest.mark.parametrize("pct, q_ma", [
+        (10.0, 0.0), (30.0, 60.0), (50.0, 100.0), (80.0, 125.0)])
+    def test_q_ma_cuatro_tramos(self, pct, q_ma):
+        # Q_Ma = T x u con T = 100 t/guardia (Anexo 38 lit. b).
+        vi = ventpy.VentilationInput()
+        vi.zone_type = ventpy.ZoneType.GeneralMine
+        vi.num_workers = 10
+        vi.face_area_m2 = 1.0
+        vi.production_t_per_shift = 100.0
+        vi.timber_consumption_pct = pct
+        vi.hot_levels = 0
+        r = ventpy.VentilationGovernor(
+            ventpy.RegulatoryConfig.peru()).calculate_total_demand(vi)
+        assert r.q_timber_m3min == q_ma
+        assert r.q_governing_m3min == 30.0 + q_ma   # Q_Tr = 10 x 3
+
+    def test_q_te_y_aviso_sin_datos(self):
+        # Q_Te = 30 x 12 x 2 = 720 (Anexo 38 lit. c).
+        vi = ventpy.VentilationInput()
+        vi.zone_type = ventpy.ZoneType.GeneralMine
+        vi.num_workers = 10
+        vi.hot_levels = 2
+        gov = ventpy.VentilationGovernor(ventpy.RegulatoryConfig.peru())
+        r = gov.calculate_total_demand(vi)
+        assert r.q_temperature_m3min == 720.0
+        assert any("no incluye Q_Ma" in w for w in r.warnings)
+        vi.hot_levels = None
+        r = gov.calculate_total_demand(vi)
+        assert r.q_temperature_m3min == 0.0
+        assert any("no incluye Q_Te" in w for w in r.warnings)
+
+    def test_objetivo_de_dilucion_de_la_norma(self):
+        b = ventpy.BlastingParams()
+        b.explosive_kg = 60.0
+        b.dilution_time_min = 30.0
+        assert b.target_nox_ppm == 0.0   # 0 = TWA de la norma
+        pe = ventpy.calculate_blasting_flow(b, ventpy.RegulatoryConfig.peru())
+        mx = ventpy.calculate_blasting_flow(b, ventpy.RegulatoryConfig.mexico())
+        assert pe.target_nox_ppm == 3.0
+        assert mx.target_nox_ppm == 0.2
+        # 600 L / (0.2e-6 x 30) / 1000 x 1.2 = 120 000
+        assert mx.q_blasting == 120000.0
+
+    def test_cobertura_limites_por_norma(self):
+        p = ventpy.CoverageParams()
+        lim = ventpy.CoverageCalculator.velocity_limits
+        assert lim(p, ventpy.RegulatoryConfig.peru()) == (20.0, 250.0)
+        assert lim(p, ventpy.RegulatoryConfig.chile()) == (15.0, 150.0)
+        assert lim(p, ventpy.RegulatoryConfig.colombia()) == (15.0, 360.0)
+        mn, mx = lim(p, ventpy.RegulatoryConfig.mexico())
+        assert mn == 15.24 and mx == float("inf")
+
+    def test_polvo_chile_con_fa(self):
+        # 2.4 x Fa(3000 msnm = 0.69) = 1.656 mg/m3 (DS 594, Arts. 63 y 66).
+        d = ventpy.DustParams()
+        d.dust_generation_rate_mg_s = 10.0
+        atm = ventpy.AtmosphericParams()
+        atm.altitude_masl = 3000.0
+        r = ventpy.calculate_dust_flow(d, ventpy.RegulatoryConfig.chile(), atm)
+        assert r.target_concentration == pytest.approx(1.656)
+        assert ventpy.calculate_dust_flow(
+            d, ventpy.RegulatoryConfig.peru()).target_concentration == 3.0
+
+
+class TestFueraDelPresetBase:
+    def test_pequena_mineria_chilena(self):
+        cfg = ventpy.RegulatoryConfig.chile_small_mining()
+        assert cfg.small_mining and cfg.diesel_hp_factor == 3.0
+        f = ventpy.DieselFleet()
+        f.add_equipment("Scoop", 100.0, 1.0, 1.0)
+        assert "Art. 627" in ventpy.calculate_diesel_flow(f, cfg).regulation_ref
+
+    def test_silice_fija_el_objetivo(self):
+        dp = ventpy.DustParams()
+        dp.dust_generation_rate_mg_s = 15.0
+        dp.silica_content_percent = 100.0
+        r = ventpy.calculate_dust_flow(dp, ventpy.RegulatoryConfig.chile())
+        assert r.target_concentration == 0.08
+
+    def test_tajo_de_carbon_colombia(self):
+        inp = ventpy.VentilationInput()
+        inp.zone_type = ventpy.ZoneType.Stope
+        inp.num_workers = 1200
+        inp.coal_mine = True
+        r = ventpy.VentilationGovernor(ventpy.RegulatoryConfig.colombia()).calculate_total_demand(inp)
+        assert any("maximo 270" in w for w in r.warnings)

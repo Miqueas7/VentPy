@@ -50,7 +50,8 @@ _ALLOWED_INPUT = frozenset({
     "zone_type", "num_workers", "altitude_masl", "face_area_m2",
     "face_length_m", "simultaneity_factor", "leakage_factor",
     "safety_factor", "atmospheric", "diesel_fleet", "blasting_params",
-    "dust_params", "thermal_params",
+    "dust_params", "thermal_params", "production_t_per_shift",
+    "timber_consumption_pct", "hot_levels",
 })
 
 # --- T2: cobertura ----------------------------------------------------------
@@ -265,6 +266,8 @@ def _demanda_report(result):
         "q_blasting_m3min": result.q_blasting_m3min,
         "q_dust_m3min": result.q_dust_m3min,
         "q_thermal_m3min": result.q_thermal_m3min,
+        "q_timber_m3min": result.q_timber_m3min,
+        "q_temperature_m3min": result.q_temperature_m3min,
         "q_leakage_m3min": result.q_leakage_m3min,
         "governing_factor": result.governing_factor,
         "q_governing_m3min": result.q_governing_m3min,

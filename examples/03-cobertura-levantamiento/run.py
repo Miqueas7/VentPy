@@ -36,8 +36,8 @@ def build_zone(name, num_workers, altitude_masl, q_measured_m3min):
 
 
 zones = [
-    build_zone("Rampa 4200", num_workers=10, altitude_masl=4200.0, q_measured_m3min=270.0),
-    build_zone("Frente N-02", num_workers=10, altitude_masl=2500.0, q_measured_m3min=150.0),
+    build_zone("Rampa 4200", num_workers=10, altitude_masl=4200.0, q_measured_m3min=350.0),
+    build_zone("Frente N-02", num_workers=10, altitude_masl=2500.0, q_measured_m3min=210.0),
 ]
 
 config = ventpy.RegulatoryConfig()  # DS024_Peru
@@ -59,17 +59,19 @@ for zone in result.zones:
 assert result.global_compliant is True
 
 # --- Pero NO todas las zonas individuales cumplen (Art. 252.g): ambas
-# zonas requieren el mismo caudal (207 m3/min - mismo num_workers y
-# zone_type, la altitud no cambia el factor gobernante aqui), pero
-# "Frente N-02" midio bastante menos (150 vs 270) y por eso esta en
-# deficit ---
+# zonas requieren el mismo caudal (276 m3/min = 12 m2 x 20 m/min del
+# Art. 248, x 1.15 de fugas; la altitud no cambia el factor gobernante
+# aqui), pero "Frente N-02" midio bastante menos (210 vs 350) y por eso
+# esta en deficit ---
+assert result.zones[0].q_required_m3min == 276.0
+assert result.zones[1].q_required_m3min == 276.0
 assert result.all_zones_compliant is False
 assert result.compliant is False  # compliant estricto = global AND todas las zonas
 
 frente_n02 = result.zones[1]
 assert frente_n02.zone_name == "Frente N-02"
-assert frente_n02.deficit_m3min == 57.0
+assert frente_n02.deficit_m3min == 66.0
 assert frente_n02.compliant is False
 
-print("OK: global cubre, pero 'Frente N-02' esta en deficit de 57 m3/min "
+print("OK: global cubre, pero 'Frente N-02' esta en deficit de 66 m3/min "
       "(Art. 252.f/g) -> el CLI documenta esto como exit code 2")

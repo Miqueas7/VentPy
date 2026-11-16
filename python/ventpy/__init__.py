@@ -145,12 +145,16 @@ from ventpy._ventpy_core import (
     # LMP (limites maximos permisibles) por norma
     gas_limits,
     lmp_for,
+    dilution_target_ppm,
 
     # Utility functions
     safety_ceil,
     safety_ceil_decimals,
     get_o2_consumption,
     get_min_velocity,
+    min_air_velocity_mpm,
+    max_air_velocity_mpm,
+    timber_production_factor,
 
     # Constants (main module)
     M3MIN_TO_CFM,
@@ -275,12 +279,16 @@ __all__ = [
     # LMP (limites maximos permisibles) por norma
     "gas_limits",
     "lmp_for",
+    "dilution_target_ppm",
 
     # Utility functions
     "safety_ceil",
     "safety_ceil_decimals",
     "get_o2_consumption",
     "get_min_velocity",
+    "min_air_velocity_mpm",
+    "max_air_velocity_mpm",
+    "timber_production_factor",
 
     # Constants
     "M3MIN_TO_CFM",

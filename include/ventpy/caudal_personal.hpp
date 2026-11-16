@@ -6,7 +6,7 @@
  *
  * 1. CONSUMO DE OXÍGENO:
  *    - Varía según nivel de actividad (reposo → trabajo muy pesado)
- *    - Base: necesidad de mantener 19.5% O2 mínimo (DS 024, Art. 236)
+ *    - Base: necesidad de mantener 19.5% O2 mínimo (DS 024, Art. 246 lit. b)
  *
  * 2. CORRECCIÓN POR ALTITUD:
  *    - A mayor altitud, menor densidad → más volumen para misma masa O2
@@ -14,17 +14,20 @@
  *
  * 3. DILUCIÓN DE CO2 METABÓLICO:
  *    - Producción de CO2 proporcional al consumo de O2
- *    - Mantener CO2 < 0.5% (5000 ppm)
+ *    - Mantener CO2 < 0.5% (5000 ppm, Anexo 15)
  *
  * 4. VELOCIDAD MÍNIMA:
- *    - Verificación de que el caudal genera velocidad ≥ 0.25 m/s
- *    - DS 024-2016-EM, Art. 236
+ *    - El caudal debe dar la velocidad mínima de la labor
+ *      (`get_min_velocity`: Perú 20 m/min, 25 con ANFO, Art. 248)
+ *
+ * El caudal normativo (n × caudal por persona de la norma) es un piso: la
+ * densidad y el nivel de actividad pueden subirlo, nunca bajarlo. Ninguna
+ * norma implementada reduce el mínimo por persona según la actividad.
  *
  * Referencias normativas (Perú, preset por defecto):
- * - DS 024-2016-EM, Art. 236: Mínimo 3 m³/min por persona
- * - DS 024-2016-EM, Art. 236: Mínimo 19.5% de O2
- * - DS 024-2016-EM, Art. 236: Velocidad mínima 0.25 m/s
- * - DS 024-2016-EM, Art. 247: Escala de caudal por altitud
+ * - DS 024-2016-EM, Art. 247: Mínimo 3 m³/min por persona y escala por altitud
+ * - DS 024-2016-EM, Art. 246 lit. b: Mínimo 19.5% de O2
+ * - DS 024-2016-EM, Art. 248: Velocidad mínima 20 m/min
  *
  * La cita emitida en `regulation_ref` sigue a `config.standard()` a través de
  * `regulation_reference` (normativa.hpp): bajo el DS 132 chileno el caudal por
@@ -67,6 +70,8 @@ public:
      * @param zone_type Tipo de zona (para velocidad mínima)
      * @param face_area_m2 Sección de la labor [m²] (para verificar velocidad)
      * @param config Configuración normativa
+     * @param diesel Opera maquinaria diésel en la labor (velocidad mínima)
+     * @param blasting_agents Se emplea ANFO u otros agentes de voladura
      * @return Resultado detallado
      */
     [[nodiscard]] static PersonnelFlowResult calculate_full(
@@ -74,7 +79,9 @@ public:
         const AtmosphericParams& atm,
         ZoneType zone_type,
         double face_area_m2,
-        const RegulatoryConfig& config
+        const RegulatoryConfig& config,
+        bool diesel = false,
+        bool blasting_agents = false
     ) {
         // --- Validaciones ---
         validation::require_positive_int(personnel.num_workers, "num_workers");
@@ -100,7 +107,9 @@ public:
         result.flow_per_person_base = flow_base;
 
         // --- 4. Caudal corregido ---
-        // El caudal se ajusta si la actividad es mayor a la moderada
+        // La actividad y la densidad pueden subir el caudal por persona, nunca
+        // bajarlo del mínimo de la norma: ninguna norma implementada reduce el
+        // mínimo por persona según la actividad (criterio de ingeniería).
         double activity_factor = 1.0;
         switch (personnel.activity) {
             case ActivityLevel::Rest:      activity_factor = 0.6; break;
@@ -110,7 +119,8 @@ public:
             case ActivityLevel::VeryHeavy: activity_factor = 1.6; break;
         }
 
-        double flow_corrected = flow_base * density_correction * activity_factor;
+        double flow_corrected =
+            std::max(flow_base, flow_base * density_correction * activity_factor);
         result.flow_per_person_corrected = flow_corrected;
 
         // --- 5. Caudal por consumo de O2 ---
@@ -127,11 +137,12 @@ public:
             density_correction
         );
 
-        // --- 7. Caudal normativo (DS 024) ---
+        // --- 7. Caudal normativo (piso: n × caudal por persona de la norma) ---
         double q_normative = personnel.num_workers * flow_corrected;
 
         // --- 8. Caudal para velocidad mínima ---
-        double min_velocity = get_min_velocity(zone_type);
+        double min_velocity = get_min_velocity(
+            zone_type, config.standard(), diesel, blasting_agents);
         double q_for_velocity = face_area_m2 * min_velocity * 60.0;  // m³/min
 
         // --- 9. Tomar el máximo ---
@@ -188,13 +199,14 @@ private:
         double altitude_masl,
         const RegulatoryConfig& config
     ) {
-        // Escala DS 024-2016-EM, Art. 247 (borde: '>' estricto — en el umbral
-        // exacto rige la banda inferior; ver Doxygen de RegulatoryConfig).
-        if (altitude_masl > config.altitude_threshold_3()) {
+        // Escala DS 024-2016-EM, Art. 247. El texto pone cada umbral en dos
+        // bandas; en el umbral exacto rige la banda alta (lado seguro; ver
+        // Doxygen de RegulatoryConfig).
+        if (altitude_masl >= config.altitude_threshold_3()) {
             return config.flow_above_threshold_3();
-        } else if (altitude_masl > config.altitude_threshold_2()) {
+        } else if (altitude_masl >= config.altitude_threshold_2()) {
             return config.flow_above_threshold_2();
-        } else if (altitude_masl > config.altitude_threshold_1()) {
+        } else if (altitude_masl >= config.altitude_threshold_1()) {
             return config.flow_above_threshold_1();
         }
         return config.min_flow_per_person();
@@ -278,16 +290,16 @@ private:
         const std::string altitude_scale =
             regulation_reference(RegulatoryTopic::PersonnelAltitudeScale, config);
         if (!altitude_scale.empty()) {
-            if (altitude > config.altitude_threshold_3()) {
-                oss << " + " << altitude_scale << " (>"
+            if (altitude >= config.altitude_threshold_3()) {
+                oss << " + " << altitude_scale << " (>="
                     << static_cast<int>(config.altitude_threshold_3())
                     << " msnm)";
-            } else if (altitude > config.altitude_threshold_2()) {
-                oss << " + " << altitude_scale << " (>"
+            } else if (altitude >= config.altitude_threshold_2()) {
+                oss << " + " << altitude_scale << " (>="
                     << static_cast<int>(config.altitude_threshold_2())
                     << " msnm)";
-            } else if (altitude > config.altitude_threshold_1()) {
-                oss << " + " << altitude_scale << " (>"
+            } else if (altitude >= config.altitude_threshold_1()) {
+                oss << " + " << altitude_scale << " (>="
                     << static_cast<int>(config.altitude_threshold_1())
                     << " msnm)";
             }

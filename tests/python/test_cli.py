@@ -37,18 +37,19 @@ def _write_json(tmp_path, name, data):
 
 
 class TestCmdDemanda:
-    def test_demanda_devface_voladura_gobierna_7764(self, tmp_path, capsys):
+    def test_demanda_devface_voladura_gobierna_12939(self, tmp_path, capsys):
         archivo = _write_json(tmp_path, "input.json", _DEVFACE_15W_4200_SCOOP150)
 
         exit_code = cli.main(["demanda", archivo, "--json"])
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
-        # 50 kg de ANFO en 30 min a 4200 msnm: dilucion de NOx = 6751 m3/min,
-        # por encima del diesel (853). Total = ceil(6751 x 1.15) = 7764.
-        assert data["q_diesel_m3min"] == 853.0
-        assert data["q_blasting_m3min"] == 6751.0
-        assert data["q_total_m3min"] == 7764.0
+        # 50 kg de ANFO en 30 min a 4200 msnm: dilucion de NOx al TWA de NO2
+        # del Anexo 15 (3 ppm) = 11251 m3/min, por encima del diesel (1672,
+        # simultaneidad 1.0). Total = ceil(11251 x 1.15) = 12939.
+        assert data["q_diesel_m3min"] == 1672.0
+        assert data["q_blasting_m3min"] == 11251.0
+        assert data["q_total_m3min"] == 12939.0
         assert data["governing_factor"] == "blasting (Q_Exp)"
 
     def test_demanda_norma_chile(self, tmp_path, capsys):
@@ -59,8 +60,28 @@ class TestCmdDemanda:
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
         assert data["standard"] == "DS132_Chile"
-        assert data["q_total_m3min"] == 981.0
+        # NOx diluido al LPP de NO2 del DS 594 (2,6 ppm): 1929 m3/min;
+        # total = ceil(1929 x 1.15) = 2219 (ver test_normativa.cpp).
+        assert data["q_total_m3min"] == 2219.0
         assert data["governing_factor"] == "diesel (Q_Eq)"
+
+    def test_demanda_anexo38_madera_y_temperatura(self, tmp_path, capsys):
+        # Total de mina peruano, 10 trabajadores a 0 msnm, area 12 m2:
+        # Q_Tr = 12 x 20 = 240; Q_Ma = 100 t x 0.60 (30 % de madera) = 60;
+        # Q_Te = 30 x 12 x 2 = 720. Q_T1 = 1020; total = ceil(1020 x 1.15) = 1173.
+        archivo = _write_json(tmp_path, "input.json", {
+            "zone_type": "GeneralMine", "num_workers": 10, "face_area_m2": 12.0,
+            "production_t_per_shift": 100.0, "timber_consumption_pct": 30.0,
+            "hot_levels": 2,
+        })
+
+        exit_code = cli.main(["demanda", archivo, "--json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["q_timber_m3min"] == 60.0
+        assert data["q_temperature_m3min"] == 720.0
+        assert data["q_total_m3min"] == 1173.0
 
     @pytest.mark.parametrize("norma, standard", [
         ("colombia", "D1886_Colombia"),
@@ -177,11 +198,19 @@ class TestCmdLmp:
         assert data["stel"] == 0.25
         assert so2_ref in data["regulation_ref"]
 
-    def test_lmp_gas_no_regulado_exit1(self, capsys):
-        exit_code = cli.main(["lmp", "--norma", "chile", "--gas", "NO", "--json"])
+    def test_lmp_gas_desconocido_exit1(self, capsys):
+        # Las cuatro normas regulan los ocho gases (Chile, NO: DS 594, Art. 66);
+        # un nombre de gas que no existe sigue siendo error de entrada.
+        exit_code = cli.main(["lmp", "--norma", "chile", "--gas", "XYZ", "--json"])
 
         assert exit_code == 1
         assert capsys.readouterr().err
+
+    def test_lmp_chile_no(self, capsys):
+        exit_code = cli.main(["lmp", "--norma", "chile", "--gas", "NO", "--json"])
+
+        assert exit_code == 0
+        assert json.loads(capsys.readouterr().out)["twa_8h"] == 22.0
 
     def test_lmp_tabla_completa(self, capsys):
         exit_code = cli.main(["lmp", "--norma", "peru", "--json"])
@@ -195,9 +224,10 @@ class TestCmdCobertura:
     def test_cobertura_deficit_zona(self, tmp_path, capsys):
         # Espejo de TestAnalyzeSurvey.test_global_covers_with_zone_in_deficit
         # (tests/python/test_cobertura.py): 2 zonas DevelopmentFace/10 trab.,
-        # 4200msnm->270 medido (207 requerido, OK) y 2500msnm->150 medido
-        # (207 requerido, deficit 57). Global cubre (420>=414) pero la zona 2
-        # esta en deficit -> compliant estricto = False -> exit 2.
+        # requerido 276 cada una (12 m2 x 20 m/min = 240, x 1.15).
+        # 4200msnm->350 medido (OK) y 2500msnm->210 medido (deficit 66).
+        # Global cubre (560>=552) pero la zona 2 esta en deficit -> compliant
+        # estricto = False -> exit 2.
         payload = {
             "zones": [
                 {
@@ -207,7 +237,7 @@ class TestCmdCobertura:
                         "num_workers": 10,
                         "altitude_masl": 4200.0,
                     },
-                    "measurement": {"q_measured_m3min": 270.0},
+                    "measurement": {"q_measured_m3min": 350.0},
                 },
                 {
                     "zone_name": "Frente N-02",
@@ -216,7 +246,7 @@ class TestCmdCobertura:
                         "num_workers": 10,
                         "altitude_masl": 2500.0,
                     },
-                    "measurement": {"q_measured_m3min": 150.0},
+                    "measurement": {"q_measured_m3min": 210.0},
                 },
             ],
         }
@@ -229,7 +259,7 @@ class TestCmdCobertura:
         assert data["global_compliant"] is True
         assert data["all_zones_compliant"] is False
         assert data["compliant"] is False
-        assert data["zones"][1]["deficit_m3min"] == 57.0
+        assert data["zones"][1]["deficit_m3min"] == 66.0
 
     def test_cobertura_clave_desconocida_exit1(self, tmp_path, capsys):
         archivo = _write_json(tmp_path, "cobertura.json", {"zonas": []})

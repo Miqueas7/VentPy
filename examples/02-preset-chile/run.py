@@ -3,10 +3,9 @@
 Usa SOLO el API publico de `ventpy`: `RegulatoryConfig.for_standard(...)` con
 `RegulatoryStandard.DS132_Chile` en vez del `RegulatoryConfig()` (Peru) por
 defecto del Ejemplo 1. 10 trabajadores / 4200 msnm / scoop diesel 150 HP,
-sin voladura. El resultado vuelve a dar 981 m3/min porque, con el preset
-chileno, sigue gobernando el mismo criterio: dilucion de NOx del equipo
-diesel (Q_Eq) — el preset chileno solo cambia los factores normativos de
-personal/diesel, no la fisica de dilucion de gases del motor.
+sin voladura. Gobierna el mismo criterio que en el Ejemplo 1 (dilucion de NOx
+del equipo diesel, Q_Eq), pero al limite chileno: LPP de NO2 de 2,6 ppm
+(DS 594, Art. 66), mas exigente que los 3 ppm peruanos. Q_total = 2219.
 
 Equivalente por CLI:
     ventpy demanda examples/02-preset-chile/input.json --norma chile --json
@@ -40,11 +39,19 @@ print(f"flow_above_t1/t2/t3 = "
       f"{config.flow_above_threshold_1}/{config.flow_above_threshold_2}/"
       f"{config.flow_above_threshold_3}")
 
-# --- El preset chileno (DS 132) da el mismo total 981: gobierna el mismo
-# criterio (diesel / dilucion NOx), independiente de la norma seleccionada ---
+# --- Gobierna el diesel por dilucion de NOx al LPP chileno de NO2:
+# 990.28 m3/min a 3 ppm (Ejemplo 1) x 3/2.6 x 1.6876 = 1928.30 -> 1929;
+# total = ceil(1929 x 1.15) = 2219 ---
 assert result.standard == ventpy.RegulatoryStandard.DS132_Chile
-assert result.q_total_m3min == 981.0
+assert result.diesel.target_nox_ppm == 2.6
+assert result.q_diesel_m3min == 1929.0
+assert result.q_total_m3min == 2219.0
 assert result.governing_factor == "diesel (Q_Eq)"
+
+# --- DS 132, Art. 138 inc. 3: velocidad promedio entre 15 y 150 m/min. Con
+# 12 m2 el caudal da 161 m/min y el Governor lo advierte (sin recortarlo) ---
+assert any("> maximo 150 m/min" in w and "Art. 138 inc. 3" in w
+           for w in result.warnings)
 
 # --- DS 132, Art. 132: factor diesel 2.83 m3/min/HP (vs. 3.0 en Peru) ---
 assert config.diesel_hp_factor == 2.83
@@ -57,4 +64,4 @@ assert config.flow_above_threshold_1 == 3.0
 assert config.flow_above_threshold_2 == 3.0
 assert config.flow_above_threshold_3 == 3.0
 
-print("OK: q_total_m3min == 981.0 con preset chile (Art. 132/138, sin escalon)")
+print("OK: q_total_m3min == 2219.0 con preset chile (Art. 132/138, sin escalon)")

@@ -135,15 +135,24 @@ TEST(LimitesGasesChile, O2_Min19p5) {
     EXPECT_FALSE(g.ceiling.has_value());    // Chile no fija máximo de O2
 }
 
-TEST(LimitesGasesChile, NO_NoReguladoLanza) {
-    // El NO no se extrajo/validó para Chile: debe lanzar, nunca inventar valor.
-    EXPECT_THROW(lmp_for(RegulatoryStandard::DS132_Chile, GasType::NO),
-                 std::invalid_argument);
+// DS 594, Art. 66, «Óxido Nítrico»: LPP 22 ppm.
+TEST(LimitesGasesChile, NO_LPP22) {
+    const GasLimit& g = lmp_for(RegulatoryStandard::DS132_Chile, GasType::NO);
+    EXPECT_EQ(g.unit, ConcentrationUnit::PPM);
+    EXPECT_DOUBLE_EQ(*g.twa_8h, 22.0);
+    EXPECT_FALSE(g.stel.has_value());
+    EXPECT_NE(g.regulation_ref.find("DS 594, Art. 66"), std::string::npos);
 }
 
-TEST(LimitesGasesChile, TablaCompleta_7Gases_TodasConRef) {
+// El Art. 274 está en el Título V (carbón): la cita lo dice.
+TEST(LimitesGasesChile, CH4CitaQueElArt274EsDelCarbon) {
+    const GasLimit& g = lmp_for(RegulatoryStandard::DS132_Chile, GasType::CH4);
+    EXPECT_NE(g.regulation_ref.find("carbon"), std::string::npos);
+}
+
+TEST(LimitesGasesChile, TablaCompleta_8Gases_TodasConRef) {
     const auto& table = gas_limits(RegulatoryStandard::DS132_Chile);
-    EXPECT_EQ(table.size(), 7u);
+    EXPECT_EQ(table.size(), 8u);
     for (const auto& g : table) {
         EXPECT_FALSE(g.regulation_ref.empty());
         EXPECT_TRUE(g.twa_8h || g.stel || g.ceiling || g.floor_min);
@@ -267,4 +276,49 @@ TEST(LimitesGasesMexico, TablaCompleta_8Gases_TodasConRef) {
         EXPECT_FALSE(g.regulation_ref.empty());
         EXPECT_TRUE(g.twa_8h || g.stel || g.ceiling || g.floor_min);
     }
+}
+
+// ============================================================================
+// Objetivo de dilución: TWA de la norma; sin TWA, el más estricto de STEL/techo
+// ============================================================================
+
+TEST(ObjetivoDilucion, TwaDeCadaNorma) {
+    using S = RegulatoryStandard;
+    EXPECT_DOUBLE_EQ(dilution_target_ppm(S::DS024_Peru, GasType::CO), 25.0);
+    EXPECT_DOUBLE_EQ(dilution_target_ppm(S::DS024_Peru, GasType::NO2), 3.0);
+    EXPECT_DOUBLE_EQ(dilution_target_ppm(S::DS132_Chile, GasType::CO), 44.0);
+    EXPECT_DOUBLE_EQ(dilution_target_ppm(S::DS132_Chile, GasType::NO2), 2.6);
+    EXPECT_DOUBLE_EQ(dilution_target_ppm(S::D1886_Colombia, GasType::NO2), 0.2);
+    EXPECT_DOUBLE_EQ(dilution_target_ppm(S::NOM023_Mexico, GasType::NO2), 0.2);
+    EXPECT_DOUBLE_EQ(dilution_target_ppm(S::NOM023_Mexico, GasType::CO), 25.0);
+}
+
+// Colombia y México no fijan TWA de SO2: rige el STEL de 0,25 ppm.
+TEST(ObjetivoDilucion, SinTwaUsaElStel) {
+    EXPECT_DOUBLE_EQ(dilution_target_ppm(RegulatoryStandard::D1886_Colombia,
+                                         GasType::SO2), 0.25);
+    EXPECT_DOUBLE_EQ(dilution_target_ppm(RegulatoryStandard::NOM023_Mexico,
+                                         GasType::SO2), 0.25);
+}
+
+// Perú, metano: solo techo de 5.000 ppm.
+TEST(ObjetivoDilucion, SoloTechoUsaElTecho) {
+    EXPECT_DOUBLE_EQ(dilution_target_ppm(RegulatoryStandard::DS024_Peru,
+                                         GasType::CH4), 5000.0);
+}
+
+// Límites en % vol no son un objetivo en ppm: lanza.
+TEST(ObjetivoDilucion, PorcentajeLanza) {
+    EXPECT_THROW((void)dilution_target_ppm(RegulatoryStandard::DS132_Chile,
+                                           GasType::CH4), std::invalid_argument);
+}
+
+// Constantes de referencia del DS 024: TWA del Anexo 15 (NO2 3, SO2 2).
+TEST(ObjetivoDilucion, ConstantesPeruanasSonElTwa) {
+    EXPECT_DOUBLE_EQ(constants::TLV_NO2_PPM,
+                     *lmp_for(RegulatoryStandard::DS024_Peru, GasType::NO2).twa_8h);
+    EXPECT_DOUBLE_EQ(constants::TLV_SO2_PPM,
+                     *lmp_for(RegulatoryStandard::DS024_Peru, GasType::SO2).twa_8h);
+    EXPECT_DOUBLE_EQ(constants::TLV_CO_PPM,
+                     *lmp_for(RegulatoryStandard::DS024_Peru, GasType::CO).twa_8h);
 }

@@ -76,9 +76,11 @@ def atmosfera_2500_16c():
 
 
 class TestCaudalPersonal:
-    def test_peru_cita_art_236(self):
+    def test_peru_cita_art_247(self):
+        # El Art. 236 vigente trata de vibraciones por voladura (DS 034-2023-EM).
         r = ventpy.calculate_personnel_flow(15, 4200.0, PERU)
-        assert "DS 024-2016-EM, Art. 236" in r.regulation_ref
+        assert "DS 024-2016-EM, Art. 247" in r.regulation_ref
+        assert "Art. 236" not in r.regulation_ref
 
     def test_chile_cita_art_138(self):
         r = ventpy.calculate_personnel_flow(15, 4200.0, CHILE)
@@ -92,9 +94,9 @@ class TestCaudalPersonal:
 
 
 class TestCaudalEquipo:
-    def test_peru_cita_art_246(self):
+    def test_peru_cita_art_252_y_anexo_38(self):
         r = ventpy.calculate_diesel_flow(flota_diesel(), PERU)
-        assert "DS 024-2016-EM, Art. 246" in r.regulation_ref
+        assert "DS 024-2016-EM, Art. 252 lit. e; Anexo 38 num. 1 lit. d" in r.regulation_ref
 
     def test_chile_cita_art_132(self):
         r = ventpy.calculate_diesel_flow(flota_diesel(), CHILE)
@@ -103,11 +105,13 @@ class TestCaudalEquipo:
 
 
 class TestCaudalExplosivos:
-    def test_peru_cita_art_243_244(self):
+    def test_peru_cita_reingreso_art_240(self):
+        # El tope de 30 min no esta en la norma: es criterio de ingenieria.
         r = ventpy.calculate_blasting_flow(params_voladura(), PERU)
-        assert "DS 024-2016-EM, Art. 243-244" in r.regulation_ref
+        assert "DS 024-2016-EM, Art. 240" in r.regulation_ref
+        assert "Art. 243" not in r.regulation_ref
         assert "ADVERTENCIA" in r.regulation_ref
-        assert "max normativo" in r.regulation_ref
+        assert "max configurado, criterio de ingenieria" in r.regulation_ref
 
     def test_chile_cita_reingreso_y_declara_vacio(self):
         r = ventpy.calculate_blasting_flow(params_voladura(), CHILE)
@@ -128,10 +132,11 @@ class TestCaudalPolvo:
         assert "DS 024-2016-EM, Art. 111" in r.regulation_ref
         assert any("Anexo 15" in w for w in r.warnings)
 
-    def test_chile_declara_vacio(self):
+    def test_chile_cita_ds_594(self):
         r = ventpy.calculate_dust_flow(params_polvo(), CHILE)
         assert "DS 132" in r.regulation_ref
-        assert "sin limite de polvo respirable verificado" in r.regulation_ref
+        assert "DS 594, Art. 66" in r.regulation_ref
+        assert "2.4 mg/m3" in r.regulation_ref
         assert sin_normativa_peruana(r.regulation_ref) == []
 
     def test_chile_advertencias_sin_articulo_peruano(self):
@@ -196,10 +201,11 @@ class TestCobertura:
         e = ventpy.AirflowStation()
         e.station_id = "E-1"
         e.area_m2 = 12.0
-        e.velocity_mps = 0.30               # 18 m/min, por debajo del minimo
+        e.velocity_mps = 0.20               # 12 m/min < 15 (DS 132, Art. 138 inc. 3)
         m.stations = [e]
         r = ventpy.CoverageCalculator.compare_zone(100.0, m, config=CHILE)
         assert r.stations[0].velocity_ok is False
+        assert "Art. 138 inc. 3" in r.stations[0].warning
         assert "248" not in r.stations[0].warning
         assert sin_normativa_peruana(r.stations[0].warning) == []
 

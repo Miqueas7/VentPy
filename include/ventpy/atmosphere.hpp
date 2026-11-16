@@ -10,8 +10,8 @@
  *
  * Modelo: Atmósfera Estándar Internacional (ISA)
  *
- * DS 024-2016-EM: La mayoría de minas peruanas operan entre
- * 3000 y 5000 msnm, donde estos efectos son significativos.
+ * Muchas minas andinas operan entre 3000 y 5000 msnm, donde estos efectos
+ * son significativos.
  *
  * @copyright 2026 VentPy Project
  */
@@ -160,7 +160,7 @@ public:
      *
      * P_O2 = P_atm × 0.2095
      *
-     * DS 024-2016-EM, Art. 236: Mínimo 19.5% de O2.
+     * DS 024-2016-EM, Art. 246 lit. b: Mínimo 19.5% de O2.
      * A mayor altitud, aunque el porcentaje es el mismo,
      * la presión parcial (y por tanto la disponibilidad
      * fisiológica) es menor.

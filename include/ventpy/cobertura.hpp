@@ -14,12 +14,12 @@
  *  - DS 024-2016-EM, Art. 248 (original): velocidad 20–250 m/min; con ANFO
  *    u otros agentes de voladura, mínimo 25 m/min.
  *
- * La cita emitida sigue a `config.standard()` a través de
- * `regulation_reference` (normativa.hpp). Bajo el DS 132 chileno esta librería
- * no tiene un régimen de evaluación de cobertura ni límites de velocidad del
- * aire verificados: la cita lo declara y atribuye los umbrales de
- * `CoverageParams` a criterio de ingeniería, en vez de trasladar los artículos
- * peruanos.
+ * La cita y los límites de velocidad siguen a `config.standard()`
+ * (`velocity_limits`): Chile 15–150 m/min (DS 132, Art. 138 inc. 3);
+ * Colombia máximo 360 m/min (Decreto 1886, Art. 56 par. 1); México mínimo
+ * 15,24 m/min (NOM-023-STPS-2012, 8.4.4 b) y sin máximo. Donde la norma no
+ * fija mínima (Colombia fuera del carbón) rige 15 m/min como criterio de
+ * ingeniería.
  *
  * @copyright 2026 VentPy Project
  */
@@ -27,11 +27,14 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "ventpy/governor.hpp"
@@ -77,7 +80,7 @@ public:
         const CoverageParams& params = {},
         const RegulatoryConfig& config = RegulatoryConfig::peru()
     ) {
-        validate_params(params);
+        (void)velocity_limits(params, config);  // valida params frente a la norma
         validation::require_positive(q_required_m3min,
             "q_required_m3min [m3/min] - Caudal requerido de la zona");
 
@@ -132,7 +135,7 @@ public:
         const RegulatoryConfig& config,
         const CoverageParams& params = {}
     ) {
-        validate_params(params);
+        (void)velocity_limits(params, config);  // valida params frente a la norma
         if (zones.empty()) {
             throw std::invalid_argument(
                 "Error de dominio [VentPy]: analyze_survey requiere al menos "
@@ -218,6 +221,47 @@ public:
         return r;
     }
 
+    /**
+     * @brief Límites de velocidad efectivos [m/min]: {mínimo, máximo}.
+     *
+     * Parten de la norma de `config` (`min_air_velocity_mpm`, contando con
+     * que puede operar maquinaria diésel, y `max_air_velocity_mpm`). Un valor
+     * positivo en `CoverageParams` solo endurece el límite: el mínimo
+     * efectivo es el mayor y el máximo efectivo el menor. Sin máximo en la
+     * norma ni en `params`, el máximo es +infinito. Sin mínimo en la norma
+     * rige 15 m/min (criterio de ingeniería) salvo que `params` fije otro.
+     *
+     * @throws std::invalid_argument si el mínimo efectivo no es menor que el
+     *         máximo efectivo.
+     */
+    [[nodiscard]] static std::pair<double, double> velocity_limits(
+        const CoverageParams& params,
+        const RegulatoryConfig& config = RegulatoryConfig::peru()
+    ) {
+        validate_params(params);
+        const auto norm_min = min_air_velocity_mpm(
+            config.standard(), true, params.anfo_or_blasting_agents);
+        const auto norm_max = max_air_velocity_mpm(config.standard());
+
+        double v_min = norm_min.value_or(
+            params.min_velocity_mpm > 0.0
+                ? 0.0
+                : constants::MIN_VELOCITY_DEVELOPMENT_MPS * 60.0);
+        v_min = std::max(v_min, params.min_velocity_mpm);
+
+        double v_max = norm_max.value_or(std::numeric_limits<double>::infinity());
+        if (params.max_velocity_mpm > 0.0) {
+            v_max = std::min(v_max, params.max_velocity_mpm);
+        }
+        if (!(v_min < v_max)) {
+            throw std::invalid_argument(
+                "Error de dominio [VentPy]: la velocidad minima efectiva debe "
+                "ser menor que la maxima efectiva (revisar min_velocity_mpm y "
+                "max_velocity_mpm frente a los limites de la norma).");
+        }
+        return {v_min, v_max};
+    }
+
 private:
     /// Valida umbrales del análisis (frontera).
     static void validate_params(const CoverageParams& p) {
@@ -227,19 +271,15 @@ private:
             throw std::invalid_argument(
                 "Error de dominio [VentPy]: overventilation_factor debe ser > 1.");
         }
-        validation::require_positive(p.min_velocity_mpm,
-            "min_velocity_mpm [m/min] - Velocidad minima");
-        if (!(p.min_velocity_mpm < p.max_velocity_mpm)) {
-            throw std::invalid_argument(
-                "Error de dominio [VentPy]: min_velocity_mpm debe ser menor "
-                "que max_velocity_mpm (Art. 248: 20 y 250 m/min).");
-        }
+        validation::require_non_negative(p.min_velocity_mpm,
+            "min_velocity_mpm [m/min] - Velocidad minima (0 = la de la norma)");
+        validation::require_non_negative(p.max_velocity_mpm,
+            "max_velocity_mpm [m/min] - Velocidad maxima (0 = la de la norma)");
     }
 
-    /// Evalúa una estación: caudal Q = A × v × 60 y velocidad vs los límites
-    /// aplicables. Con ANFO el mínimo efectivo es max(min_velocity_mpm, 25).
-    /// Los valores por defecto de `CoverageParams` son los del Art. 248
-    /// peruano; la cita de la advertencia la fija la norma de `config`.
+    /// Evalúa una estación: caudal Q = A × v × 60 y velocidad frente a los
+    /// límites efectivos de `velocity_limits`; la cita de la advertencia la
+    /// fija la norma de `config`.
     [[nodiscard]] static StationResult evaluate_station(
         const AirflowStation& s,
         const CoverageParams& params,
@@ -257,9 +297,7 @@ private:
         r.velocity_mpm = s.velocity_mps * 60.0;
         r.q_station_m3min = s.area_m2 * s.velocity_mps * 60.0;
 
-        const double min_effective = params.anfo_or_blasting_agents
-            ? std::max(params.min_velocity_mpm, 25.0)
-            : params.min_velocity_mpm;
+        const auto [min_effective, max_effective] = velocity_limits(params, config);
 
         // Tolerancia absoluta para el artefacto de punto flotante del
         // roundtrip m/s ↔ m/min (p.ej. 250.0/60.0*60.0 = 250.000000000003).
@@ -267,17 +305,30 @@ private:
         // (~0.6 m/min); NO relaja el limite configurado.
         constexpr double VEL_TOL_MPM = 1e-6;
         r.velocity_ok = (r.velocity_mpm >= min_effective - VEL_TOL_MPM) &&
-                        (r.velocity_mpm <= params.max_velocity_mpm + VEL_TOL_MPM);
+                        (r.velocity_mpm <= max_effective + VEL_TOL_MPM);
         if (!r.velocity_ok) {
             std::ostringstream oss;
             oss << "Estacion '" << s.station_id << "': velocidad "
-                << r.velocity_mpm << " m/min fuera de rango ["
-                << min_effective << ", " << params.max_velocity_mpm
-                << "] ("
+                << r.velocity_mpm << " m/min fuera de rango [" << min_effective
+                << ", ";
+            if (std::isfinite(max_effective)) {
+                oss << max_effective;
+            } else {
+                oss << "sin maximo";
+            }
+            oss << "] ("
                 << regulation_reference(
                        RegulatoryTopic::AirVelocityLimits, config);
-            if (params.anfo_or_blasting_agents && r.velocity_mpm < min_effective) {
+            // El ANFO sube el mínimo solo con el DS 024 (Art. 248).
+            if (params.anfo_or_blasting_agents &&
+                config.standard() == RegulatoryStandard::DS024_Peru &&
+                r.velocity_mpm < min_effective) {
                 oss << "; minimo 25 m/min con ANFO u otros agentes de voladura";
+            }
+            if (!min_air_velocity_mpm(config.standard(), true) &&
+                params.min_velocity_mpm <= 0.0 &&
+                r.velocity_mpm < min_effective) {
+                oss << "; minimo de 15 m/min por criterio de ingenieria";
             }
             oss << ")";
             r.warning = oss.str();

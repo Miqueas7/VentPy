@@ -148,22 +148,24 @@ class TestCompareZoneStations:
 class TestAnalyzeSurvey:
     def test_global_covers_with_zone_in_deficit(self):
         zones = [
-            make_zone("Rampa 4200", 4200.0, 270.0),
-            make_zone("Frente N-02", 2500.0, 150.0),
+            make_zone("Rampa 4200", 4200.0, 350.0),
+            make_zone("Frente N-02", 2500.0, 210.0),
         ]
 
         r = ventpy.CoverageCalculator.analyze_survey(
             zones, ventpy.RegulatoryConfig.peru())
 
+        # Requerido por zona: 12 m2 x 20 m/min (DS 024, Art. 248) = 240,
+        # x 1.15 de fugas = 276.
         assert len(r.zones) == 2
-        assert r.zones[0].q_required_m3min == 207.0
-        assert r.zones[1].q_required_m3min == 207.0
-        assert r.zones[0].compliant is True     # 270 >= 207
-        assert r.zones[1].compliant is False    # 150 < 207
-        assert r.zones[1].deficit_m3min == 57.0
+        assert r.zones[0].q_required_m3min == 276.0
+        assert r.zones[1].q_required_m3min == 276.0
+        assert r.zones[0].compliant is True     # 350 >= 276
+        assert r.zones[1].compliant is False    # 210 < 276
+        assert r.zones[1].deficit_m3min == 66.0
 
-        assert r.q_required_total_m3min == 414.0
-        assert r.q_measured_total_m3min == 420.0
+        assert r.q_required_total_m3min == 552.0
+        assert r.q_measured_total_m3min == 560.0
         assert r.global_compliant is True       # Art. 252.f: Sum(med) >= Sum(req)
         assert r.all_zones_compliant is False   # Art. 252.g: zona en deficit
         assert r.compliant is False             # criterio estricto: ambos

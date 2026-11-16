@@ -102,5 +102,42 @@ TEST_F(DieselFlowTest, NegativeUtilization_ThrowsException) {
 // --- Referencia normativa ---
 TEST_F(DieselFlowTest, ResultContainsRegReference) {
     auto result = DieselFlowCalculator::calculate(fleet, default_config);
-    EXPECT_NE(result.regulation_ref.find("Art. 246"), std::string::npos);
+    EXPECT_NE(result.regulation_ref.find("Art. 252 lit. e"), std::string::npos);
+    EXPECT_NE(result.regulation_ref.find("Anexo 38"), std::string::npos);
+}
+
+// La dilución de CO y NOx del escape usa el TWA de la norma configurada
+// (Perú: Anexo 15, CO 25 y NO2 3 ppm; México: NOM-010, NO2 0,2 ppm). Con el
+// mismo equipo, el caudal por NOx crece en la razón inversa de los TWA:
+// 3 / 0,2 = 15.
+TEST_F(DieselFlowTest, DilutionTargetsFollowTheStandard) {
+    AtmosphericParams atm;
+    const auto pe = DieselFlowCalculator::calculate_full(
+        fleet, atm, 1.0, RegulatoryConfig::peru());
+    const auto mx = DieselFlowCalculator::calculate_full(
+        fleet, atm, 1.0, RegulatoryConfig::mexico());
+    EXPECT_DOUBLE_EQ(pe.target_co_ppm, 25.0);
+    EXPECT_DOUBLE_EQ(pe.target_nox_ppm, 3.0);
+    EXPECT_DOUBLE_EQ(mx.target_nox_ppm, 0.2);
+    EXPECT_NEAR(mx.q_for_nox_dilution / pe.q_for_nox_dilution, 15.0, 1e-9);
+}
+
+// El factor de la norma nunca baja: al nivel del mar el ISA da una corrección
+// volumétrica de 0,99999, que antes dejaba 3 × 0,99999 m³/min por HP.
+TEST_F(DieselFlowTest, HpFactorNeverBelowNormAtSeaLevel) {
+    AtmosphericParams atm;
+    const auto r = DieselFlowCalculator::calculate_full(
+        fleet, atm, 1.0, default_config);
+    EXPECT_DOUBLE_EQ(r.hp_factor_corrected, 3.0);
+}
+
+// La corrección por altitud es criterio de ingeniería y la cita lo dice.
+TEST_F(DieselFlowTest, AltitudeCorrectionDeclaredAsEngineering) {
+    AtmosphericParams atm;
+    atm.altitude_masl = 2500.0;
+    const auto r = DieselFlowCalculator::calculate_full(
+        fleet, atm, 1.0, RegulatoryConfig::mexico());
+    EXPECT_NE(r.regulation_ref.find(
+                  "correccion por altitud a 2500 msnm (criterio de ingenieria)"),
+              std::string::npos) << r.regulation_ref;
 }

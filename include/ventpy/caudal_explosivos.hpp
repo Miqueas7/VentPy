@@ -4,13 +4,14 @@
  *
  * El cálculo considera múltiples criterios:
  *
- * 1. DILUCIÓN DE CO A TLV (25 ppm):
+ * 1. DILUCIÓN DE CO A SU LÍMITE DE 8 h:
  *    - CO es el gas más crítico post-voladura
- *    - Q = (CO_total × 24.45) / (28 × 25 × 10⁻⁶ × t)
+ *    - Q = V_CO / (TWA × t) con el TWA de la norma configurada (Perú 25 ppm)
  *
- * 2. DILUCIÓN DE NOx A TLV (5 ppm):
+ * 2. DILUCIÓN DE NOx A SU LÍMITE DE 8 h:
  *    - Gases nitrosos son muy tóxicos
- *    - Se considera como NO2 para cálculo conservador
+ *    - Se considera como NO2 para cálculo conservador (Perú 3 ppm,
+ *      Chile 2,6, Colombia y México 0,2)
  *
  * 3. RECAMBIO VOLUMÉTRICO:
  *    - Renovar el volumen de la labor n veces
@@ -18,17 +19,18 @@
  *    - Q = (S × L × n) / t
  *
  * 4. VELOCIDAD MÍNIMA DE BARRIDO:
- *    - Asegurar velocidad ≥ 0.3 m/s en el frente
+ *    - 0.3 m/s por defecto (criterio de ingeniería), nunca menos que la
+ *      mínima de la norma: Perú 25 m/min con ANFO u otros agentes de voladura
+ *      y 20 m/min con dinamita (Art. 248)
  *    - Q = S × v × 60
  *
- * 5. TIEMPO DE REINGRESO:
- *    - DS 024: máximo 30 min
- *    - Considera tiempo de medición con detector
+ * 5. TIEMPO DE DILUCIÓN:
+ *    - 30 min por defecto: criterio de ingeniería, ninguna norma lo fija
  *
  * Referencias normativas (Perú, preset por defecto):
- * - DS 024-2016-EM, Art. 243: 30 min máximo de espera
- * - DS 024-2016-EM, Art. 244: Circuito de ventilación obligatorio
- * - DS 024-2016-EM, Art. 108: TLV CO=25ppm, NO2=5ppm
+ * - DS 024-2016-EM, Art. 240: reingreso solo con gases bajo el Art. 110
+ * - DS 024-2016-EM, Art. 246 lit. c: circuito general dividido en ramales
+ * - DS 024-2016-EM, Art. 110 + Anexo 15: TWA CO = 25 ppm, NO2 = 3 ppm
  *
  * La cita emitida en `regulation_ref` sigue a `config.standard()` a través de
  * `regulation_reference` (normativa.hpp). El DS 132 chileno NO fija tiempo de
@@ -45,6 +47,7 @@
 #include <sstream>
 
 #include "ventpy/atmosphere.hpp"
+#include "ventpy/limites_gases.hpp"
 #include "ventpy/normativa.hpp"
 #include "ventpy/types.hpp"
 #include "ventpy/validation.hpp"
@@ -131,8 +134,9 @@ public:
         validation::require_positive_int(params.blasting_levels,
             "blasting_levels - Niveles en voladura (N del Anexo 38)");
 
-        const double v_mpm =
-            (params.explosive_type == ExplosiveType::Dynamite) ? 20.0 : 25.0;
+        const double v_mpm = *min_air_velocity_mpm(
+            RegulatoryStandard::DS024_Peru, false,
+            is_blasting_agent(params.explosive_type));
 
         BlastingFlowResult result{};
         result.explosive_type = params.explosive_type;
@@ -161,10 +165,21 @@ private:
         double volume_correction,
         const RegulatoryConfig& config
     ) {
+        validation::require_non_negative(params.target_co_ppm,
+            "target_co_ppm [ppm] - Objetivo CO (0 = TWA de la norma)");
+        validation::require_non_negative(params.target_nox_ppm,
+            "target_nox_ppm [ppm] - Objetivo NOx (0 = TWA de la norma)");
+
         BlastingFlowResult result;
         result.explosive_type = params.explosive_type;
         result.explosive_kg = params.explosive_kg;
         result.dilution_time_min = params.dilution_time_min;
+        result.target_co_ppm = params.target_co_ppm > 0.0
+            ? params.target_co_ppm
+            : dilution_target_ppm(config.standard(), GasType::CO);
+        result.target_nox_ppm = params.target_nox_ppm > 0.0
+            ? params.target_nox_ppm
+            : dilution_target_ppm(config.standard(), GasType::NO2);
 
         // --- Obtener factores de gases según tipo de explosivo ---
         auto [co_per_kg, nox_per_kg] = get_gas_factors(params);
@@ -187,7 +202,7 @@ private:
         // --- Criterio 1: Dilución de CO a TLV ---
         result.q_for_co_dilution = calculate_q_for_gas(
             result.co_generated_liters,
-            params.target_co_ppm,
+            result.target_co_ppm,
             params.dilution_time_min,
             28.01  // PM del CO
         ) * volume_correction;
@@ -195,7 +210,7 @@ private:
         // --- Criterio 2: Dilución de NOx a TLV ---
         result.q_for_nox_dilution = calculate_q_for_gas(
             result.nox_generated_liters,
-            params.target_nox_ppm,
+            result.target_nox_ppm,
             params.dilution_time_min,
             46.01  // PM del NO2
         ) * volume_correction;
@@ -207,8 +222,13 @@ private:
                                        params.dilution_time_min;
 
         // --- Criterio 4: Velocidad mínima de barrido ---
-        double min_velocity = std::max(params.min_velocity_mps,
-                                       constants::MIN_VELOCITY_DEVELOPMENT_MPS);
+        // Nunca menos que la mínima de la norma en un frente con este
+        // explosivo. El calculador no conoce la flota: toma la mínima
+        // condicionada a diésel (México, 8.4.4 b), la más exigente.
+        double min_velocity = std::max(
+            params.min_velocity_mps,
+            get_min_velocity(ZoneType::DevelopmentFace, config.standard(),
+                             true, is_blasting_agent(params.explosive_type)));
         result.q_for_min_velocity = params.face_area_m2 * min_velocity * 60.0;
 
         // --- Tomar el máximo de todos los criterios ---
@@ -327,9 +347,8 @@ private:
         std::ostringstream oss;
         oss << regulation_reference(RegulatoryTopic::BlastingDilution, config);
 
-        // Advertencia si el tiempo excede el tope aplicable. El tope es
-        // normativo bajo el DS 024 y meramente configurado bajo el DS 132,
-        // que no fija tiempo de dilución: la etiqueta lo distingue.
+        // Advertencia si el tiempo excede el tope configurado. Ninguna norma
+        // implementada fija tiempo de dilución: la etiqueta lo declara.
         if (params.dilution_time_min > config.max_dilution_time()) {
             oss << " [ADVERTENCIA: t=" << params.dilution_time_min
                 << "min > " << config.max_dilution_time() << "min ("

@@ -164,19 +164,24 @@ TEST(CoverageZone, ParamsInvalidosLanzan) {
                  std::invalid_argument);
 
     CoverageParams velocidades_invertidas;
-    velocidades_invertidas.min_velocity_mpm = 300.0;   // min >= max
+    velocidades_invertidas.min_velocity_mpm = 300.0;   // min >= max (250, Art. 248)
     EXPECT_THROW(CoverageCalculator::compare_zone(100.0, m, velocidades_invertidas),
                  std::invalid_argument);
 }
 
-TEST(CoverageZone, MinVelocityNoPositivaLanza) {
+// 0 significa "el límite de la norma"; un valor negativo no tiene sentido.
+TEST(CoverageZone, VelocidadNegativaEnParamsLanza) {
     ZoneMeasurement m;
     m.zone_name = "Z";
     m.q_measured_m3min = 100.0;
 
     CoverageParams p;
-    p.min_velocity_mpm = 0.0;
+    p.min_velocity_mpm = -1.0;
     EXPECT_THROW(CoverageCalculator::compare_zone(100.0, m, p),
+                 std::invalid_argument);
+    CoverageParams q;
+    q.max_velocity_mpm = -1.0;
+    EXPECT_THROW(CoverageCalculator::compare_zone(100.0, m, q),
                  std::invalid_argument);
 }
 
@@ -322,7 +327,8 @@ TEST(CoverageStations, VelocidadNegativaLanza) {
 // ============================================================================
 // analyze_survey — balance de mina vía Governor (E2E)
 // Números derivados a mano: zona tipo = 10 trabajadores,
-// DevelopmentFace, sin flota → Q_Per = 180 (piso de velocidad) → req = 207.
+// DevelopmentFace, sin flota → Q_Per = 240 (piso de velocidad: 12 m² ×
+// 20 m/min, Art. 248) → req = 240 × 1,15 = 276.
 // ============================================================================
 
 namespace {
@@ -341,21 +347,21 @@ ZoneSurvey make_zone(const std::string& name, double altitude,
 
 TEST(CoverageSurvey, GlobalCubreConZonaEnDeficit) {
     std::vector<ZoneSurvey> zones;
-    zones.push_back(make_zone("Rampa 4200", 4200.0, 270.0));
-    zones.push_back(make_zone("Frente N-02", 2500.0, 150.0));
+    zones.push_back(make_zone("Rampa 4200", 4200.0, 350.0));
+    zones.push_back(make_zone("Frente N-02", 2500.0, 210.0));
 
     auto r = CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru());
 
     ASSERT_EQ(r.zones.size(), 2u);
-    EXPECT_DOUBLE_EQ(r.zones[0].q_required_m3min, 207.0);
-    EXPECT_DOUBLE_EQ(r.zones[1].q_required_m3min, 207.0);
-    EXPECT_TRUE(r.zones[0].compliant);              // 270 >= 207
-    EXPECT_FALSE(r.zones[1].compliant);             // 150 < 207
-    EXPECT_DOUBLE_EQ(r.zones[1].deficit_m3min, 57.0);
+    EXPECT_DOUBLE_EQ(r.zones[0].q_required_m3min, 276.0);
+    EXPECT_DOUBLE_EQ(r.zones[1].q_required_m3min, 276.0);
+    EXPECT_TRUE(r.zones[0].compliant);              // 350 >= 276
+    EXPECT_FALSE(r.zones[1].compliant);             // 210 < 276
+    EXPECT_DOUBLE_EQ(r.zones[1].deficit_m3min, 66.0);
 
-    EXPECT_DOUBLE_EQ(r.q_required_total_m3min, 414.0);
-    EXPECT_DOUBLE_EQ(r.q_measured_total_m3min, 420.0);
-    EXPECT_NEAR(r.coverage_ratio, 420.0 / 414.0, 1e-9);
+    EXPECT_DOUBLE_EQ(r.q_required_total_m3min, 552.0);
+    EXPECT_DOUBLE_EQ(r.q_measured_total_m3min, 560.0);
+    EXPECT_NEAR(r.coverage_ratio, 560.0 / 552.0, 1e-9);
     EXPECT_TRUE(r.global_compliant);        // Art. 252.f: Σmed >= Σreq
     EXPECT_FALSE(r.all_zones_compliant);    // Art. 252.g: B en déficit
     EXPECT_FALSE(r.compliant);              // criterio estricto: ambos
@@ -375,14 +381,14 @@ TEST(CoverageSurvey, GlobalCubreConZonaEnDeficit) {
 
 TEST(CoverageSurvey, DeficitGlobal) {
     std::vector<ZoneSurvey> zones;
-    zones.push_back(make_zone("A", 2500.0, 100.0));   // req 207
-    zones.push_back(make_zone("B", 2500.0, 100.0));   // req 207
+    zones.push_back(make_zone("A", 2500.0, 100.0));   // req 276
+    zones.push_back(make_zone("B", 2500.0, 100.0));   // req 276
 
     auto r = CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru());
 
-    EXPECT_FALSE(r.global_compliant);       // 200 < 414
-    // deficit_total = ceil(414 - 200) = 214
-    EXPECT_DOUBLE_EQ(r.deficit_total_m3min, 214.0);
+    EXPECT_FALSE(r.global_compliant);       // 200 < 552
+    // deficit_total = ceil(552 - 200) = 352
+    EXPECT_DOUBLE_EQ(r.deficit_total_m3min, 352.0);
     EXPECT_FALSE(r.compliant);
 }
 
@@ -391,15 +397,15 @@ TEST(CoverageSurvey, ZonaConEstacionesPropagaAdvertencias) {
     z.zone_name = "Galeria 100";
     z.input.zone_type = ZoneType::DevelopmentFace;
     z.input.num_workers = 10;
-    z.input.altitude_masl = 1400.0;         // req = 207 (piso de velocidad)
+    z.input.altitude_masl = 1400.0;         // req = 276 (piso de velocidad)
     z.measurement.zone_name = "Galeria 100";
-    z.measurement.stations.push_back({"E-1", 12.0, 0.30});  // 216 m³/min; 18 m/min < 20
+    z.measurement.stations.push_back({"E-1", 16.0, 0.30});  // 288 m³/min; 18 m/min < 20
 
     std::vector<ZoneSurvey> zones{z};
     auto r = CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru());
 
-    EXPECT_TRUE(r.zones[0].compliant);              // 216 >= 207
-    EXPECT_TRUE(r.zones[0].near_deficit_warning);   // 216/207 = 1.043 < 1.10
+    EXPECT_TRUE(r.zones[0].compliant);              // 288 >= 276
+    EXPECT_TRUE(r.zones[0].near_deficit_warning);   // 288/276 = 1.043 < 1.10
     ASSERT_EQ(r.zones[0].stations.size(), 1u);
     EXPECT_FALSE(r.zones[0].stations[0].velocity_ok);
     // La advertencia de velocidad de la estación sube al informe de mina
@@ -435,8 +441,8 @@ TEST(CoverageSurvey, ZonaSinDemandaLanzaConMensajeDeZona) {
 
 TEST(CoverageSurvey, AdvertenciasDeMargenYSobreVentilacionAgregadas) {
     std::vector<ZoneSurvey> zones;
-    zones.push_back(make_zone("Justa", 1400.0, 210.0));    // req 207; 210/207=1.0145 (<1.10)
-    zones.push_back(make_zone("Sobrada", 1400.0, 400.0));  // req 207; 400/207=1.932 (>1.5)
+    zones.push_back(make_zone("Justa", 1400.0, 280.0));    // req 276; 280/276=1.0145 (<1.10)
+    zones.push_back(make_zone("Sobrada", 1400.0, 500.0));  // req 276; 500/276=1.812 (>1.5)
 
     auto r = CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru());
 
@@ -479,4 +485,104 @@ TEST(CoverageSurvey, NombreDuplicadoLanza) {
     EXPECT_THROW(
         CoverageCalculator::analyze_survey(zones, RegulatoryConfig::peru()),
         std::invalid_argument);
+}
+
+// ============================================================================
+// Límites de velocidad según la norma configurada
+// ============================================================================
+
+// {mínimo, máximo} efectivos con CoverageParams por defecto:
+//   Perú 20 / 250 (DS 024, Art. 248); con ANFO 25 / 250.
+//   Chile 15 / 150 (DS 132, Art. 138 inc. 3).
+//   Colombia 15 (criterio de ingeniería: el Decreto 1886 fija mínimas solo
+//   para el carbón) / 360 (Art. 56 par. 1).
+//   México 15,24 (NOM-023-STPS-2012, 8.4.4 b, con diésel) / sin máximo.
+TEST(CoverageVelocityLimits, PorDefectoSiguenALaNorma) {
+    const CoverageParams p;
+    using L = std::pair<double, double>;
+    EXPECT_EQ(CoverageCalculator::velocity_limits(p, RegulatoryConfig::peru()),
+              L(20.0, 250.0));
+    EXPECT_EQ(CoverageCalculator::velocity_limits(p, RegulatoryConfig::chile()),
+              L(15.0, 150.0));
+    EXPECT_EQ(CoverageCalculator::velocity_limits(p, RegulatoryConfig::colombia()),
+              L(15.0, 360.0));
+    const auto mx = CoverageCalculator::velocity_limits(p, RegulatoryConfig::mexico());
+    EXPECT_DOUBLE_EQ(mx.first, 15.24);
+    EXPECT_TRUE(std::isinf(mx.second));
+
+    CoverageParams anfo;
+    anfo.anfo_or_blasting_agents = true;
+    EXPECT_EQ(CoverageCalculator::velocity_limits(anfo, RegulatoryConfig::peru()),
+              L(25.0, 250.0));
+    // El ANFO solo sube el mínimo con el DS 024.
+    EXPECT_EQ(CoverageCalculator::velocity_limits(anfo, RegulatoryConfig::colombia()),
+              L(15.0, 360.0));
+}
+
+// Un valor del usuario solo endurece: el más estricto entre norma y params.
+TEST(CoverageVelocityLimits, ParamsSoloEndurecen) {
+    CoverageParams laxo;
+    laxo.min_velocity_mpm = 10.0;
+    laxo.max_velocity_mpm = 400.0;
+    EXPECT_EQ(CoverageCalculator::velocity_limits(laxo, RegulatoryConfig::chile()),
+              (std::pair<double, double>(15.0, 150.0)));
+    CoverageParams estricto;
+    estricto.min_velocity_mpm = 30.0;
+    estricto.max_velocity_mpm = 120.0;
+    EXPECT_EQ(CoverageCalculator::velocity_limits(estricto, RegulatoryConfig::chile()),
+              (std::pair<double, double>(30.0, 120.0)));
+    // Con Colombia, un mínimo propio reemplaza el de ingeniería.
+    EXPECT_EQ(CoverageCalculator::velocity_limits(laxo, RegulatoryConfig::colombia()),
+              (std::pair<double, double>(10.0, 360.0)));
+    // México sin máximo: el del usuario rige.
+    EXPECT_EQ(CoverageCalculator::velocity_limits(laxo, RegulatoryConfig::mexico()),
+              (std::pair<double, double>(15.24, 400.0)));
+}
+
+// Estaciones: Chile 160 m/min > 150 (Art. 138 inc. 3); Colombia 300 m/min
+// es legal (máx. 360) y 20 m/min con ANFO también (sin piso de 25);
+// México 400 m/min no tiene máximo y 15,0 < 15,24.
+TEST(CoverageVelocityLimits, EstacionesPorNorma) {
+    const auto estacion = [](double v_mpm) {
+        ZoneMeasurement m;
+        m.zone_name = "Z";
+        m.stations.push_back({"E-1", 10.0, v_mpm / 60.0});
+        return m;
+    };
+    CoverageParams anfo;
+    anfo.anfo_or_blasting_agents = true;
+
+    const auto cl = CoverageCalculator::compare_zone(
+        100.0, estacion(160.0), CoverageParams{}, RegulatoryConfig::chile());
+    EXPECT_FALSE(cl.stations[0].velocity_ok);
+    EXPECT_NE(cl.stations[0].warning.find("Art. 138 inc. 3"), std::string::npos);
+
+    EXPECT_TRUE(CoverageCalculator::compare_zone(
+        100.0, estacion(300.0), CoverageParams{}, RegulatoryConfig::colombia())
+        .stations[0].velocity_ok);
+    const auto co_anfo = CoverageCalculator::compare_zone(
+        100.0, estacion(20.0), anfo, RegulatoryConfig::colombia());
+    EXPECT_TRUE(co_anfo.stations[0].velocity_ok);
+
+    EXPECT_TRUE(CoverageCalculator::compare_zone(
+        100.0, estacion(400.0), CoverageParams{}, RegulatoryConfig::mexico())
+        .stations[0].velocity_ok);
+    const auto mx = CoverageCalculator::compare_zone(
+        100.0, estacion(15.0), CoverageParams{}, RegulatoryConfig::mexico());
+    EXPECT_FALSE(mx.stations[0].velocity_ok);
+    EXPECT_NE(mx.stations[0].warning.find("sin maximo"), std::string::npos);
+    EXPECT_NE(mx.stations[0].warning.find("8.4.4 b)"), std::string::npos);
+    EXPECT_EQ(mx.stations[0].warning.find("ANFO"), std::string::npos);
+}
+
+// La validación no cita el Art. 248 peruano con otra norma.
+TEST(CoverageVelocityLimits, ValidacionSinArticuloPeruano) {
+    CoverageParams p;
+    p.min_velocity_mpm = 200.0;  // > 150 de Chile
+    try {
+        (void)CoverageCalculator::velocity_limits(p, RegulatoryConfig::chile());
+        FAIL() << "debia lanzar";
+    } catch (const std::invalid_argument& e) {
+        EXPECT_EQ(std::string(e.what()).find("248"), std::string::npos);
+    }
 }

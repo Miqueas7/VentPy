@@ -159,21 +159,23 @@ class TestBlastingFlow:
         params.face_length_m = 200.0
 
         result = ventpy.calculate_blasting_flow(params, default_config)
-        # NOx dilution: 50 kg * 10 L/kg / (5e-6 * 30 min) / 1000 * 1.2 = 4000
-        assert result.q_blasting == 4000.0
+        # NOx diluted to the NO2 TWA of DS 024, Anexo 15 (3 ppm):
+        # 50 kg * 10 L/kg / (3e-6 * 30 min) / 1000 * 1.2 = 6666.67 -> 6667
+        assert result.target_nox_ppm == 3.0
+        assert result.q_blasting == 6667.0
         assert result.governing_criterion == "dilucion NOx"
         # gas_volume_per_kg only sets the reported gas volume: 50 * 0.04
         assert result.total_gas_volume_m3 == 2.0
 
     def test_without_face_section_only_dilution_criteria(self, default_config):
-        # 60 kg de ANFO en 30 min: NOx 600 L / (5e-6 * 30) / 1000 * 1.2 = 4800.
+        # 60 kg de ANFO en 30 min: NOx 600 L / (3e-6 * 30) / 1000 * 1.2 = 8000.
         params = ventpy.BlastingParams()
         params.explosive_kg = 60.0
         params.dilution_time_min = 30.0
 
         result = ventpy.calculate_blasting_flow(params, default_config)
 
-        assert result.q_blasting == 4800.0
+        assert result.q_blasting == 8000.0
         assert result.governing_criterion == "dilucion NOx"
 
     def test_zero_dilution_time_raises(self, default_config):
@@ -336,10 +338,11 @@ class TestGovernor:
 
         result = governor.calculate_total_demand(inp)
 
-        # Blasting governs: NOx dilution of a 50 kg ANFO round at 4200 masl
-        # (6751 m3/min) exceeds the diesel requirement (853 m3/min).
-        assert result.q_diesel_m3min == 853.0
-        assert result.q_blasting_m3min == 6751.0
+        # Blasting governs: NOx dilution of a 50 kg ANFO round at 4200 masl to
+        # 3 ppm (11251 m3/min) exceeds the diesel requirement (1672 m3/min,
+        # NOx to 3 ppm with simultaneity 1.0). See test_governor.cpp.
+        assert result.q_diesel_m3min == 1672.0
+        assert result.q_blasting_m3min == 11251.0
         assert result.governing_factor == "blasting (Q_Exp)"
         assert result.q_total_m3min > 0
         assert result.q_total_cfm > 0
@@ -435,13 +438,39 @@ class TestUtilityFunctions:
         assert ventpy.get_o2_consumption(ventpy.ActivityLevel.VeryHeavy) == 2.0
 
     def test_get_min_velocity(self):
-        vel_dev = ventpy.get_min_velocity(ventpy.ZoneType.DevelopmentFace)
-        vel_ramp = ventpy.get_min_velocity(ventpy.ZoneType.Ramp)
-        vel_stope = ventpy.get_min_velocity(ventpy.ZoneType.Stope)
+        # Peru (default): 20 m/min in every working (DS 024, Art. 248), above
+        # the engineering values 15 / 18 / 12 m/min.
+        z = ventpy.ZoneType
+        for zone in (z.DevelopmentFace, z.Ramp, z.Stope):
+            assert ventpy.get_min_velocity(zone) * 60 == pytest.approx(20.0)
+        assert ventpy.get_min_velocity(
+            z.Stope, blasting_agents=True) * 60 == pytest.approx(25.0)
+        s = ventpy.RegulatoryStandard
+        # Chile 15 m/min (Art. 138 inc. 3); the ramp keeps its 18 m/min.
+        assert ventpy.get_min_velocity(z.Stope, s.DS132_Chile) * 60 == pytest.approx(15.0)
+        assert ventpy.get_min_velocity(z.Ramp, s.DS132_Chile) * 60 == pytest.approx(18.0)
+        # Colombia: engineering values only.
+        assert ventpy.get_min_velocity(z.Stope, s.D1886_Colombia) == 0.20
+        # Mexico: 15.24 m/min with diesel (8.4.4 b).
+        assert ventpy.get_min_velocity(
+            z.Stope, s.NOM023_Mexico, diesel=True) * 60 == pytest.approx(15.24)
 
-        assert vel_dev == 0.25
-        assert vel_ramp == 0.30
-        assert vel_stope == 0.20
+    def test_air_velocity_limits_by_standard(self):
+        s = ventpy.RegulatoryStandard
+        assert ventpy.max_air_velocity_mpm(s.DS132_Chile) == 150.0
+        assert ventpy.max_air_velocity_mpm(s.NOM023_Mexico) is None
+        assert ventpy.min_air_velocity_mpm(s.DS024_Peru, blasting_agents=True) == 25.0
+        assert ventpy.min_air_velocity_mpm(s.D1886_Colombia) is None
+        assert ventpy.min_air_velocity_mpm(s.NOM023_Mexico, diesel=True) == 15.24
+
+    def test_dilution_target_ppm(self):
+        s, g = ventpy.RegulatoryStandard, ventpy.GasType
+        assert ventpy.dilution_target_ppm(s.DS024_Peru, g.NO2) == 3.0
+        assert ventpy.dilution_target_ppm(s.NOM023_Mexico, g.NO2) == 0.2
+
+    def test_timber_production_factor(self):
+        f = ventpy.timber_production_factor
+        assert (f(10), f(30), f(50), f(80)) == (0.0, 0.60, 1.00, 1.25)
 
     def test_m3min_to_cfm_constant(self):
         assert abs(ventpy.M3MIN_TO_CFM - 35.3147) < 0.001
@@ -465,7 +494,8 @@ class TestConstants:
 
     def test_tlv_constants(self):
         assert ventpy.constants.TLV_CO_PPM == 25.0
-        assert ventpy.constants.TLV_NO2_PPM == 5.0
+        assert ventpy.constants.TLV_NO2_PPM == 3.0   # Anexo 15, fila 21 (TWA)
+        assert ventpy.constants.TLV_SO2_PPM == 2.0   # Anexo 15, fila 7 (TWA)
         assert ventpy.constants.TLV_H2S_PPM == 10.0
         assert ventpy.constants.MIN_O2_PERCENT == 19.5
         assert ventpy.constants.MAX_EFFECTIVE_TEMP_C == 30.0

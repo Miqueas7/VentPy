@@ -123,13 +123,19 @@ const std::vector<std::string> kMarcasPeru = {
 TEST(CitasNormativas, HelperSigueALaNorma) {
     EXPECT_EQ(regulation_reference(RegulatoryTopic::PersonnelFlow,
                                    RegulatoryStandard::DS024_Peru),
-              "DS 024-2016-EM, Art. 236");
+              "DS 024-2016-EM, Art. 247 (3 m3/min por persona hasta 1,500 msnm; "
+              "en el total de mina, Anexo 38 lit. a: Q_Tr = F x N)");
     EXPECT_EQ(regulation_reference(RegulatoryTopic::PersonnelFlow,
                                    RegulatoryStandard::DS132_Chile),
               "DS 132, Art. 138");
-    EXPECT_EQ(regulation_reference(RegulatoryTopic::DieselHpFactor,
-                                   RegulatoryStandard::DS132_Chile),
-              "DS 132, Art. 132");
+    EXPECT_TRUE(contiene(regulation_reference(RegulatoryTopic::DieselHpFactor,
+                                              RegulatoryStandard::DS132_Chile),
+                         "DS 132, Art. 132 (regimen general"));
+    // La pequeña minería (Título XV, Art. 627: 3 m³/min por HP) no está
+    // cubierta por el preset; la cita lo declara.
+    EXPECT_TRUE(contiene(regulation_reference(RegulatoryTopic::DieselHpFactor,
+                                              RegulatoryStandard::DS132_Chile),
+                         "el Art. 627 exige 3 m3/min por HP"));
 }
 
 TEST(CitasNormativas, HelperAceptaLaConfiguracion) {
@@ -185,7 +191,8 @@ TEST(CitasNormativas, PersonalPeruYChile) {
     const auto chile = PersonnelFlowCalculator::calculate(
         15, 4200.0, RegulatoryConfig::chile());
 
-    EXPECT_TRUE(contiene(peru.regulation_ref, "DS 024-2016-EM, Art. 236"));
+    EXPECT_TRUE(contiene(peru.regulation_ref, "DS 024-2016-EM, Art. 247"));
+    EXPECT_FALSE(contiene(peru.regulation_ref, "Art. 236"));  // vibraciones
     EXPECT_TRUE(contiene(chile.regulation_ref, "DS 132, Art. 138"));
     EXPECT_EQ(marca_peruana(chile.regulation_ref), "");
     EXPECT_FALSE(contiene(chile.regulation_ref, "247"));
@@ -201,7 +208,8 @@ TEST(CitasNormativas, PersonalCompletoConEscalaDeAltitud) {
     const auto chile = PersonnelFlowCalculator::calculate_full(
         per, atm, ZoneType::DevelopmentFace, 12.0, RegulatoryConfig::chile());
 
-    EXPECT_TRUE(contiene(peru.regulation_ref, "Art. 247 escala altitud"));
+    EXPECT_TRUE(contiene(peru.regulation_ref,
+                         "DS 024-2016-EM, Art. 247 escala altitud (>=4000 msnm)"));
     EXPECT_TRUE(contiene(chile.regulation_ref, "DS 132, Art. 138"));
     EXPECT_FALSE(contiene(chile.regulation_ref, "247"));
     EXPECT_EQ(marca_peruana(chile.regulation_ref), "");
@@ -213,7 +221,8 @@ TEST(CitasNormativas, DieselPeruYChile) {
     const auto chile = DieselFlowCalculator::calculate(
         flota_diesel(), RegulatoryConfig::chile());
 
-    EXPECT_TRUE(contiene(peru.regulation_ref, "DS 024-2016-EM, Art. 246"));
+    EXPECT_TRUE(contiene(peru.regulation_ref,
+                         "DS 024-2016-EM, Art. 252 lit. e; Anexo 38 num. 1 lit. d"));
     EXPECT_TRUE(contiene(chile.regulation_ref, "DS 132, Art. 132"));
     EXPECT_EQ(marca_peruana(chile.regulation_ref), "");
 }
@@ -225,7 +234,7 @@ TEST(CitasNormativas, DieselCompletoPeruYChile) {
     const auto chile = DieselFlowCalculator::calculate_full(
         flota_diesel(), atm, 0.85, RegulatoryConfig::chile());
 
-    EXPECT_TRUE(contiene(peru.regulation_ref, "DS 024-2016-EM, Art. 246"));
+    EXPECT_TRUE(contiene(peru.regulation_ref, "DS 024-2016-EM, Art. 252 lit. e"));
     EXPECT_TRUE(contiene(chile.regulation_ref, "DS 132, Art. 132"));
     EXPECT_EQ(marca_peruana(chile.regulation_ref), "");
 }
@@ -236,14 +245,15 @@ TEST(CitasNormativas, ExplosivosChileCitaReingresoYDeclaraVacio) {
     const auto chile = BlastingFlowCalculator::calculate(
         params_voladura(), RegulatoryConfig::chile());
 
-    EXPECT_TRUE(contiene(peru.regulation_ref, "DS 024-2016-EM, Art. 243-244"));
+    EXPECT_TRUE(contiene(peru.regulation_ref, "DS 024-2016-EM, Art. 240"));
+    EXPECT_FALSE(contiene(peru.regulation_ref, "Art. 243"));
     EXPECT_TRUE(contiene(chile.regulation_ref, "DS 132, Arts. 156, 571 y 585"));
     EXPECT_TRUE(contiene(chile.regulation_ref, "no fija tiempo de dilucion"));
     EXPECT_EQ(marca_peruana(chile.regulation_ref), "");
 }
 
-// El tope de 30 min es normativo en Perú (Art. 243) y meramente configurado
-// en Chile: la advertencia no puede llamarlo "normativo" bajo el DS 132.
+// Ninguna norma fija el tope de 30 min (el Art. 243 del DS 024 trata de
+// diseños de perforación y voladura): la advertencia lo llama "configurado".
 TEST(CitasNormativas, ExplosivosAdvertenciaDeTiempoPorNorma) {
     const auto peru = BlastingFlowCalculator::calculate(
         params_voladura(), RegulatoryConfig::peru());
@@ -251,13 +261,15 @@ TEST(CitasNormativas, ExplosivosAdvertenciaDeTiempoPorNorma) {
         params_voladura(), RegulatoryConfig::chile());
 
     EXPECT_TRUE(contiene(peru.regulation_ref, "ADVERTENCIA"));
-    EXPECT_TRUE(contiene(peru.regulation_ref, "max normativo"));
+    EXPECT_TRUE(contiene(peru.regulation_ref, "max configurado, criterio de ingenieria"));
+    EXPECT_FALSE(contiene(peru.regulation_ref, "max normativo"));
     EXPECT_TRUE(contiene(chile.regulation_ref, "ADVERTENCIA"));
     EXPECT_TRUE(contiene(chile.regulation_ref, "max configurado"));
     EXPECT_FALSE(contiene(chile.regulation_ref, "max normativo"));
 }
 
-TEST(CitasNormativas, PolvoChileDeclaraVacio) {
+// Chile: DS 594, Art. 66 (por remisión del DS 132), 2,4 mg/m³ con Fa.
+TEST(CitasNormativas, PolvoChileCitaElDS594) {
     const auto peru = DustFlowCalculator::calculate(
         params_polvo(), RegulatoryConfig::peru());
     const auto chile = DustFlowCalculator::calculate(
@@ -265,10 +277,61 @@ TEST(CitasNormativas, PolvoChileDeclaraVacio) {
 
     EXPECT_TRUE(contiene(peru.regulation_ref, "DS 024-2016-EM, Art. 111"));
     EXPECT_TRUE(contiene(chile.regulation_ref, "DS 132"));
-    EXPECT_TRUE(contiene(chile.regulation_ref,
-                         "sin limite de polvo respirable verificado"));
+    EXPECT_TRUE(contiene(chile.regulation_ref, "DS 594, Art. 66"));
+    EXPECT_TRUE(contiene(chile.regulation_ref, "2.4 mg/m3"));
+    EXPECT_TRUE(contiene(chile.regulation_ref, "Art. 63"));
     EXPECT_EQ(marca_peruana(chile.regulation_ref), "");
-    EXPECT_DOUBLE_EQ(peru.q_dust, chile.q_dust);  // la correccion es de cita
+    EXPECT_DOUBLE_EQ(peru.q_dust, chile.q_dust);  // objetivo explicito: misma Q
+
+    // Sílice: cuarzo 0,08; cristobalita y tridimita 0,04 mg/m³.
+    bool silice = false;
+    for (const std::string& w : chile.warnings)
+        silice = silice || (contiene(w, "cuarzo 0.08 mg/m3") &&
+                            contiene(w, "cristobalita y tridimita 0.04 mg/m3"));
+    EXPECT_TRUE(silice);
+}
+
+// Chile: carga térmica por remisión del Art. 143 al DS 594 (TGBH) y balance
+// de mina por el Art. 139.
+TEST(CitasNormativas, ChileTermicoYCoberturaDeMina) {
+    EXPECT_TRUE(contiene(regulation_reference(RegulatoryTopic::ThermalStressReferral,
+                                              RegulatoryStandard::DS132_Chile),
+                         "DS 132, Art. 143 -> DS 594, Arts. 96 a 98"));
+    EXPECT_TRUE(contiene(regulation_reference(RegulatoryTopic::ThermalBalance,
+                                              RegulatoryStandard::DS132_Chile),
+                         "Art. 143"));
+    EXPECT_TRUE(contiene(regulation_reference(RegulatoryTopic::CoverageMine,
+                                              RegulatoryStandard::DS132_Chile),
+                         "DS 132, Art. 139"));
+    EXPECT_TRUE(contiene(regulation_reference(RegulatoryTopic::AirVelocityLimits,
+                                              RegulatoryStandard::DS132_Chile),
+                         "DS 132, Art. 138 inc. 3 (velocidad promedio entre 15 y 150"));
+}
+
+// Colombia y México: la cita de velocidad nombra su artículo; ninguna dice
+// "limites configurados en CoverageParams".
+TEST(CitasNormativas, VelocidadColombiaYMexicoCitanSuArticulo) {
+    const std::string co = regulation_reference(
+        RegulatoryTopic::AirVelocityLimits, RegulatoryStandard::D1886_Colombia);
+    const std::string mx = regulation_reference(
+        RegulatoryTopic::AirVelocityLimits, RegulatoryStandard::NOM023_Mexico);
+    EXPECT_TRUE(contiene(co, "Decreto 1886 de 2015, Art. 56 par. 1"));
+    EXPECT_TRUE(contiene(co, "270 m/min en tajos de explotacion de carbon"));
+    EXPECT_TRUE(contiene(mx, "NOM-023-STPS-2012, numeral 8.4.4 b)"));
+    EXPECT_FALSE(contiene(co, "CoverageParams"));
+    EXPECT_FALSE(contiene(mx, "CoverageParams"));
+}
+
+// El balance infactible sin piso es criterio de ingeniería en toda norma.
+TEST(CitasNormativas, InfactibleSinPisoDeclaraCriterio) {
+    for (RegulatoryStandard s : {RegulatoryStandard::DS024_Peru,
+                                 RegulatoryStandard::DS132_Chile,
+                                 RegulatoryStandard::D1886_Colombia,
+                                 RegulatoryStandard::NOM023_Mexico}) {
+        EXPECT_TRUE(contiene(regulation_reference(
+                                 RegulatoryTopic::ThermalInfeasibleNoFloor, s),
+                             "criterio de ingenieria"));
+    }
 }
 
 TEST(CitasNormativas, PolvoAdvertenciasChilenasSinArticuloPeruano) {
@@ -380,7 +443,9 @@ TEST(CitasNormativas, CoberturaZonaSinConfigUsaPeru) {
 TEST(CitasNormativas, EstacionFueraDeRangoPorNorma) {
     ZoneMeasurement m;
     m.zone_name = "Frente N-02";
-    m.stations.push_back({"E-1", 12.0, 0.30});  // 18 m/min
+    // 12 m/min: bajo los 20 del Art. 248 (Perú) y los 15 del Art. 138 inc. 3
+    // (Chile). Con 18 m/min Chile cumple: el mínimo peruano no se le aplica.
+    m.stations.push_back({"E-1", 12.0, 0.20});
 
     const auto peru = CoverageCalculator::compare_zone(
         100.0, m, CoverageParams{}, RegulatoryConfig::peru());
@@ -390,6 +455,7 @@ TEST(CitasNormativas, EstacionFueraDeRangoPorNorma) {
     ASSERT_FALSE(peru.stations[0].velocity_ok);
     ASSERT_FALSE(chile.stations[0].velocity_ok);
     EXPECT_TRUE(contiene(peru.stations[0].warning, "Art. 248"));
+    EXPECT_TRUE(contiene(chile.stations[0].warning, "Art. 138 inc. 3"));
     EXPECT_FALSE(contiene(chile.stations[0].warning, "248"));
     EXPECT_EQ(marca_peruana(chile.stations[0].warning), "");
 }
@@ -617,7 +683,9 @@ TEST(CitasNormativas, BarridoDelGovernorColombiaYMexico) {
 TEST(CitasNormativas, CoberturaColombiaYMexico) {
     ZoneMeasurement medida;
     medida.zone_name = "Frente N-02";
-    medida.stations.push_back({"E-1", 12.0, 0.30});  // 18 m/min: fuera de rango
+    // 12 m/min: bajo los 15 de ingeniería (Colombia) y los 15,24 del 8.4.4 b)
+    // (México). Con 18 m/min ambas cumplen: el mínimo peruano de 20 no rige.
+    medida.stations.push_back({"E-1", 12.0, 0.20});
 
     for (const MarcoNormativo& m : marcos_nuevos()) {
         const auto r = CoverageCalculator::compare_zone(

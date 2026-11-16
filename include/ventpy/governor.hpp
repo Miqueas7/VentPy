@@ -10,11 +10,13 @@
  *
  * Para la MINA TOTAL (General Mine):
  *   Q_total = Σ(Q_zonas) con sumatoria inteligente de todos los sectores.
- *   Con el DS 024 la voladura sigue el Anexo 38: no entra si hay equipos
- *   diésel y, si no los hay, rige max(Q_total, Q_Ex = A × V × N).
+ *   Con el DS 024 el total sigue el Anexo 38: Q_T1 = Q_Tr + Q_Ma + Q_Te +
+ *   Q_Eq y Q_Fu = 15 % de Q_T1. La voladura no entra si hay equipos diésel
+ *   y, si no los hay, rige max(Q_total, Q_Ex = A × V × N).
  *
- * Velocidad en el frente: advierte bajo el mínimo y sobre el máximo de la
- * norma (`max_air_velocity_mpm`), sin recortar el caudal requerido.
+ * Velocidad en el frente: advierte bajo el mínimo (`get_min_velocity`) y
+ * sobre el máximo de la norma (`max_air_velocity_mpm`), sin recortar el
+ * caudal requerido.
  *
  * Características robustas:
  * - Correcciones atmosféricas automáticas por altitud
@@ -23,7 +25,7 @@
  * - Factor de seguridad configurable
  * - Generación de advertencias automáticas
  *
- * DS 024-2016-EM, Art. 236-252
+ * Perú: DS 024-2016-EM, Arts. 246 a 252 y Anexo 38
  *
  * @copyright 2026 VentPy Project
  */
@@ -31,8 +33,10 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -66,7 +70,20 @@ struct VentilationInput {
 
     // Equipos diésel (opcional)
     std::optional<DieselFleet> diesel_fleet;
-    double simultaneity_factor = 0.85;  ///< Factor de simultaneidad
+    /// Factor de simultaneidad [0-1]. Ninguna norma implementada lo prevé
+    /// (con el DS 024, Q_Eq = 3 × HP × Dm × Fu ya lo incluye): con < 1,0 el
+    /// Q_Eq queda bajo la norma y el resultado lo advierte.
+    double simultaneity_factor = 1.0;
+
+    // Total de mina con el DS 024 (Anexo 38). Sin estos datos el término
+    // vale 0 y el resultado advierte que el total no lo incluye.
+    /// T de Q_Ma = T × u: producción [t métricas húmedas por guardia]
+    std::optional<double> production_t_per_shift;
+    /// Consumo de madera [% de la producción] que fija u (Anexo 38 lit. b)
+    std::optional<double> timber_consumption_pct;
+    /// N de Q_Te = Vm × A × N: niveles con temperatura seca > 23 °C
+    /// (A = `face_area_m2`, área promedio de labor; Vm = 30 m/min)
+    std::optional<int> hot_levels;
 
     // Explosivos (opcional: aplica en frentes ciegos)
     std::optional<BlastingParams> blasting_params;
@@ -84,6 +101,11 @@ struct VentilationInput {
 
     // Factor de seguridad adicional [1.0 - 2.0]
     double safety_factor = 1.0;
+
+    /// Mina de carbón. Solo cambia el máximo en tajos con el Decreto 1886
+    /// (Art. 56 par. 2: 4,5 m/s); las demás reglas de carbón no están
+    /// implementadas y el resultado lo advierte.
+    bool coal_mine = false;
 
     // Notas del ingeniero
     std::string notes;
@@ -124,6 +146,15 @@ public:
         AtmosphericParams atm = resolve_atmospheric(input);
         PersonnelParams personnel = resolve_personnel(input);
 
+        // Total de mina con el DS 024: rige el Anexo 38.
+        const bool annex38 = input.zone_type == ZoneType::GeneralMine &&
+                             config_.standard() == RegulatoryStandard::DS024_Peru;
+        const bool has_diesel = input.diesel_fleet.has_value() &&
+                                !input.diesel_fleet->empty();
+        // ANFO u otros agentes de voladura: velocidad mínima del Art. 248.
+        const bool blasting_agents = input.blasting_params.has_value() &&
+            is_blasting_agent(input.blasting_params->explosive_type);
+
         // === 1. Correcciones atmosféricas ===
         result.atmospheric = AtmosphereCalculator::calculate_all(atm);
 
@@ -134,14 +165,16 @@ public:
                 atm,
                 input.zone_type,
                 input.face_area_m2,
-                config_
+                config_,
+                has_diesel,
+                blasting_agents
             );
             result.q_personnel_m3min = per_result.q_personnel;
             result.personnel = per_result;
         }
 
         // === 3. Caudal por Equipos Diésel (Q_Eq) ===
-        if (input.diesel_fleet.has_value() && !input.diesel_fleet->empty()) {
+        if (has_diesel) {
             auto diesel_result = DieselFlowCalculator::calculate_full(
                 input.diesel_fleet.value(),
                 atm,
@@ -150,14 +183,18 @@ public:
             );
             result.q_diesel_m3min = diesel_result.q_diesel;
             result.diesel = diesel_result;
+            if (input.simultaneity_factor < 1.0) {
+                std::ostringstream oss;
+                oss << "Factor de simultaneidad " << input.simultaneity_factor
+                    << " < 1: Q_Eq queda bajo el minimo de la norma ("
+                    << regulation_reference(RegulatoryTopic::DieselHpFactor,
+                                            config_)
+                    << ", que no preve simultaneidad)";
+                result.warnings.push_back(oss.str());
+            }
         }
 
         // === 4. Caudal por Explosivos (Q_Exp) ===
-        // Total de mina con el DS 024: el Anexo 38 reemplaza la dilución.
-        const bool annex38 = input.zone_type == ZoneType::GeneralMine &&
-                             config_.standard() == RegulatoryStandard::DS024_Peru;
-        const bool has_diesel = input.diesel_fleet.has_value() &&
-                                !input.diesel_fleet->empty();
         if (input.blasting_params.has_value()) {
             BlastingParams blast = input.blasting_params.value();
             // Completar parámetros si faltan
@@ -185,7 +222,7 @@ public:
         if (input.dust_params.has_value()) {
             DustParams dust = input.dust_params.value();
             if (dust.face_area_m2 <= 0) dust.face_area_m2 = input.face_area_m2;
-            auto dust_result = DustFlowCalculator::calculate(dust, config_);
+            auto dust_result = DustFlowCalculator::calculate(dust, config_, atm);
             result.q_dust_m3min = dust_result.q_dust;
             for (const auto& w : dust_result.warnings)
                 result.warnings.push_back("Q_polvo: " + w);
@@ -202,6 +239,9 @@ public:
                 result.warnings.push_back("Q_termico: " + w);
             result.thermal = std::move(thermal_result);
         }
+
+        // === 4d. Madera y temperatura del Anexo 38 (total de mina peruano) ===
+        apply_annex38_terms(result, input, annex38);
 
         // === 5. Lógica de Selección (Governor) ===
         double q_governing = select_governing_flow(result, input.zone_type, annex38);
@@ -254,27 +294,50 @@ public:
             result.velocity_at_face_mps = result.q_governing_m3min /
                                           60.0 / input.face_area_m2;
 
-            double min_vel = get_min_velocity(input.zone_type);
+            const double min_vel = get_min_velocity(
+                input.zone_type, config_.standard(), has_diesel, blasting_agents);
             result.velocity_ok = (result.velocity_at_face_mps >= min_vel);
 
             if (!result.velocity_ok) {
-                result.warnings.push_back(
-                    "Velocidad " + std::to_string(result.velocity_at_face_mps) +
-                    " m/s < minimo " + std::to_string(min_vel) + " m/s");
+                // Si la mínima de la norma es la que rige, se cita; si rige
+                // el valor por tipo de labor, se declara criterio.
+                const auto norm_min = min_air_velocity_mpm(
+                    config_.standard(), has_diesel, blasting_agents);
+                const bool by_norm = norm_min && *norm_min / 60.0 >= min_vel;
+                std::ostringstream oss;
+                oss << "Velocidad " << result.velocity_at_face_mps * 60.0
+                    << " m/min < minimo " << min_vel * 60.0 << " m/min ("
+                    << (by_norm
+                            ? regulation_reference(
+                                  RegulatoryTopic::AirVelocityLimits, config_)
+                            : std::string("criterio de ingenieria por tipo de "
+                                          "labor"))
+                    << ")";
+                result.warnings.push_back(oss.str());
             }
 
             // Solo advierte: el caudal requerido no se recorta.
-            const auto max_mpm = max_air_velocity_mpm(config_.standard());
+            const auto max_mpm = max_air_velocity_mpm(
+                config_.standard(),
+                input.coal_mine && input.zone_type == ZoneType::Stope);
             const double v_mpm = result.velocity_at_face_mps * 60.0;
             if (input.zone_type != ZoneType::GeneralMine && max_mpm &&
                 v_mpm > *max_mpm) {
                 result.warnings.push_back(
-                    "Velocidad " + std::to_string(v_mpm) + " m/min > maximo " +
-                    std::to_string(*max_mpm) + " m/min (" +
+                    "Velocidad " + std::to_string(std::lround(v_mpm)) +
+                    " m/min > maximo " + std::to_string(std::lround(*max_mpm)) +
+                    " m/min (" +
                     regulation_reference(RegulatoryTopic::AirVelocityLimits,
                                          config_) +
                     "): ampliar la seccion o repartir el caudal");
             }
+        }
+
+        if (input.coal_mine) {
+            result.warnings.push_back(
+                "Mina de carbon: VentPy solo aplica el maximo de 4,5 m/s en tajos "
+                "(Decreto 1886 de 2015, Art. 56 par. 2); metano, minimas de carbon "
+                "y demas reglas de carbon no estan implementadas");
         }
 
         // === 10. Generar advertencias adicionales ===
@@ -369,15 +432,94 @@ private:
             }
 
             case ZoneType::GeneralMine:
-                // Sumatoria de todos los requerimientos; con el Anexo 38
-                // Q_Ex no se suma, se compara después con el total.
-                q_governing = q_per + q_eq + (annex38 ? 0.0 : q_exp) +
-                              q_dust + q_thermal;
+                // Sumatoria de todos los requerimientos. Con el Anexo 38:
+                // Q_Ex no se suma (se compara después con el total), entra
+                // Q_Ma, y Q_Te y el balance térmico responden al mismo
+                // concepto (aire para la temperatura de confort, Art. 252
+                // lit. d), así que rige el mayor de los dos, sin sumarlos.
+                // El polvo sigue sumando como criterio de ingeniería.
+                if (annex38) {
+                    q_governing = q_per + q_eq + result.q_timber_m3min +
+                                  std::max(q_thermal, result.q_temperature_m3min) +
+                                  q_dust;
+                } else {
+                    q_governing = q_per + q_eq + q_exp + q_dust + q_thermal;
+                }
                 result.governing_factor = "summation (mine total)";
                 break;
         }
 
         return q_governing;
+    }
+
+    /**
+     * @brief Términos Q_Ma y Q_Te del DS 024-2016-EM, Anexo 38 (total de mina).
+     *
+     * - Q_Ma = T × u (lit. b): T = producción en t métricas húmedas por
+     *   guardia; u según el consumo de madera (`timber_production_factor`).
+     * - Q_Te = Vm × A × N (lit. c): Vm = 30 m/min (tabla del anexo, labores
+     *   con temperatura seca de 24 a 29 °C; la definición de N dice «mayor a
+     *   23 °C»), A = área promedio de labor (`face_area_m2`), N = niveles con
+     *   temperatura mayor a 23 °C.
+     *
+     * Sin sus datos el término vale 0 y el resultado advierte que el total no
+     * lo incluye. Fuera del total de mina peruano los datos se ignoran con
+     * una advertencia.
+     */
+    void apply_annex38_terms(
+        VentilationDemandResult& result,
+        const VentilationInput& input,
+        bool annex38
+    ) const {
+        const bool has_production = input.production_t_per_shift.has_value();
+        const bool has_timber = input.timber_consumption_pct.has_value();
+        if (has_production != has_timber) {
+            throw std::invalid_argument(
+                "Error de dominio [VentPy]: Q_Ma (DS 024-2016-EM, Anexo 38 "
+                "lit. b) requiere production_t_per_shift y "
+                "timber_consumption_pct juntos.");
+        }
+        const bool has_hot_levels = input.hot_levels.has_value();
+
+        if (!annex38) {
+            if (has_production || has_hot_levels) {
+                result.warnings.push_back(
+                    "Q_Ma y Q_Te (DS 024-2016-EM, Anexo 38) solo aplican al "
+                    "total de mina con el DS 024: se ignoran");
+            }
+            return;
+        }
+
+        if (has_production) {
+            validation::require_non_negative(*input.production_t_per_shift,
+                "production_t_per_shift [t/guardia] - Produccion (T de Q_Ma)");
+            const double u = timber_production_factor(*input.timber_consumption_pct);
+            // Tolerancia FP sustractiva (mismo patrón que caudal_polvo.hpp):
+            // 100 × 0,6 no debe redondear a 61 por un artefacto binario.
+            constexpr double FP_TOL = 1e-9;
+            result.q_timber_m3min = std::max(
+                0.0, safety_ceil(*input.production_t_per_shift * u - FP_TOL));
+        } else {
+            result.warnings.push_back(
+                "DS 024-2016-EM, Anexo 38 lit. b: el total no incluye Q_Ma "
+                "(consumo de madera); faltan production_t_per_shift y "
+                "timber_consumption_pct");
+        }
+
+        if (has_hot_levels) {
+            validation::require_non_negative(
+                static_cast<double>(*input.hot_levels),
+                "hot_levels - Niveles con temperatura > 23 C (N de Q_Te)");
+            validation::require_positive(input.face_area_m2,
+                "face_area_m2 [m2] - Area promedio de labor (A de Q_Te)");
+            constexpr double VM_MPM = 30.0;  // Anexo 38 lit. c; Art. 252 lit. d
+            result.q_temperature_m3min =
+                safety_ceil(VM_MPM * input.face_area_m2 * *input.hot_levels);
+        } else {
+            result.warnings.push_back(
+                "DS 024-2016-EM, Anexo 38 lit. c: el total no incluye Q_Te "
+                "(temperatura en labores); falta hot_levels");
+        }
     }
 
     /**

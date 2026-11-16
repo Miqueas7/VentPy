@@ -70,7 +70,7 @@ Agregar la norma de otro país es la contribución que más necesita VentPy — 
 
 ## Estado del proyecto
 
-VentPy se encuentra en **beta**. Los cálculos de personal, diesel, voladura, polvo, térmico, cobertura, red, ventilador y atmósfera están implementados, probados (255 pruebas en C++ y 201 en Python, incluidas pruebas basadas en propiedades y de escala hasta 500 ramales) y expuestos a Python para los cuatro preajustes.
+VentPy se encuentra en **beta**. Los cálculos de personal, diesel, voladura, polvo, térmico, cobertura, red, ventilador y atmósfera están implementados, probados (310 pruebas en C++ y 218 en Python, incluidas pruebas basadas en propiedades y de escala hasta 500 ramales) y expuestos a Python para los cuatro preajustes.
 
 > **En la 0.3.0 cambia el caudal de voladura.** Hasta la 0.2.1, declarar `gas_volume_per_kg` hacía que la voladura se calculara como volumen de gases entre tiempo de dilución, sin llevarlo a un límite de exposición: el resultado era del orden de 1 m³/min. Desde la 0.3.0 la voladura se calcula siempre por dilución de CO y NOx, y `gas_volume_per_kg` solo fija el volumen de gases que se reporta. Si calculaste una demanda con voladura y ese parámetro, recalcúlala: el caudal de voladura sube varios órdenes de magnitud y puede pasar a gobernar. Con el preajuste peruano ese modelo es criterio de ingeniería para el frente; el total de mina (`ZoneType.GeneralMine`) sigue el Anexo 38 del DS 024-2016-EM: con equipos diésel la voladura no se suma y, sin ellos, rige el mayor entre el total y `Q_Ex = A × V × N`. Detalle en el [`CHANGELOG.md`](https://github.com/Miqueas7/VentPy/blob/master/CHANGELOG.md).
 >
@@ -119,8 +119,8 @@ print(f"Governing factor = {result.governing_factor}")
 Salida:
 
 ```
-Q_total = 207.0 m3/min
-Q_total = 7310.1 cfm
+Q_total = 276.0 m3/min
+Q_total = 9746.9 cfm
 Governing factor = personnel (Q_Per)
 ```
 
@@ -172,7 +172,7 @@ Cobertura y límites de gases:
 
 Utilidades:
 
-- `calculate_pressure_kpa`, `calculate_density_kg_m3`, `calculate_volume_correction_factor`, `calculate_diesel_derate_factor`, `get_min_velocity`, `safety_ceil`, `safety_ceil_decimals`
+- `calculate_pressure_kpa`, `calculate_density_kg_m3`, `calculate_volume_correction_factor`, `calculate_diesel_derate_factor`, `get_min_velocity`, `min_air_velocity_mpm`, `max_air_velocity_mpm`, `dilution_target_ppm`, `timber_production_factor`, `safety_ceil`, `safety_ceil_decimals`
 
 ## Visualización
 

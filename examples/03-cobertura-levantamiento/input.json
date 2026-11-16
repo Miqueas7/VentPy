@@ -8,7 +8,7 @@
         "altitude_masl": 4200.0
       },
       "measurement": {
-        "q_measured_m3min": 270.0
+        "q_measured_m3min": 350.0
       }
     },
     {
@@ -19,7 +19,7 @@
         "altitude_masl": 2500.0
       },
       "measurement": {
-        "q_measured_m3min": 150.0
+        "q_measured_m3min": 210.0
       }
     }
   ]

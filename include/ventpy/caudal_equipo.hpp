@@ -5,8 +5,10 @@
  * El cálculo considera múltiples factores:
  *
  * 1. FACTOR HP NORMATIVO:
- *    - DS 024: mínimo 3 m³/min/HP
+ *    - DS 024: mínimo 3 m³/min/HP (Q_Eq = 3 × HP × Dm × Fu)
  *    - Ajustable a 4-5 m³/min/HP según estándar corporativo
+ *    - La corrección volumétrica por altitud (criterio de ingeniería) solo
+ *      puede subir el factor, nunca bajarlo del valor de la norma
  *
  * 2. DE-RATING POR ALTITUD:
  *    - Motores diésel pierden potencia a mayor altitud
@@ -15,16 +17,18 @@
  *
  * 3. EMISIONES POR CONTAMINANTE:
  *    - Cálculo de CO, NOx, PM según tier del motor
- *    - Q necesario para diluir cada gas a su TLV
+ *    - Q necesario para diluir cada gas a su límite de 8 h (TWA) de la norma
+ *      configurada (`dilution_target_ppm`); el NOx se lleva a NO2
  *    - Considera DPF/DOC si están instalados
  *
  * 4. FACTOR DE SIMULTANEIDAD:
- *    - No todos los equipos operan al 100% simultáneamente
- *    - Factor típico: 0.7-0.9
+ *    - Ninguna norma implementada lo prevé: con el DS 024, Dm × Fu ya es la
+ *      simultaneidad. Por defecto 1,0; un valor menor deja Q_Eq bajo la norma
+ *      y el Governor lo advierte
  *
  * Referencias normativas (Perú, preset por defecto):
- * - DS 024-2016-EM, Art. 246: 3 m³/min/HP mínimo
- * - DS 024-2016-EM, Art. 108: TLV CO=25ppm, NO2=5ppm
+ * - DS 024-2016-EM, Art. 252 lit. e y Anexo 38 num. 1 lit. d: 3 m³/min/HP
+ * - DS 024-2016-EM, Art. 110 + Anexo 15: TWA CO = 25 ppm, NO2 = 3 ppm
  *
  * La cita emitida en `regulation_ref` sigue a `config.standard()` a través de
  * `regulation_reference` (normativa.hpp): bajo el DS 132 chileno el factor por
@@ -43,6 +47,7 @@
 #include <vector>
 
 #include "ventpy/atmosphere.hpp"
+#include "ventpy/limites_gases.hpp"
 #include "ventpy/normativa.hpp"
 #include "ventpy/types.hpp"
 #include "ventpy/validation.hpp"
@@ -134,7 +139,8 @@ public:
      *
      * @param fleet Flota de equipos diésel
      * @param atm Parámetros atmosféricos (para de-rating)
-     * @param simultaneity_factor Factor de simultaneidad [0-1], default 0.85
+     * @param simultaneity_factor Factor de simultaneidad [0-1]; 1,0 respeta la
+     *        norma (un valor menor deja Q_Eq bajo el mínimo legal)
      * @param config Configuración normativa
      * @return Resultado detallado con desglose por contaminante
      */
@@ -166,10 +172,15 @@ public:
             atm.altitude_masl, true);  // Asumir turbo por defecto
         result.altitude_derate_factor = derate;
 
-        // Factor de corrección volumétrica (más aire necesario a altitud)
+        // Factor de corrección volumétrica (más aire necesario a altitud).
+        // Al nivel del mar el ISA da 0,99999: el factor de la norma no se
+        // reduce nunca, la corrección solo lo sube.
         double volume_correction = AtmosphereCalculator::calculate_volume_correction_factor(
             atm.altitude_masl);
-        result.hp_factor_corrected = result.hp_factor_base * volume_correction;
+        result.hp_factor_corrected =
+            result.hp_factor_base * std::max(1.0, volume_correction);
+        result.target_co_ppm = dilution_target_ppm(config.standard(), GasType::CO);
+        result.target_nox_ppm = dilution_target_ppm(config.standard(), GasType::NO2);
 
         // Procesar cada equipo
         for (const auto& eq_ptr : fleet.equipment()) {
@@ -200,21 +211,21 @@ public:
 
         // --- Calcular Q por diferentes criterios ---
 
-        // 1. Q por factor HP normativo (Art. 246)
+        // 1. Q por factor HP normativo (Perú: Anexo 38, Q_Eq = 3 × HP × Dm × Fu)
         double q_hp_method = result.total_effective_hp * result.hp_factor_corrected *
                              simultaneity_factor;
 
-        // 2. Q para diluir CO a TLV (25 ppm)
+        // 2. Q para diluir CO a su TWA de la norma
         result.q_for_co_dilution = calculate_q_for_gas_dilution(
             result.co_emission_total_g_min,
-            constants::TLV_CO_PPM,
+            result.target_co_ppm,
             28.01  // Peso molecular CO
         ) * volume_correction;
 
-        // 3. Q para diluir NOx a TLV (5 ppm como NO2)
+        // 3. Q para diluir NOx (como NO2) a su TWA de la norma
         result.q_for_nox_dilution = calculate_q_for_gas_dilution(
             result.nox_emission_total_g_min,
-            constants::TLV_NO2_PPM,
+            result.target_nox_ppm,
             46.01  // Peso molecular NO2
         ) * volume_correction;
 
@@ -390,7 +401,8 @@ private:
             << " (Factor: " << config.diesel_hp_factor() << " m3/min/HP)";
 
         if (altitude > 1000.0) {
-            oss << " + Correccion altitud " << static_cast<int>(altitude) << " msnm";
+            oss << " + correccion por altitud a " << static_cast<int>(altitude)
+                << " msnm (criterio de ingenieria)";
         }
 
         // Indicar criterio gobernante

@@ -13,6 +13,7 @@
 
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/optional.h>
+#include <nanobind/stl/pair.h>
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
@@ -177,7 +178,7 @@ NB_MODULE(_ventpy_core, m) {
 
     nb::class_<DieselEquipment>(m, "DieselEquipment",
         "Informacion de un equipo diesel individual.\n"
-        "DS 024-2016-EM, Art. 246.")
+        "DS 024-2016-EM, Art. 252 lit. e y Anexo 38 num. 1 lit. d.")
         .def(nb::init<>())
         .def_rw("name", &DieselEquipment::name,
                 "Identificador del equipo")
@@ -210,7 +211,9 @@ NB_MODULE(_ventpy_core, m) {
 
     nb::class_<BlastingParams>(m, "BlastingParams",
         "Parametros para calculo de caudal por explosivos.\n"
-        "DS 024-2016-EM, Art. 243-244.")
+        "Objetivos de dilucion en 0 = limite de 8 h (TWA) de la norma\n"
+        "configurada. El tiempo de dilucion es criterio de ingenieria\n"
+        "(en Peru el reingreso lo rige el DS 024-2016-EM, Art. 240).")
         .def(nb::init<>())
         .def_rw("explosive_kg", &BlastingParams::explosive_kg,
                 "Cantidad de explosivo por voladura [kg]")
@@ -233,11 +236,13 @@ NB_MODULE(_ventpy_core, m) {
                 "Niveles en voladura (N del DS 024-2016-EM, Anexo 38);\n"
                 "solo cuenta en el total de mina")
         .def_rw("target_co_ppm", &BlastingParams::target_co_ppm,
-                "Limite CO objetivo [ppm] (DS024: 25 ppm)")
+                "Objetivo CO [ppm]; 0 = TWA de la norma (Peru 25, Chile 44)")
         .def_rw("target_nox_ppm", &BlastingParams::target_nox_ppm,
-                "Limite NOx objetivo [ppm] (DS024: 5 ppm)")
+                "Objetivo NOx como NO2 [ppm]; 0 = TWA de la norma\n"
+                "(Peru 3, Chile 2.6, Colombia y Mexico 0.2)")
         .def_rw("min_velocity_mps", &BlastingParams::min_velocity_mps,
-                "Velocidad minima en el frente [m/s]");
+                "Velocidad minima de barrido [m/s] (criterio de ingenieria);\n"
+                "nunca se usa menos que la minima de la norma");
 
     nb::class_<DuctParams>(m, "DuctParams",
         "Parametros del sistema de ductos.")
@@ -259,14 +264,21 @@ NB_MODULE(_ventpy_core, m) {
 
     nb::class_<DustParams>(m, "DustParams",
         "Parametros para calculo de dilucion de polvo.\n"
-        "DS 024-2016-EM, Art. 111 (LEO 3 mg/m3).")
+        "target_concentration_mg_m3 = 0 usa el limite de la norma: Peru 3\n"
+        "mg/m3 (DS 024-2016-EM, Art. 111); Chile 2.4 mg/m3 x Fa (DS 594,\n"
+        "Arts. 63 y 66); Mexico 3 mg/m3 (NOM-010-STPS-2014, fila 609);\n"
+        "Colombia 3 mg/m3 como criterio de ingenieria.")
         .def(nb::init<>())
         .def_rw("dust_generation_rate_mg_s", &DustParams::dust_generation_rate_mg_s,
                 "Tasa generacion polvo [mg/s]")
         .def_rw("silica_content_percent", &DustParams::silica_content_percent,
                 "Contenido de silice [%]")
+        .def_rw("silica_cristobalite_or_tridymite",
+                &DustParams::silica_cristobalite_or_tridymite,
+                "Silice como cristobalita o tridimita (no cuarzo); con Chile el\n"
+                "limite baja a 0.04 mg/m3 (DS 594, Art. 66)")
         .def_rw("target_concentration_mg_m3", &DustParams::target_concentration_mg_m3,
-                "Limite polvo respirable [mg/m3]")
+                "Objetivo de polvo respirable [mg/m3]; 0 = limite de la norma")
         .def_rw("face_area_m2", &DustParams::face_area_m2,
                 "Seccion para velocidad [m2]")
         .def_rw("water_suppression", &DustParams::water_suppression,
@@ -361,6 +373,10 @@ NB_MODULE(_ventpy_core, m) {
                 "Caudal para diluir NOx [m3/min]")
         .def_ro("q_for_pm_dilution", &DieselFlowResult::q_for_pm_dilution,
                 "Caudal para diluir material particulado [m3/min]")
+        .def_ro("target_co_ppm", &DieselFlowResult::target_co_ppm,
+                "Objetivo CO usado [ppm] (TWA de la norma)")
+        .def_ro("target_nox_ppm", &DieselFlowResult::target_nox_ppm,
+                "Objetivo NOx (como NO2) usado [ppm] (TWA de la norma)")
         .def_ro("q_diesel", &DieselFlowResult::q_diesel,
                 "Caudal total requerido [m3/min]")
         .def_ro("co_emission_total_g_min", &DieselFlowResult::co_emission_total_g_min,
@@ -394,6 +410,10 @@ NB_MODULE(_ventpy_core, m) {
                 "Caudal para recambio volumetrico [m3/min]")
         .def_ro("q_for_min_velocity", &BlastingFlowResult::q_for_min_velocity,
                 "Caudal para velocidad minima [m3/min]")
+        .def_ro("target_co_ppm", &BlastingFlowResult::target_co_ppm,
+                "Objetivo CO usado [ppm]")
+        .def_ro("target_nox_ppm", &BlastingFlowResult::target_nox_ppm,
+                "Objetivo NOx (como NO2) usado [ppm]")
         .def_ro("q_blasting", &BlastingFlowResult::q_blasting,
                 "Caudal gobernante [m3/min]")
         .def_ro("governing_criterion", &BlastingFlowResult::governing_criterion,
@@ -445,9 +465,9 @@ NB_MODULE(_ventpy_core, m) {
         .def_ro("resulting_velocity_mps", &DustFlowResult::resulting_velocity_mps,
                 "Velocidad resultante [m/s]")
         .def_ro("regulation_ref", &DustFlowResult::regulation_ref,
-                "Referencia normativa aplicada (DS 024-2016-EM, Art. 111)")
+                "Referencia normativa aplicada (sigue a la norma configurada)")
         .def_ro("warnings", &DustFlowResult::warnings,
-                "Advertencias de calculo (p.ej. remision al Anexo 15 por silice)");
+                "Advertencias de calculo (p.ej. remision del limite de silice)");
 
     nb::class_<ThermalFlowResult>(m, "ThermalFlowResult",
         "Resultado del calculo de carga termica.")
@@ -511,6 +531,10 @@ NB_MODULE(_ventpy_core, m) {
                 "Caudal por polvo [m3/min]")
         .def_ro("q_thermal_m3min", &VentilationDemandResult::q_thermal_m3min,
                 "Caudal por carga termica [m3/min]")
+        .def_ro("q_timber_m3min", &VentilationDemandResult::q_timber_m3min,
+                "Q_Ma = T x u [m3/min] (DS 024-2016-EM, Anexo 38 lit. b)")
+        .def_ro("q_temperature_m3min", &VentilationDemandResult::q_temperature_m3min,
+                "Q_Te = Vm x A x N [m3/min] (DS 024-2016-EM, Anexo 38 lit. c)")
         .def_ro("q_leakage_m3min", &VentilationDemandResult::q_leakage_m3min,
                 "Caudal por fugas [m3/min]")
         // Final flows
@@ -630,6 +654,9 @@ NB_MODULE(_ventpy_core, m) {
              "Preset oficial chileno - DS 132, Reglamento de Seguridad Minera.\n"
              "3.0 m3/min por persona (Art. 138, sin escalon por altitud) y\n"
              "2.83 m3/min por HP efectivo al freno (Art. 132).")
+        .def_static("chile_small_mining", &RegulatoryConfig::chile_small_mining,
+             "Preset chileno para faenas de hasta 5.000 t/mes - DS 132, Titulo XV.\n"
+             "Igual a chile() salvo 3.0 m3/min por HP (Art. 627).")
         .def_static("colombia", &RegulatoryConfig::colombia,
              "Preset oficial colombiano - Decreto 1886 de 2015.\n"
              "3.0 m3/min por trabajador hasta 1,500 msnm y 6.0 de 1,500 msnm\n"
@@ -662,12 +689,14 @@ NB_MODULE(_ventpy_core, m) {
              "Umbral de altitud, escalon 3 [msnm] (Art. 247).")
         .def_prop_ro("flow_above_threshold_3", &RegulatoryConfig::flow_above_threshold_3,
              "Caudal por persona sobre el umbral 3 [m3/min] (Art. 247: 6.0).")
+        .def_prop_ro("small_mining", &RegulatoryConfig::small_mining,
+                     "Regimen chileno de pequena mineria (DS 132, Titulo XV)")
         .def_prop_ro("diesel_hp_factor", &RegulatoryConfig::diesel_hp_factor,
-             "Factor HP x m3/min para equipos diesel (DS 024-2016-EM, Art. 246: "
+             "Factor HP x m3/min para equipos diesel (DS 024-2016-EM, Art. 252 lit. e: "
              "3.0; DS 132 Chile, Art. 132: 2.83 por HP efectivo al freno).")
         .def_prop_ro("max_dilution_time", &RegulatoryConfig::max_dilution_time,
-             "Tiempo maximo de dilucion de gases de voladura [min] "
-             "(DS 024-2016-EM, Art. 243).")
+             "Tope configurado del tiempo de dilucion de gases de voladura [min]\n"
+             "(criterio de ingenieria: ninguna norma implementada lo fija).")
         .def_prop_ro("default_gas_volume_per_kg", &RegulatoryConfig::default_gas_volume_per_kg,
              "Volumen de gases por defecto por kg de explosivo [m3/kg].")
         .def_prop_ro("default_leakage_factor", &RegulatoryConfig::default_leakage_factor,
@@ -693,8 +722,21 @@ NB_MODULE(_ventpy_core, m) {
                 "Parametros de personal (PersonnelParams)")
         .def_rw("diesel_fleet", &VentilationInput::diesel_fleet,
                 "Flota de equipos diesel (DieselFleet)")
+        .def_rw("coal_mine", &VentilationInput::coal_mine,
+                "Mina de carbon: solo cambia el maximo en tajos con el Decreto 1886\n"
+                "(Art. 56 par. 2: 4.5 m/s); las demas reglas de carbon no estan\n"
+                "implementadas y el resultado lo advierte")
         .def_rw("simultaneity_factor", &VentilationInput::simultaneity_factor,
-                "Factor de simultaneidad [0-1]")
+                "Factor de simultaneidad [0-1], por defecto 1.0. Ninguna norma lo\n"
+                "preve: con < 1.0 el Q_Eq queda bajo la norma y se advierte")
+        .def_rw("production_t_per_shift", &VentilationInput::production_t_per_shift,
+                "T de Q_Ma = T x u: produccion [t metricas humedas por guardia]\n"
+                "(DS 024-2016-EM, Anexo 38 lit. b; total de mina peruano)")
+        .def_rw("timber_consumption_pct", &VentilationInput::timber_consumption_pct,
+                "Consumo de madera [% de la produccion] que fija u en Q_Ma")
+        .def_rw("hot_levels", &VentilationInput::hot_levels,
+                "N de Q_Te = Vm x A x N: niveles con temperatura seca > 23 C\n"
+                "(DS 024-2016-EM, Anexo 38 lit. c; A = face_area_m2, Vm = 30)")
         .def_rw("blasting_params", &VentilationInput::blasting_params,
                 "Parametros de voladura (BlastingParams)")
         .def_rw("dust_params", &VentilationInput::dust_params,
@@ -774,19 +816,20 @@ NB_MODULE(_ventpy_core, m) {
     nb::class_<CoverageParams>(m, "CoverageParams",
         "Umbrales del analisis de cobertura.\n"
         "warning_margin y overventilation_factor son criterios ingenieriles\n"
-        "(no normados). Los limites de velocidad provienen del DS 024-2016-EM,\n"
-        "Art. 248 (texto original vigente).")
+        "(no normados). Limites de velocidad en 0 = los de la norma\n"
+        "configurada; un valor positivo solo puede endurecerlos\n"
+        "(ver CoverageCalculator.velocity_limits).")
         .def(nb::init<>())
         .def_rw("warning_margin", &CoverageParams::warning_margin,
                 "Advertir si cobertura < 1+margen (ingenieril)")
         .def_rw("overventilation_factor", &CoverageParams::overventilation_factor,
                 "Advertir si cobertura > factor (ingenieril)")
         .def_rw("min_velocity_mpm", &CoverageParams::min_velocity_mpm,
-                "DS 024, Art. 248: minimo 20 m/min")
+                "Velocidad minima [m/min]; 0 = la de la norma")
         .def_rw("max_velocity_mpm", &CoverageParams::max_velocity_mpm,
-                "DS 024, Art. 248: maximo 250 m/min")
+                "Velocidad maxima [m/min]; 0 = la de la norma")
         .def_rw("anfo_or_blasting_agents", &CoverageParams::anfo_or_blasting_agents,
-                "Art. 248: con ANFO el minimo es 25 m/min");
+                "Peru, DS 024-2016-EM, Art. 248: con ANFO el minimo es 25 m/min");
 
     nb::class_<ZoneSurvey>(m, "ZoneSurvey",
         "Zona del levantamiento: demanda (entrada del Governor) + medicion.\n"
@@ -811,11 +854,11 @@ NB_MODULE(_ventpy_core, m) {
         .def_ro("velocity_mps", &StationResult::velocity_mps,
                 "Velocidad medida [m/s]")
         .def_ro("velocity_mpm", &StationResult::velocity_mpm,
-                "Velocidad medida [m/min] (= velocity_mps x 60, Art. 248)")
+                "Velocidad medida [m/min] (= velocity_mps x 60)")
         .def_ro("q_station_m3min", &StationResult::q_station_m3min,
                 "Caudal de la estacion [m3/min] (= area x velocity_mps x 60, crudo)")
         .def_ro("velocity_ok", &StationResult::velocity_ok,
-                "Indica si esta dentro del rango [minimo efectivo, maximo] del Art. 248")
+                "Indica si esta dentro de los limites efectivos de la norma")
         .def_ro("warning", &StationResult::warning,
                 "Advertencia de la estacion (vacia si velocity_ok)");
 
@@ -885,7 +928,13 @@ NB_MODULE(_ventpy_core, m) {
              "Cumplimiento estricto (safety-first): compliant exige cobertura\n"
              "global (Art. 252.f) Y todas las zonas cubiertas (Art. 252.g).\n"
              "Lanza ValueError si el levantamiento esta vacio, hay nombres de\n"
-             "zona duplicados o alguna zona es GeneralMine.");
+             "zona duplicados o alguna zona es GeneralMine.")
+        .def_static("velocity_limits", &CoverageCalculator::velocity_limits,
+             nb::arg("params") = CoverageParams{},
+             nb::arg("config") = RegulatoryConfig::peru(),
+             "Limites de velocidad efectivos [m/min]: (minimo, maximo).\n"
+             "Parten de la norma de config; params solo los endurece. Sin\n"
+             "maximo en la norma ni en params, el maximo es inf.");
 
     // ========================================================================
     // Red de ventilacion: enums de Atkinson
@@ -1364,7 +1413,7 @@ NB_MODULE(_ventpy_core, m) {
           &AtmosphereCalculator::calculate_o2_partial_pressure_kpa,
           nb::arg("altitude_masl"),
           "Calcula presion parcial de O2 [kPa].\n"
-          "DS 024-2016-EM, Art. 236: Minimo 19.5% O2.");
+          "DS 024-2016-EM, Art. 246 lit. b: Minimo 19.5% O2.");
 
     m.def("calculate_diesel_derate_factor",
           &AtmosphereCalculator::calculate_diesel_derate_factor,
@@ -1408,13 +1457,16 @@ NB_MODULE(_ventpy_core, m) {
           "configurada.");
 
     m.def("calculate_dust_flow",
-          [](const DustParams& p, const RegulatoryConfig& c) {
-              return DustFlowCalculator::calculate(p, c);
+          [](const DustParams& p, const RegulatoryConfig& c,
+             const AtmosphericParams& atm) {
+              return DustFlowCalculator::calculate(p, c, atm);
           },
           nb::arg("params"), nb::arg("config"),
+          nb::arg("atm") = AtmosphericParams{},
           "Calcula Q_polvo (caudal por dilucion de polvo respirable).\n"
-          "DS 024-2016-EM, Art. 111 (LEO 3 mg/m3, 8 h; la silice remite\n"
-          "al Anexo 15 / DS 015-2005-SA, no cuantificado aqui).");
+          "Con target_concentration_mg_m3 = 0 usa el limite de la norma\n"
+          "(Chile: 2.4 mg/m3 x Fa sobre 1.000 msnm, segun atm). La silice\n"
+          "solo se remite a su limite propio, no se cuantifica aqui.");
 
     m.def("calculate_thermal_flow",
           [](const ThermalParams& p, const AtmosphericParams& atm,
@@ -1504,5 +1556,32 @@ NB_MODULE(_ventpy_core, m) {
 
     m.def("get_min_velocity", &get_min_velocity,
           nb::arg("zone_type"),
-          "Obtiene velocidad minima requerida segun tipo de zona [m/s].");
+          nb::arg("standard") = RegulatoryStandard::DS024_Peru,
+          nb::arg("diesel") = false,
+          nb::arg("blasting_agents") = false,
+          "Velocidad minima para dimensionar una labor [m/s]: el mayor entre\n"
+          "el valor de ingenieria por tipo de labor y la minima de la norma\n"
+          "(Peru 20 m/min, 25 con ANFO; Chile 15; Mexico 15.24 con diesel).");
+
+    m.def("min_air_velocity_mpm", &min_air_velocity_mpm,
+          nb::arg("standard"), nb::arg("diesel") = false,
+          nb::arg("blasting_agents") = false,
+          "Velocidad minima del aire que fija la norma [m/min], o None si\n"
+          "no la fija en esas condiciones.");
+
+    m.def("max_air_velocity_mpm", &max_air_velocity_mpm,
+          nb::arg("standard"), nb::arg("coal_stope") = false,
+          "Velocidad maxima del aire en labores con personal [m/min], o\n"
+          "None si la norma no la fija. coal_stope: tajo de carbon (Colombia,\n"
+          "Art. 56 par. 2: 270 m/min).");
+
+    m.def("timber_production_factor", &timber_production_factor,
+          nb::arg("timber_pct"),
+          "Factor u de Q_Ma = T x u segun el consumo de madera [%]\n"
+          "(DS 024-2016-EM, Anexo 38 lit. b).");
+
+    m.def("dilution_target_ppm", &dilution_target_ppm,
+          nb::arg("standard"), nb::arg("gas"),
+          "Objetivo de dilucion de un gas [ppm]: su limite de 8 h (TWA) en\n"
+          "la norma; sin TWA, el mas estricto entre STEL y techo.");
 }

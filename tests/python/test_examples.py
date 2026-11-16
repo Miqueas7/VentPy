@@ -64,7 +64,7 @@ class TestCliReproduceReadmeNumbers:
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
-        assert data["q_total_m3min"] == 981.0
+        assert data["q_total_m3min"] == 1923.0
         assert data["governing_factor"] == "diesel (Q_Eq)"
         assert data["velocity_ok"] is True
 
@@ -76,7 +76,7 @@ class TestCliReproduceReadmeNumbers:
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
         assert data["standard"] == "DS132_Chile"
-        assert data["q_total_m3min"] == 981.0
+        assert data["q_total_m3min"] == 2219.0
         assert data["governing_factor"] == "diesel (Q_Eq)"
 
     def test_03_cobertura_levantamiento_exit2_intencional(self, capsys):
@@ -92,7 +92,7 @@ class TestCliReproduceReadmeNumbers:
         assert data["all_zones_compliant"] is False
         assert data["compliant"] is False
         assert data["zones"][1]["zone_name"] == "Frente N-02"
-        assert data["zones"][1]["deficit_m3min"] == 57.0
+        assert data["zones"][1]["deficit_m3min"] == 66.0
 
     def test_04_red_ventilador(self, capsys):
         archivo = str(EXAMPLES_DIR / "04-red-ventilador" / "input.json")

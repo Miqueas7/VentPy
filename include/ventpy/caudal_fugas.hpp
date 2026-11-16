@@ -27,9 +27,12 @@
  *    - Mayor presión = mayores fugas
  *    - Sistemas de alta presión requieren ductos mejores
  *
- * Referencias normativas:
- * - DS 024-2016-EM, Art. 252: Mangas en buenas condiciones
- * - DS 024-2016-EM, Art. 252: Máximo 15m del frente
+ * Referencias normativas (Perú):
+ * - DS 024-2016-EM, Anexo 38 num. 1 lit. e: Q_Fu = 15 % de Q_T1 en el total
+ *   de mina (el factor por defecto de 0,15). En ductos de frente el modelo
+ *   de fugas es criterio de ingeniería.
+ * - DS 024-2016-EM, Art. 246 lit. f: mangas a no más de 15 m del frente de
+ *   disparo (no se verifica aquí)
  *
  * Modelo: McPherson (Subsurface Ventilation Engineering)
  *
