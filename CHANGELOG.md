@@ -314,6 +314,9 @@ eligen.
 - `pyproject.toml` declara los clasificadores de Python 3.9, 3.10, 3.11, 3.12 y 3.13, las
   mismas versiones para las que `cibuildwheel` ya compila ruedas. Así PyPI las muestra en la
   ficha del paquete. No cambia el código.
+- Ya no se publican ruedas para Linux de 32 bits (`manylinux_i686`): su contenedor de
+  compilación no logra instalar `scikit-build-core`. En esa plataforma `pip` compila desde
+  el código fuente publicado.
 
 ### Normas de Colombia y México
 
